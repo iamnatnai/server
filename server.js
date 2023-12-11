@@ -32,7 +32,11 @@ app.post('/checkinguser', (req, res) => {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
-      res.send({ exist: result.length > 0 });
+      if (result.length > 0) {
+        res.send({ email: result[0].member_email , exist: true });
+      } else {
+        res.send({ username: username , exist: false });
+      }
     }
   });
 });
@@ -45,7 +49,11 @@ app.post('/checkingemail', (req, res) => {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
-      res.send({ exist: result.length > 0 });
+      if (result.length > 0) {
+        res.send({ username: result[0].member_username , exist: true });
+      } else {
+        res.send({ email: email ,exist: false });
+      }
     }
   });
 });
