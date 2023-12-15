@@ -33,7 +33,7 @@ app.post('/checkinguser', (req, res) => {
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
       if (result.length > 0) {
-        res.send({ email: result[0].member_email , exist: false });
+        res.send({ username: result[0].member_username , exist: false });
       } else {
         res.send({ username: username , exist: true });
       }
@@ -50,7 +50,7 @@ app.post('/checkingemail', (req, res) => {
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
       if (result.length > 0) {
-        res.send({ username: result[0].member_username , exist: false });
+        res.send({ email: result[0].member_email , exist: false });
       } else {
         res.send({ email: email ,exist: true });
       }
