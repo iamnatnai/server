@@ -33,9 +33,9 @@ app.post('/checkinguser', (req, res) => {
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
       if (result.length > 0) {
-        res.send({ username: result[0].member_username , exist: false });
+        res.send({ username: result[0].member_username , same: false });
       } else {
-        res.send({ username: username , exist: true });
+        res.send({ username: username , same: true });
       }
     }
   });
@@ -47,10 +47,10 @@ app.post('/checkingemail', (req, res) => {
   db.query("SELECT * FROM members WHERE member_email = ?", [email], (err, result) => {
     if (err) {
       console.log(err);
-      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      res.status(500).send({ same: false, error: 'Internal Server Error' });
     } else {
       if (result.length > 0) {
-        res.send({ email: result[0].member_email , exist: false });
+        res.send({ email: result[0].member_email , same: false });
       } else {
         res.send({ email: email ,exist: true });
       }
