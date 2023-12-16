@@ -64,35 +64,57 @@ app.post('/register', (req, res) => {
   if (!username || !email || !password || !firstName || !lastName || !tel) {
     return res.status(400).send({ exist: false, error: 'Missing required fields' });
   }
-  db.query('SELECT MAX(member_id) as maxId FROM members', (err, result) => {
+
+  db.query('SELECT * FROM members WHERE member_username = ?', [username], (err, result) => {
     if (err) {
       console.log(err);
       return res.status(500).send({ exist: false, error: 'Internal Server Error' });
     }
 
-    let nextId = 'MEM001'; 
-    if (result[0].maxId) {
-      const currentId = result[0].maxId;
-      const numericPart = parseInt(currentId.substring(3), 10) + 1;
-      nextId = 'MEM' + numericPart.toString().padStart(3, '0');
-    }
     if (result.length > 0) {
-      return res.status(409).send({ exist: false, error: 'Username or email already exists' });
+      return res.status(409).send({ exist: false, error: 'Username already exists' });
     }
-
-    db.query(
-      'INSERT INTO members (member_id, member_username, member_email, member_password, member_name, member_phone, member_follows) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [nextId, username, email, password, firstName + ' ' + lastName, tel, null],
-      (err, result) => {
-        if (err) {
-          console.log(err);
-          return res.status(500).send({ exist: false, error: 'Internal Server Error' });
-        }
-        res.status(201).send({ exist: true });
+    db.query('SELECT * FROM members WHERE member_email = ?', [email], (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.status(500).send({ exist: false, error: 'Internal Server Error' });
       }
-    );
+
+      if (result.length > 0) {
+        return res.status(409).send({ exist: false, error: 'Email already exists' });
+      }
+      db.query(
+        'SELECT MAX(member_id) as maxId FROM members',
+        (err, result) => {
+          if (err) {
+            console.log(err);
+            return res.status(500).send({ exist: false, error: 'Internal Server Error' });
+          }
+
+          let nextId = 'MEM001';
+          if (result[0].maxId) {
+            const currentId = result[0].maxId;
+            const numericPart = parseInt(currentId.substring(3), 10) + 1;
+            nextId = 'MEM' + numericPart.toString().padStart(3, '0');
+          }
+
+          db.query(
+            'INSERT INTO members (member_id, member_username, member_email, member_password, member_name, member_phone, member_follows) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [nextId, username, email, password, firstName + ' ' + lastName, tel, null],
+            (err, result) => {
+              if (err) {
+                console.log(err);
+                return res.status(500).send({ exist: false, error: 'Internal Server Error' });
+              }
+              res.status(201).send({ exist: true });
+            }
+          );
+        }
+      );
+    });
   });
 });
+
 
 
 app.listen(3001, () => console.log('Avalable 3001'));
