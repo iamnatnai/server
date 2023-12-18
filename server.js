@@ -174,5 +174,25 @@ async function getUserByUsername(username) {
     });
   });
 }
+app.get('/categories', (req, res) => {
+  db.query("SELECT * FROM categories", (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
+app.get('/producttypes', (req, res) => {
+  db.query("SELECT * FROM product_types", (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
 
 app.listen(3001, () => console.log('Avalable 3001'));
