@@ -194,5 +194,14 @@ app.get('/producttypes', (req, res) => {
     }
   });
 });
-
+app.get('/standardproducts', (req, res) => {
+  db.query("SELECT * FROM standard_products", (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
 app.listen(3001, () => console.log('Avalable 3001'));
