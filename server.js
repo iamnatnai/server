@@ -4,6 +4,7 @@ const mysql = require('mysql');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const app = express();
+const nodemailer = require('nodemailer');
 const port = 3000;
 
 app.use(cors());
@@ -124,8 +125,8 @@ async function getNextId() {
 async function insertMember(memberId, username, email, password, firstName, lastName, tel) {
   return new Promise((resolve, reject) => {
     db.query(
-      'INSERT INTO members (member_id, member_username, member_email, member_password, member_name, member_phone, member_follows) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [memberId, username, email, password, firstName + ' ' + lastName, tel, null],
+      'INSERT INTO members (member_id, member_username, member_email, member_password, member_FirstName, member_LastName, member_phone, member_follows) VALUES (?, ?, ?, ?, ?, ?, ?,?)',
+      [memberId, username, email, password, firstName , lastName, tel, null],
       (err, result) => {
         if (err) {
           reject(err);
@@ -204,4 +205,102 @@ app.get('/standardproducts', (req, res) => {
     }
   });
 });
+
+
+function checkIfEmailAndNameMatch(email, firstName, lastName) {
+  return new Promise((resolve, reject) => {
+    const query = 'SELECT * FROM members WHERE member_email = ? AND member_FirstName = ? AND member_LastName = ?';
+    db.query(query, [email, firstName, lastName], (err, result) => {
+      if (err) {
+        console.error('Error checking email and name in database:', err);
+        reject(err);
+      } else {
+        // ถ้ามีข้อมูลที่ตรงกัน
+        if (result.length > 0) {
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      }
+    });
+  });
+}
+
+app.post('/forgot', async (req, res) => {
+  const { email, firstName, lastName } = req.body;
+
+  try {
+    // ตรวจสอบว่าอีเมล, ชื่อ, และนามสกุลตรงกันหรือไม่
+    const isMatch = await checkIfEmailAndNameMatch(email, firstName, lastName);
+
+    if (isMatch) {
+      // สร้างรหัสผ่านใหม่
+      const newPassword = generateRandomPassword();
+
+      // ส่งรหัสผ่านใหม่ไปยังอีเมล
+      sendNewPasswordByEmail(email, newPassword);
+
+      // อัพเดตรหัสผ่านใหม่ในฐานข้อมูล
+      updatePasswordInDatabase(email, newPassword);
+
+      res.json({ name: 'true' });
+    } else {
+      res.json({ name: 'false' });
+    }
+  } catch (error) {
+    console.error('Error in forgot endpoint:', error);
+    res.status(500).json({ name: 'false' });
+  }
+});
+
+function generateRandomPassword() {
+  // สร้างรหัสผ่านที่สุ่มขึ้น
+  // ในที่นี้, จะสร้างรหัสผ่านที่ประกอบด้วยตัวอักษรและตัวเลข
+  const length = 10;
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let newPassword = '';
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * charset.length);
+    newPassword += charset[randomIndex];
+  }
+  return newPassword;
+}
+
+function sendNewPasswordByEmail(email, newPassword) {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'thebestkasetnont@gmail.com',
+      pass: 'Thebest2566',
+    },
+  });
+
+  const mailOptions = {
+    from: 'thebestkasetnont@gmail.com',
+    to: email,
+    subject: 'Your New Password',
+    text: `Your new password is: ${newPassword}`,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Error sending email:', error);
+    } else {
+      console.log('Email sent:', info.response);
+    }
+  });
+}
+
+function updatePasswordInDatabase(email, newPassword) {
+  // อัพเดตรหัสผ่านใหม่ในฐานข้อมูล
+  // ทำตามวิธีการเชื่อมต่อฐานข้อมูลของคุณ
+  // ยกตัวอย่างเช่น MySQL query: UPDATE users SET password = ? WHERE email = ?
+  db.query('UPDATE members SET member_password = ? WHERE member_email = ?', [newPassword, email], (err, result) => {
+   if (err) {
+  console.error('Error updating password in database:', err);
+    } else {
+      console.log('Password updated in database');
+    }
+  });
+}
 app.listen(3001, () => console.log('Avalable 3001'));
