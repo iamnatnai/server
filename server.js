@@ -230,17 +230,14 @@ app.post('/forgot', async (req, res) => {
   const { email, firstName, lastName } = req.body;
 
   try {
-    // ตรวจสอบว่าอีเมล, ชื่อ, และนามสกุลตรงกันหรือไม่
     const isMatch = await checkIfEmailAndNameMatch(email, firstName, lastName);
 
     if (isMatch) {
-      // สร้างรหัสผ่านใหม่
       const newPassword = generateRandomPassword();
 
-      // ส่งรหัสผ่านใหม่ไปยังอีเมล
       sendNewPasswordByEmail(email, newPassword);
 
-      // อัพเดตรหัสผ่านใหม่ในฐานข้อมูล
+
       updatePasswordInDatabase(email, newPassword);
 
       res.json({ name: 'true' });
@@ -254,8 +251,7 @@ app.post('/forgot', async (req, res) => {
 });
 
 function generateRandomPassword() {
-  // สร้างรหัสผ่านที่สุ่มขึ้น
-  // ในที่นี้, จะสร้างรหัสผ่านที่ประกอบด้วยตัวอักษรและตัวเลข
+
   const length = 10;
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let newPassword = '';
@@ -292,9 +288,7 @@ function sendNewPasswordByEmail(email, newPassword) {
 }
 
 function updatePasswordInDatabase(email, newPassword) {
-  // อัพเดตรหัสผ่านใหม่ในฐานข้อมูล
-  // ทำตามวิธีการเชื่อมต่อฐานข้อมูลของคุณ
-  // ยกตัวอย่างเช่น MySQL query: UPDATE users SET password = ? WHERE email = ?
+
   db.query('UPDATE members SET member_password = ? WHERE member_email = ?', [newPassword, email], (err, result) => {
    if (err) {
   console.error('Error updating password in database:', err);
