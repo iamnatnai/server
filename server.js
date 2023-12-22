@@ -267,7 +267,7 @@ function sendNewPasswordByEmail(email, newPassword) {
     service: 'gmail',
     auth: {
       user: 'thebestkasetnont@gmail.com',
-      pass: 'Thebest2566',
+      pass: 'ggtf brgm brip mqvq',
     },
   });
 
