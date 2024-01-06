@@ -15,11 +15,8 @@ const port = 3000;
 const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
-const payload = { username: 'example' };
-const secretKey = 'your_secret_key';
-const token = jwt.sign(payload, secretKey);
+const secretKey = 'sohot';
 
-console.log(token);
 app.use(cors());
 app.use(express.json());
 
@@ -139,7 +136,7 @@ async function insertMember(memberId, username, email, password, firstName, last
   return new Promise((resolve, reject) => {
     db.query(
       'INSERT INTO members (member_id, member_username, member_email, member_password, member_FirstName, member_LastName, member_phone, member_follows) VALUES (?, ?, ?, ?, ?, ?, ?,?)',
-      [memberId, username, email, password, firstName , lastName, tel, null],
+      [memberId, username, email, password, firstName, lastName, tel, null],
       (err, result) => {
         if (err) {
           reject(err);
@@ -164,20 +161,16 @@ const jwtAuth = new JwtStrategy(jwtOptions, async (payload, done) => {
       return done(null, false);
     }
 
-    // Add password verification here
     const passwordMatch = await bcrypt.compare(payload.password, user.member_password);
 
     if (!passwordMatch) {
       return done(null, false);
     }
-
-    // If both username and password are valid
     return done(null, user);
   } catch (error) {
     return done(error, false);
   }
 });
-
 passport.use(jwtAuth);
 
 app.post('/login', async (req, res) => {
@@ -200,15 +193,17 @@ app.post('/login', async (req, res) => {
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
 
-    const token = jwt.sign({ username: user.member_username, role: user.role }, 'your-secret-key', {
-      expiresIn: '1h', // Token expiration time
+    const token = jwt.sign({ username: user.member_username, role: user.role }, 'sohot', {
+      expiresIn: '1h', 
     });
+
+    console.log('Generated token:', token);  
 
     res.status(200).send({
       status: true,
       memberId: user.member_id,
       username: user.member_username,
-      role:user.role,
+      role: user.role,
       token: token,
     });
   } catch (error) {
@@ -216,6 +211,27 @@ app.post('/login', async (req, res) => {
     res.status(500).send({ status: false, error: 'Internal Server Error' });
   }
 });
+
+app.post('/decodeX', async (req, res,descode) => {
+  const token = req.headers.authorization;
+
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+
+  const secretKey = 'sohot';
+
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    console.log('Decoded token:', decoded);
+    // res.json(decoded);
+    descode()
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 // app.post('/login', async (req, res) => {
 //   const { username, password } = req.body;
@@ -370,8 +386,8 @@ function sendNewPasswordByEmail(email, newPassword) {
 function updatePasswordInDatabase(email, newPassword) {
 
   db.query('UPDATE members SET member_password = ? WHERE member_email = ?', [newPassword, email], (err, result) => {
-   if (err) {
-  console.error('Error updating password in database:', err);
+    if (err) {
+      console.error('Error updating password in database:', err);
     } else {
       console.log('Password updated in database');
     }
@@ -419,6 +435,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     additionalImages,
     description,
     standardName,
+    
     standardNumber,
     certification,
     selectedDate,
