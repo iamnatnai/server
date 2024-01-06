@@ -3,10 +3,23 @@ const bodyParser = require('body-parser');
 const mysql = require('mysql');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+const passport = require("passport");
+
+
 const app = express();
 const nodemailer = require('nodemailer');
+const multer = require('multer'); // ใช้สำหรับจัดการ multipart/form-data (การอัปโหลดไฟล์)
+const path = require('path');
+const fs = require('fs');
 const port = 3000;
+const ExtractJwt = require("passport-jwt").ExtractJwt;
+const JwtStrategy = require("passport-jwt").Strategy;
+const jwt = require('jsonwebtoken');
+const payload = { username: 'example' };
+const secretKey = 'your_secret_key';
+const token = jwt.sign(payload, secretKey);
 
+console.log(token);
 app.use(cors());
 app.use(express.json());
 
@@ -137,6 +150,36 @@ async function insertMember(memberId, username, email, password, firstName, last
     );
   });
 }
+
+const jwtOptions = {
+  jwtFromRequest: ExtractJwt.fromHeader("authorization"),
+  secretOrKey: secretKey,
+};
+
+const jwtAuth = new JwtStrategy(jwtOptions, async (payload, done) => {
+  try {
+    const user = await getUserByUsername(payload.sub);
+
+    if (!user) {
+      return done(null, false);
+    }
+
+    // Add password verification here
+    const passwordMatch = await bcrypt.compare(payload.password, user.member_password);
+
+    if (!passwordMatch) {
+      return done(null, false);
+    }
+
+    // If both username and password are valid
+    return done(null, user);
+  } catch (error) {
+    return done(error, false);
+  }
+});
+
+passport.use(jwtAuth);
+
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
@@ -151,18 +194,55 @@ app.post('/login', async (req, res) => {
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
 
-    const passwordMatch = await bcrypt.compareSync(password, user.member_password);
+    const passwordMatch = await bcrypt.compare(password, user.member_password);
 
     if (!passwordMatch) {
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
 
-    res.status(200).send({ status: true, memberId: user.member_id, username: user.member_username });
+    const token = jwt.sign({ username: user.member_username, role: user.role }, 'your-secret-key', {
+      expiresIn: '1h', // Token expiration time
+    });
+
+    res.status(200).send({
+      status: true,
+      memberId: user.member_id,
+      username: user.member_username,
+      role:user.role,
+      token: token,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send({ status: false, error: 'Internal Server Error' });
   }
 });
+
+// app.post('/login', async (req, res) => {
+//   const { username, password } = req.body;
+
+//   if (!username || !password) {
+//     return res.status(400).send({ status: false, error: 'Missing required fields' });
+//   }
+
+//   try {
+//     const user = await getUserByUsername(username);
+
+//     if (!user) {
+//       return res.status(401).send({ status: false, error: 'Invalid username or password' });
+//     }
+
+//     const passwordMatch = await bcrypt.compareSync(password, user.member_password);
+
+//     if (!passwordMatch) {
+//       return res.status(401).send({ status: false, error: 'Invalid username or password' });
+//     }
+
+//     res.status(200).send({ status: true, memberId: user.member_id, username: user.member_username });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send({ status: false, error: 'Internal Server Error' });
+//   }
+// });
 
 async function getUserByUsername(username) {
   return new Promise((resolve, reject) => {
@@ -297,4 +377,86 @@ function updatePasswordInDatabase(email, newPassword) {
     }
   });
 }
+
+app.get('/standardproducts', (req, res) => {
+  db.query("SELECT * FROM standard_products", (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = './uploads';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // สร้างชื่อไฟล์ใหม่โดยเพิ่มตัวเลขหลังชื่อไฟล์ในกรณีที่มีชื่อไฟล์ซ้ำ
+    const originalname = file.originalname.split('.')[0];
+    const extension = file.originalname.split('.')[1];
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
+  },
+});
+
+const upload = multer({ storage: storage });
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
+  const {
+    productName,
+    categoryName,
+    productImage,
+    productVideo,
+    additionalImages,
+    description,
+    standardName,
+    standardNumber,
+    certification,
+    selectedDate,
+    selectedType,
+    selectedTypeDescription,
+  } = req.body;
+
+  try {
+    // 1. บันทึก productImage ลงในเซิร์ฟเวอร์หรือฐานข้อมูล
+    const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
+    const query = `
+      INSERT INTO products (farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    `;
+
+    // Execute the query with the corresponding values
+    await db.query(query, [farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
+
+    // 3. บันทึกที่อยู่ของไฟล์ additionalImages หากมี
+    if (additionalImages && additionalImages.length > 0) {
+      // สร้างอาร์เรย์เพื่อเก็บที่อยู่ของไฟล์ additionalImages
+      const additionalImagesPaths = [];
+
+      // วนลูปเพื่อประมวลผลทุกไฟล์ additionalImages
+      for (const file of req.files['additionalImages']) {
+        const filePath = `./uploads/${file.filename}`;
+        additionalImagesPaths.push(filePath);
+
+        // ตัวอย่าง: บันทึกที่อยู่ไฟล์ลงในฐานข้อมูลสำหรับทุกไฟล์ additionalImages
+        // await insertAdditionalImageToDatabase(filePath);
+      }
+    }
+
+    res.status(200).send({ success: true, message: 'เพิ่มผลผลิตเรียบร้อยแล้ว' });
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).send({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 app.listen(3001, () => console.log('Avalable 3001'));
