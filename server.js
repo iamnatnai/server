@@ -37,7 +37,7 @@ db.connect((err) => {
   if (err) {
     console.error('เกิดข้อผิดพลาดในการเชื่อมต่อกับ MySQL:', err);
   } else {
-    console.log('Connencted');
+    console.log('Connencted \n -----------------------------------------');
   }
 });
 
@@ -167,7 +167,7 @@ const jwtAuth = new JwtStrategy(jwtOptions, async (payload, done) => {
       return done(null, false);
     }
 
-    const passwordMatch = await bcrypt.compare(payload.password, user.member_password);
+    const passwordMatch = await bcrypt.compare(payload.password, user.pazz);
 
     if (!passwordMatch) {
       return done(null, false);
@@ -192,17 +192,18 @@ app.post('/login', async (req, res) => {
     if (!user) {
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
-
+console.log('User:',user.uze_name);
 console.log('Password:', password);
-console.log('User Password:', user.pazz);
+console.log('Hash Password:', user.pazz);
 console.log('role:', user.role);
+console.log('+++++++++++++++++++++++++++++++++++++++');
 const passwordMatch = await bcrypt.compare(password, user.pazz);
 
     if (!passwordMatch) {
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
 
-    const token = jwt.sign({ username: user.member_username, role: user.role }, 'sohot', {
+    const token = jwt.sign({username: user.uze_name,ID : user.user_id, role: user.role }, 'sohot', {
       expiresIn: '1h', 
     });
 
@@ -211,7 +212,7 @@ const passwordMatch = await bcrypt.compare(password, user.pazz);
     res.status(200).send({
       status: true,
       memberId: user.user_id,
-      username: user.username,
+      username: user.uze_name,
       role: user.role,
       token: token,
     });
@@ -272,15 +273,15 @@ app.post('/decodeX', async (req, res,descode) => {
 async function getUserByUsername(username) {
   return new Promise((resolve, reject) => {
     db.query(`
-    SELECT 'admins' AS role, admin_id AS user_id, admin_user AS username, admin_password AS pazz FROM admins WHERE admin_user = ?
+    SELECT 'admins' AS role, admin_id AS user_id, admin_user AS uze_name, admin_password AS pazz FROM admins WHERE admin_user = ?
     UNION
-    SELECT 'farmers' AS role, farmer_id AS user_id, farmer_username AS username, farmer_password AS pazz FROM farmers WHERE farmer_username = ?
+    SELECT 'farmers' AS role, farmer_id AS user_id, farmer_username AS uze_name, farmer_password AS pazz FROM farmers WHERE farmer_username = ?
     UNION
-    SELECT 'members' AS role, member_id AS user_id, member_username AS username, member_password AS pazz FROM members WHERE member_username = ?
+    SELECT 'members' AS role, member_id AS user_id, member_username AS uze_name, member_password AS pazz FROM members WHERE member_username = ?
     UNION
-    SELECT 'providers' AS role, prov_id AS user_id, prov_user AS username, prov_password AS pazz FROM providers WHERE prov_user = ?
+    SELECT 'providers' AS role, prov_id AS user_id, prov_user AS uze_name, prov_password AS pazz FROM providers WHERE prov_user = ?
     UNION
-    SELECT 'tambon' AS role, tb_id AS user_id, tb_user AS username, tb_password AS pazz FROM tambon WHERE tb_user = ?
+    SELECT 'tambon' AS role, tb_id AS user_id, tb_user AS uze_name, tb_password AS pazz FROM tambon WHERE tb_user = ?
     `, [username, username, username, username, username], (err, result) => {
       if (err) {
         reject(err);
@@ -426,6 +427,10 @@ function sendNewPasswordByEmail(email, newPassword) {
       console.log('Email sent:', info.response);
     }
   });
+}
+function hashPassword(password) {
+  const saltRounds = 10;
+  return bcrypt.hash(password, saltRounds);
 }
 
 async function updatePasswordInDatabase(email, newPassword) {
