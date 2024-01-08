@@ -4,7 +4,7 @@ const mysql = require('mysql');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const passport = require("passport");
-
+const util = require('util');
 
 const app = express();
 const nodemailer = require('nodemailer');
@@ -25,6 +25,12 @@ const db = mysql.createConnection({
   user: 'root',
   password: '',
   database: 'kaset_data',
+  typeCast: function (field, next) {
+    if (field.type === 'TINY' && field.length === 1) {
+      return field.string() === '1'; // 1 = true, 0 = false
+    }
+    return next();
+  },
 });
 
 db.connect((err) => {
@@ -187,7 +193,10 @@ app.post('/login', async (req, res) => {
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.member_password);
+console.log('Password:', password);
+console.log('User Password:', user.pazz);
+console.log('role:', user.role);
+const passwordMatch = await bcrypt.compare(password, user.pazz);
 
     if (!passwordMatch) {
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
@@ -201,8 +210,8 @@ app.post('/login', async (req, res) => {
 
     res.status(200).send({
       status: true,
-      memberId: user.member_id,
-      username: user.member_username,
+      memberId: user.user_id,
+      username: user.username,
       role: user.role,
       token: token,
     });
@@ -258,11 +267,21 @@ app.post('/decodeX', async (req, res,descode) => {
 //     console.error(error);
 //     res.status(500).send({ status: false, error: 'Internal Server Error' });
 //   }
-// });
+// });'SELECT * FROM members WHERE member_username = 
 
 async function getUserByUsername(username) {
   return new Promise((resolve, reject) => {
-    db.query('SELECT * FROM members WHERE member_username = ?', [username], (err, result) => {
+    db.query(`
+    SELECT 'admins' AS role, admin_id AS user_id, admin_user AS username, admin_password AS pazz FROM admins WHERE admin_user = ?
+    UNION
+    SELECT 'farmers' AS role, farmer_id AS user_id, farmer_username AS username, farmer_password AS pazz FROM farmers WHERE farmer_username = ?
+    UNION
+    SELECT 'members' AS role, member_id AS user_id, member_username AS username, member_password AS pazz FROM members WHERE member_username = ?
+    UNION
+    SELECT 'providers' AS role, prov_id AS user_id, prov_user AS username, prov_password AS pazz FROM providers WHERE prov_user = ?
+    UNION
+    SELECT 'tambon' AS role, tb_id AS user_id, tb_user AS username, tb_password AS pazz FROM tambon WHERE tb_user = ?
+    `, [username, username, username, username, username], (err, result) => {
       if (err) {
         reject(err);
       } else {
@@ -271,6 +290,32 @@ async function getUserByUsername(username) {
     });
   });
 }
+
+// const dbQuery = util.promisify(db.query).bind(db);
+
+// async function getUserByUsername(username) {
+//   try {
+//     const result = await dbQuery(`
+//       SELECT 'admins' AS role, admin_id AS user_id, admin_user AS username FROM admins WHERE admin_user = ?
+//       UNION
+//       SELECT 'farmers' AS role, farmer_id AS user_id, farmer_username AS username FROM farmers WHERE farmer_username = ?
+//       UNION
+//       SELECT 'members' AS role, member_id AS user_id, member_username AS username FROM members WHERE member_username = ?
+//       UNION
+//       SELECT 'providers' AS role, provider_id AS user_id, prov_user AS username FROM providers WHERE prov_user = ?
+//       UNION
+//       SELECT 'tambon' AS role, tb_id AS user_id, tb_user AS username FROM tambon WHERE tb_user = ?
+//       `, [username, username, username, username, username]);
+
+//     return result.length > 0 ? result[0] : null;
+//   } catch (error) {
+//     throw error;
+//   }
+// }
+
+
+
+
 app.get('/categories', (req, res) => {
   db.query("SELECT * FROM categories", (err, result) => {
     if (err) {
@@ -383,15 +428,22 @@ function sendNewPasswordByEmail(email, newPassword) {
   });
 }
 
-function updatePasswordInDatabase(email, newPassword) {
+async function updatePasswordInDatabase(email, newPassword) {
+  try {
+    // Hash the new password
+    const hashedPassword = await hashPassword(newPassword);
 
-  db.query('UPDATE members SET member_password = ? WHERE member_email = ?', [newPassword, email], (err, result) => {
-    if (err) {
-      console.error('Error updating password in database:', err);
-    } else {
-      console.log('Password updated in database');
-    }
-  });
+    // Update the password in the database
+    db.query('UPDATE members SET member_password = ? WHERE member_email = ?', [hashedPassword, email], (err, result) => {
+      if (err) {
+        console.error('Error updating password in database:', err);
+      } else {
+        console.log('Password updated in database');
+      }
+    });
+  } catch (error) {
+    console.error('Error hashing password:', error);
+  }
 }
 
 app.get('/standardproducts', (req, res) => {
