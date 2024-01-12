@@ -470,7 +470,6 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // สร้างชื่อไฟล์ใหม่โดยเพิ่มตัวเลขหลังชื่อไฟล์ในกรณีที่มีชื่อไฟล์ซ้ำ
     const originalname = file.originalname.split('.')[0];
     const extension = file.originalname.split('.')[1];
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -480,28 +479,41 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
+// กำหนด endpoint /addproduct
 app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
   const {
+    jwt_token,
+    username,
     productName,
-    categoryName,
+    category,
+    description,
     productImage,
     productVideo,
     additionalImages,
-    description,
+    selectedStandard,
     standardName,
-    
     standardNumber,
     certification,
-    selectedDate,
+    exp,
     selectedType,
+    price,
+    unit,
+    stock,
+    amount,
+    shippingCost,
+    shippingCostList,
     selectedTypeDescription,
+    selectedStatus,
+    startDate,
+    endDate,
+    deposit,
   } = req.body;
 
   try {
-    // 1. บันทึก productImage ลงในเซิร์ฟเวอร์หรือฐานข้อมูล
+    // ทำการบันทึกข้อมูลลงในฐานข้อมูลตามที่ต้องการ
+    // เช่น เพิ่มสินค้าลงในตาราง products
+
+    // นี่เป็นตัวอย่างโค้ด คุณต้องปรับแต่งตามโครงสร้างฐานข้อมูลของคุณ
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const query = `
       INSERT INTO products (farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
@@ -511,17 +523,16 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     // Execute the query with the corresponding values
     await db.query(query, [farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
 
-    // 3. บันทึกที่อยู่ของไฟล์ additionalImages หากมี
+    // กรณี additionalImages มีค่า
     if (additionalImages && additionalImages.length > 0) {
-      // สร้างอาร์เรย์เพื่อเก็บที่อยู่ของไฟล์ additionalImages
       const additionalImagesPaths = [];
 
-      // วนลูปเพื่อประมวลผลทุกไฟล์ additionalImages
       for (const file of req.files['additionalImages']) {
         const filePath = `./uploads/${file.filename}`;
         additionalImagesPaths.push(filePath);
 
-        // ตัวอย่าง: บันทึกที่อยู่ไฟล์ลงในฐานข้อมูลสำหรับทุกไฟล์ additionalImages
+        // ทำตามที่ต้องการกับไฟล์ additionalImages
+        // เช่น เพิ่มข้อมูลลงในตาราง additionalImages
         // await insertAdditionalImageToDatabase(filePath);
       }
     }
