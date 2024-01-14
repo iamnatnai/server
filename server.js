@@ -44,35 +44,63 @@ db.connect((err) => {
 app.post('/checkinguser', (req, res) => {
   const username = req.body.username;
   console.log('username :', username);
-  db.query("SELECT * FROM members WHERE member_username = ?", [username], (err, result) => {
-    if (err) {
-      console.log(err);
-      res.status(500).send({ exist: false, error: 'Internal Server Error' });
-    } else {
-      if (result.length > 0) {
-        res.send({ username: result[0].member_username, same: false });
+  db.query( 
+      `
+    SELECT 'admins' AS role, admin_user AS username FROM admins WHERE admin_user = ?
+    UNION
+    SELECT 'farmers' AS role, farmer_username AS username FROM farmers WHERE farmer_username = ?
+    UNION
+    SELECT 'members' AS role, member_username AS username FROM members WHERE member_username = ?
+    UNION
+    SELECT 'providers' AS role, prov_user AS username FROM providers WHERE prov_user = ?
+    UNION
+    SELECT 'tambon' AS role, tb_user AS username FROM tambon WHERE tb_user = ?
+    `,
+    [username, username, username, username, username],
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
-        res.send({ username: username, same: true });
+        if (result.length > 0) {
+          res.send({ username: result[0].username, same: false });
+        } else {
+          res.send({ username: username, same: true });
+        }
       }
     }
-  });
+  );
 });
 
 app.post('/checkingemail', (req, res) => {
   const email = req.body.email;
   console.log('email:', email);
-  db.query("SELECT * FROM members WHERE member_email = ?", [email], (err, result) => {
-    if (err) {
-      console.log(err);
-      res.status(500).send({ same: false, error: 'Internal Server Error' });
-    } else {
-      if (result.length > 0) {
-        res.send({ email: result[0].member_email, same: false });
+  db.query(
+    `
+    SELECT admin_email AS email FROM admins WHERE admin_email = ?
+    UNION
+    SELECT farmer_email AS email FROM farmers WHERE farmer_email = ?
+    UNION
+    SELECT member_email AS email FROM members WHERE member_email = ?
+    UNION
+    SELECT prov_email AS email FROM providers WHERE prov_email = ?
+    UNION
+    SELECT tb_email AS email FROM tambon WHERE tb_email = ?
+    `,
+    [email, email, email, email, email],
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
-        res.send({ email: email, exist: true });
+        if (result.length > 0) {
+          res.send({ email: result[0].email, same: false });
+        } else {
+          res.send({ email: email, same: true });
+        }
       }
     }
-  });
+  );
 });
 
 
@@ -119,6 +147,27 @@ async function checkIfExists(column, value) {
     });
   });
 }
+app.get('/role', (req, res) => {
+  db.query("SELECT 'admins' AS role FROM admins UNION SELECT 'members' AS role FROM members UNION SELECT 'providers' AS role FROM providers UNION SELECT 'tambon' AS role FROM tambon;", (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
+
+app.get('/user', (req, res) => {
+  db.query("SELECT 'members' AS role , member_id, member_email, member_username, member_FirstName, member_LastName, member_phone, member_follows  FROM members UNION SELECT 'admins' AS role ,admin_id, admin_email, admin_user, admin_password, admin_first_name, admin_last_name, admin_number FROM admins", (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
 
 async function getNextId() {
   return new Promise((resolve, reject) => {
