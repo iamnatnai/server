@@ -528,7 +528,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// กำหนด endpoint /addproduct
 app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
   const {
     jwt_token,
@@ -559,38 +558,41 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
   } = req.body;
 
   try {
-    // ทำการบันทึกข้อมูลลงในฐานข้อมูลตามที่ต้องการ
-    // เช่น เพิ่มสินค้าลงในตาราง products
-
-    // นี่เป็นตัวอย่างโค้ด คุณต้องปรับแต่งตามโครงสร้างฐานข้อมูลของคุณ
+    // Get farmerId from the database based on the username
+    // const farmerIdQuery = "SELECT farmer_id FROM farmers WHERE farmer_username = ?";
+    // const farmerIdResult = await db.query(farmerIdQuery, [username]);
+    // const farmerId = farmerIdResult[0].farmer_id;
+    const farmerId = "FARM004";
+    // Insert product data into the database
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const query = `
-      INSERT INTO products (farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    `;
+    const categoryId = req.body.category_id; // แก้ตรงนี้เพื่อรับค่า category_id จากข้อมูลที่ส่งมา
+    const quantityAvailable = req.body.quantity_available;
+    const pricePerUnit = req.body.price_per_unit;
+const query = `
+  INSERT INTO products (farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+`;
+await db.query(query, [farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
 
-    // Execute the query with the corresponding values
-    await db.query(query, [farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
 
-    // กรณี additionalImages มีค่า
-    if (additionalImages && additionalImages.length > 0) {
+    // Handle additionalImages if present
+    if (req.files['additionalImages'] && req.files['additionalImages'].length > 0) {
       const additionalImagesPaths = [];
-
       for (const file of req.files['additionalImages']) {
         const filePath = `./uploads/${file.filename}`;
         additionalImagesPaths.push(filePath);
-
-        // ทำตามที่ต้องการกับไฟล์ additionalImages
-        // เช่น เพิ่มข้อมูลลงในตาราง additionalImages
+        // Handle additionalImages files, e.g., insert into database
         // await insertAdditionalImageToDatabase(filePath);
       }
     }
 
-    res.status(200).send({ success: true, message: 'เพิ่มผลผลิตเรียบร้อยแล้ว' });
+    res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
     console.error('Error adding product:', error);
     res.status(500).send({ success: false, message: 'Internal Server Error' });
   }
 });
+
+
 
 app.listen(3001, () => console.log('Avalable 3001'));
