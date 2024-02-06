@@ -148,7 +148,7 @@ async function checkIfExists(column, value) {
   });
 }
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role FROM admins UNION SELECT 'members' AS role FROM members UNION SELECT 'providers' AS role FROM providers UNION SELECT 'tambon' AS role FROM tambon;", (err, result) => {
+  db.query("SELECT 'admins' AS role, 'แอดมิน' AS nameRole FROM admins UNION SELECT 'members' AS role, 'สมาชิก' AS nameRole FROM members UNION SELECT 'providers' AS role, 'ผู้ว่าราชการจังหวัด' AS nameRole FROM providers UNION SELECT 'tambon' AS role, 'เกษตรตำบล' AS nameRole FROM tambon;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
