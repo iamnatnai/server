@@ -525,7 +525,24 @@ const storage = multer.diskStorage({
     cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
   },
 });
-
+async function getNextProductId() {
+  return new Promise((resolve, reject) => {
+    db.query('SELECT MAX(product_id) as maxId FROM products', (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        let nextId = 'PROD001';
+        if (result[0].maxId) {
+          const currentIdNumericPart = parseInt(result[0].maxId.substring(4), 10);
+          const nextNumericPart = currentIdNumericPart + 1;
+          const paddedNextNumericPart = String(nextNumericPart).padStart(3, '0');
+          nextId = 'PROD' + paddedNextNumericPart;
+        }
+        resolve(nextId);
+      }
+    });
+  });
+}
 const upload = multer({ storage: storage });
 
 app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
@@ -564,15 +581,18 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     // const farmerId = farmerIdResult[0].farmer_id;
     const farmerId = "FARM004";
     // Insert product data into the database
+    const nextProductId = await getNextProductId();
+    const productName = 'Product Name';
+    const productDescription = 'Product Description';
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const categoryId = req.body.category_id; // แก้ตรงนี้เพื่อรับค่า category_id จากข้อมูลที่ส่งมา
     const quantityAvailable = req.body.quantity_available;
     const pricePerUnit = req.body.price_per_unit;
 const query = `
-  INSERT INTO products (farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+  INSERT INTO products (product_id,farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-await db.query(query, [farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
+await db.query(query, [nextProductId,farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
 
 
     // Handle additionalImages if present
