@@ -550,7 +550,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     jwt_token,
     username,
     productName,
-    category,
+    selectedCategory,
     description,
     productImage,
     productVideo,
@@ -585,7 +585,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     const productName = 'Product Name';
     const productDescription = 'Product Description';
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const categoryId = req.body.category_id; // แก้ตรงนี้เพื่อรับค่า category_id จากข้อมูลที่ส่งมา
+    const categoryId = req.body.selectedCategory; // แก้ตรงนี้เพื่อรับค่า category_id จากข้อมูลที่ส่งมา
     const quantityAvailable = req.body.quantity_available;
     const pricePerUnit = req.body.price_per_unit;
 const query = `
