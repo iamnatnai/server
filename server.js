@@ -63,9 +63,9 @@ app.post('/checkinguser', (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         if (result.length > 0) {
-          res.send({ username: result[0].username, exist: false });
+          res.send({ username: result[0].username, exist: true });
         } else {
-          res.send({ username: username, exist: true });
+          res.send({ username: username, exist: false });
         }
       }
     }
