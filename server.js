@@ -94,14 +94,15 @@ app.post('/checkingemail', (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         if (result.length > 0) {
-          res.send({ email: result[0].email, exist: false });
-        } else {
           res.send({ email: email, exist: true });
+        } else {
+          res.send({ email: email, exist: false });
         }
       }
     }
   );
 });
+
 
 
 app.post('/register', async (req, res) => {
