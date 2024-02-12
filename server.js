@@ -63,9 +63,9 @@ app.post('/checkinguser', (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         if (result.length > 0) {
-          res.send({ username: result[0].username, exist: true });
+          res.send({ username: result[0].username, exist: false });
         } else {
-          res.send({ username: username, exist: false });
+          res.send({ username: username, exist: true });
         }
       }
     }
@@ -94,15 +94,14 @@ app.post('/checkingemail', (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         if (result.length > 0) {
-          res.send({ email: email, exist: true });
+          res.send({ email: result[0].email, exist: false });
         } else {
-          res.send({ email: email, exist: false });
+          res.send({ email: email, exist: true });
         }
       }
     }
   );
 });
-
 
 
 app.post('/register', async (req, res) => {
@@ -149,7 +148,7 @@ async function checkIfExists(column, value) {
   });
 }
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role, 'แอดมิน' AS nameRole FROM admins UNION SELECT 'members' AS role, 'สมาชิก' AS nameRole FROM members UNION SELECT 'providers' AS role, 'ผู้ว่าราชการจังหวัด' AS nameRole FROM providers UNION SELECT 'tambon' AS role, 'เกษตรตำบล' AS nameRole FROM tambon;", (err, result) => {
+  db.query("SELECT 'admins' AS role_id, 'แอดมิน' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambon;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
