@@ -65,9 +65,9 @@ app.post('/checkinguser', (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         if (result.length > 0) {
-          res.send({ username: result[0].username, same: false });
+          res.send({ username: result[0].username, exist: false });
         } else {
-          res.send({ username: username, same: true });
+          res.send({ username: username, exist: true });
         }
       }
     }
@@ -96,9 +96,9 @@ app.post('/checkingemail', (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         if (result.length > 0) {
-          res.send({ email: result[0].email, same: false });
+          res.send({ email: result[0].email, exist: false });
         } else {
-          res.send({ email: email, same: true });
+          res.send({ email: email, exist: true });
         }
       }
     }
@@ -150,7 +150,7 @@ async function checkIfExists(column, value) {
   });
 }
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role, 'แอดมิน' AS nameRole FROM admins UNION SELECT 'members' AS role, 'สมาชิก' AS nameRole FROM members UNION SELECT 'providers' AS role, 'ผู้ว่าราชการจังหวัด' AS nameRole FROM providers UNION SELECT 'tambon' AS role, 'เกษตรตำบล' AS nameRole FROM tambon;", (err, result) => {
+  db.query("SELECT 'admins' AS role_id, 'แอดมิน' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambon;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -241,6 +241,7 @@ app.post('/login', async (req, res) => {
     const user = await getUserByUsername(username);
 
     if (!user) {
+      console.log("bad");
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
     console.log('User:', user.uze_name);
@@ -251,7 +252,9 @@ app.post('/login', async (req, res) => {
     const passwordMatch = await bcrypt.compare(password, user.pazz);
 
     if (!passwordMatch) {
+      console.log("not");
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
+
     }
 
     const token = jwt.sign({ username: user.uze_name, ID: user.user_id, role: user.role }, 'sohot', {
@@ -554,7 +557,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     jwt_token,
     username,
     productName,
-    category,
+    selectedCategory,
     description,
     productImage,
     productVideo,
@@ -580,18 +583,29 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
 
   try {
     // Get farmerId from the database based on the username
-    // const farmerIdQuery = "SELECT farmer_id FROM farmers WHERE farmer_username = ?";
-    // const farmerIdResult = await db.query(farmerIdQuery, [username]);
-    // const farmerId = farmerIdResult[0].farmer_id;
-    const farmerId = "FARM004";
+    const farmerIdQuery = "SELECT farmer_id FROM farmers WHERE farmer_username = ?";
+    const farmerIdResult = await new Promise((resolve, reject) => {
+      db.query(farmerIdQuery, [username], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    })
+
+    console.log(farmerIdResult);
+    console.log(farmerIdResult[0]);
+    const farmerId = farmerIdResult[0].farmer_id;
+    //console.log(productImage)
+    //const farmerId = "FARM004";
     // Insert product data into the database
     const nextProductId = await getNextProductId();
-    const productName = 'Product Name';
-    const productDescription = 'Product Description';
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const categoryId = req.body.category_id; // แก้ตรงนี้เพื่อรับค่า category_id จากข้อมูลที่ส่งมา
+    const categoryId = req.body.selectedCategory; // แก้ตรงนี้เพื่อรับค่า category_id จากข้อมูลที่ส่งมา
     const quantityAvailable = req.body.quantity_available;
     const pricePerUnit = req.body.price_per_unit;
+
     const query = `
   INSERT INTO products (product_id,farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -609,9 +623,10 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
         // await insertAdditionalImageToDatabase(filePath);
       }
     }
-
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
+    console.log(username);
+    console.error(productImage);
     console.error('Error adding product:', error);
     res.status(500).send({ success: false, message: 'Internal Server Error' });
   }
