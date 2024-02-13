@@ -274,23 +274,25 @@ const passwordMatch = await bcrypt.compare(password, user.pazz);
   }
 });
 
-app.post('/decodeX', async (req, res,descode) => {
-  const token = req.headers.authorization;
+app.get('/login', async (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
 
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
 
   const secretKey = 'sohot';
-
   try {
     const decoded = jwt.verify(token, secretKey);
     console.log('Decoded token:', decoded);
-    // res.json(decoded);
-    descode()
+    const newToken = jwt.sign({ username: decoded.username, role: decoded.role }, secretKey, {
+      expiresIn: '1h',
+    });
+
+    return res.status(200).json({ isValid : true, newToken: newToken});
   } catch (error) {
     console.error('Error decoding token:', error.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
