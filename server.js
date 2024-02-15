@@ -617,12 +617,12 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 }, { name: 'additionalImages' }]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 },{ name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
   const {
     jwt_token,
     username,
     productName,
-    selectedCategory,
+    category,
     description,
     productImage,
     productVideo,
@@ -668,15 +668,14 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 }, {
     // Insert product data into the database
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const categoryId = req.body.selectedCategory;
-    const quantityAvailable = req.body.quantity_available;
-    const pricePerUnit = req.body.price_per_unit;
-
+    const productVideoPath = `./uploads/${req.files['productVideo'][0].filename}`; 
+    console.log(productVideoPath);
+    console.log(additionalImages);
     const query = `
-      INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image,product_video,additional_image, last_modified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
-    await db.query(query, [nextProductId, farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath ,additionalImages]);
 
     // Handle additionalImages if present
     if (req.files['additionalImages'] && req.files['additionalImages'].length > 0) {
@@ -696,7 +695,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 }, {
     res.status(500).send({ success: false, message: 'Internal Server Error' });
   }
 });
-//เพิ่มช่องแทรกรูปใบอนุญาติถ้าไม่มีให้ใส่ null
+
 
 
 
