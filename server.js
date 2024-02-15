@@ -689,6 +689,22 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
   }
 });
 
+app.get('/getimage/:image', (req, res) => {
+  const image = req.params.image;
+  res.sendFile(path.join(__dirname, 'uploads', image));
+});
+
+app.get('/getproduct/:id', (req, res) => {
+  const id = req.params.id;
+  db.query('SELECT * FROM products WHERE product_id = ?', [id], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result[0]);
+    }
+  });
+});
 
 
 
