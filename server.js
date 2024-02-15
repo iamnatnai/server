@@ -670,7 +670,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 },{ 
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const productVideoPath = `./uploads/${req.files['productVideo'][0].filename}`; 
     console.log(productVideoPath);
-    console.log(additionalImages);
+
     const query = `
       INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image,product_video,additional_image, last_modified)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
