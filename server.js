@@ -8,7 +8,7 @@ const util = require('util');
 
 const app = express();
 const nodemailer = require('nodemailer');
-const multer = require('multer'); // ใช้สำหรับจัดการ multipart/form-data (การอัปโหลดไฟล์)
+const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const port = 3000;
@@ -164,7 +164,7 @@ app.get('/users', async (req, res) => {
   try {
     const adminsQuery = "SELECT admin_id AS user_id, admin_email AS email, admin_user AS username, admin_first_name AS first_name, admin_last_name AS last_name, admin_number AS phone, role FROM admins";
     const adminsResult = await new Promise((resolve, reject) => {
-      db.query(adminsQuery,(err, result) => {
+      db.query(adminsQuery, (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -175,7 +175,7 @@ app.get('/users', async (req, res) => {
 
     const farmersQuery = "SELECT farmer_id AS user_id, farmer_email AS email, farmer_username AS username, farmer_name AS first_name, '' AS last_name, farmer_phone AS phone, role FROM farmers";
     const farmersResult = await new Promise((resolve, reject) => {
-      db.query(farmersQuery,(err, result) => {
+      db.query(farmersQuery, (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -186,7 +186,7 @@ app.get('/users', async (req, res) => {
 
     const membersQuery = "SELECT member_id AS user_id, member_email AS email, member_username AS username, member_FirstName AS first_name, member_LastName AS last_name, member_phone AS phone, role FROM members";
     const membersResult = await new Promise((resolve, reject) => {
-      db.query(membersQuery,(err, result) => {
+      db.query(membersQuery, (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -197,7 +197,7 @@ app.get('/users', async (req, res) => {
 
     const providersQuery = "SELECT prov_id AS user_id, prov_email AS email, prov_user AS username, prov_name AS first_name, '' AS last_name, prov_number AS phone, role FROM providers";
     const providersResult = await new Promise((resolve, reject) => {
-      db.query(providersQuery,(err, result) => {
+      db.query(providersQuery, (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -208,7 +208,7 @@ app.get('/users', async (req, res) => {
 
     const tambonQuery = "SELECT tb_id AS user_id, tb_email AS email, tb_user AS username, tb_first_name AS first_name, tb_last_name AS last_name, tb_number AS phone, role FROM tambon";
     const tambonResult = await new Promise((resolve, reject) => {
-      db.query(tambonQuery,(err, result) => {
+      db.query(tambonQuery, (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -478,7 +478,6 @@ function checkIfEmailAndNameMatch(email, firstName, lastName) {
         console.error('Error checking email and name in database:', err);
         reject(err);
       } else {
-        // ถ้ามีข้อมูลที่ตรงกัน
         if (result.length > 0) {
           resolve(true);
         } else {
@@ -556,10 +555,9 @@ function hashPassword(password) {
 
 async function updatePasswordInDatabase(email, newPassword) {
   try {
-    // Hash the new password
+
     const hashedPassword = await hashPassword(newPassword);
 
-    // Update the password in the database
     db.query('UPDATE members SET member_password = ? WHERE member_email = ?', [hashedPassword, email], (err, result) => {
       if (err) {
         console.error('Error updating password in database:', err);
@@ -617,7 +615,7 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 },{ name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
   const {
     jwt_token,
     username,
@@ -647,44 +645,39 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 },{ 
   } = req.body;
 
   try {
-    // Get farmerId from the database based on the username
     const farmerIdQuery = "SELECT farmer_id FROM farmers WHERE farmer_username = ?";
-    const farmerIdResult = await new Promise((resolve, reject) => { 
+    const farmerIdResult = await new Promise((resolve, reject) => {
       db.query(farmerIdQuery, [username], (err, result) => {
         if (err) {
           console.error('Error checking email and name in database:', err);
           reject(err);
         } else {
           resolve(result)
+        }
       }
+      )
     }
-    )
-  }
     )
     console.log(farmerIdResult);
     console.log(farmerIdResult[0]);
     const farmerId = farmerIdResult[0].farmer_id;
 
-    // Insert product data into the database
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const productVideoPath = `./uploads/${req.files['productVideo'][0].filename}`; 
+    const productVideoPath = `./uploads/${req.files['productVideo'][0].filename}`;
+    console.log(productImagePath);
     console.log(productVideoPath);
 
     const query = `
       INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image,product_video,additional_image, last_modified)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
-    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath ,additionalImages]);
-
-    // Handle additionalImages if present
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImages]);
     if (req.files['additionalImages'] && req.files['additionalImages'].length > 0) {
       const additionalImagesPaths = [];
       for (const file of req.files['additionalImages']) {
         const filePath = `./uploads/${file.filename}`;
         additionalImagesPaths.push(filePath);
-        // Handle additionalImages files, e.g., insert into database
-        // await insertAdditionalImageToDatabase(filePath);
       }
     }
     res.status(200).send({ success: true, message: 'Product added successfully' });
