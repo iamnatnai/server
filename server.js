@@ -615,7 +615,7 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages'}]), async (req, res) => {
   const {
     jwt_token,
     username,
@@ -665,21 +665,17 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const productVideoPath = `./uploads/${req.files['productVideo'][0].filename}`;
+    console.log(additionalImages);
     console.log(productImagePath);
     console.log(productVideoPath);
-
+    const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
+    const additionalImagesJSON = JSON.stringify(additionalImagesPaths);
     const query = `
       INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image,product_video,additional_image, last_modified)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
-    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImages]);
-    if (req.files['additionalImages'] && req.files['additionalImages'].length > 0) {
-      const additionalImagesPaths = [];
-      for (const file of req.files['additionalImages']) {
-        const filePath = `./uploads/${file.filename}`;
-        additionalImagesPaths.push(filePath);
-      }
-    }
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON]);
+    
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
     console.log(username);
