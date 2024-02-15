@@ -16,15 +16,17 @@ const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
 const secretKey = 'sohot';
+require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
 
 const db = mysql.createConnection({
   host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'kaset_data',
+  socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
+  user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
+  database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
       return field.string() === '1'; // 1 = true, 0 = false
@@ -44,8 +46,8 @@ db.connect((err) => {
 app.post('/checkinguser', (req, res) => {
   const username = req.body.username;
   console.log('username :', username);
-  db.query( 
-      `
+  db.query(
+    `
     SELECT 'admins' AS role, admin_user AS username FROM admins WHERE admin_user = ?
     UNION
     SELECT 'farmers' AS role, farmer_username AS username FROM farmers WHERE farmer_username = ?
@@ -307,24 +309,24 @@ app.post('/login', async (req, res) => {
       console.log("bad");
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
-console.log('User:',user.uze_name);
-console.log('Password:', password);
-console.log('Hash Password:', user.pazz);
-console.log('role:', user.role);
-console.log('+++++++++++++++++++++++++++++++++++++++');
-const passwordMatch = await bcrypt.compare(password, user.pazz);
+    console.log('User:', user.uze_name);
+    console.log('Password:', password);
+    console.log('Hash Password:', user.pazz);
+    console.log('role:', user.role);
+    console.log('+++++++++++++++++++++++++++++++++++++++');
+    const passwordMatch = await bcrypt.compare(password, user.pazz);
 
     if (!passwordMatch) {
       console.log("not");
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
-      
+
     }
 
-    const token = jwt.sign({username: user.uze_name,ID : user.user_id, role: user.role }, 'sohot', {
-      expiresIn: '1h', 
+    const token = jwt.sign({ username: user.uze_name, ID: user.user_id, role: user.role }, 'sohot', {
+      expiresIn: '1h',
     });
 
-    console.log('Generated token:', token);  
+    console.log('Generated token:', token);
 
     res.status(200).send({
       status: true,
@@ -339,23 +341,25 @@ const passwordMatch = await bcrypt.compare(password, user.pazz);
   }
 });
 
-app.post('/decodeX', async (req, res,descode) => {
-  const token = req.headers.authorization;
+app.get('/login', async (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
 
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
 
   const secretKey = 'sohot';
-
   try {
     const decoded = jwt.verify(token, secretKey);
     console.log('Decoded token:', decoded);
-    // res.json(decoded);
-    descode()
+    const newToken = jwt.sign({ username: decoded.username, role: decoded.role }, secretKey, {
+      expiresIn: '1h',
+    });
+
+    return res.status(200).json({ isValid: true, newToken: newToken });
   } catch (error) {
     console.error('Error decoding token:', error.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
