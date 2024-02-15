@@ -158,16 +158,81 @@ app.get('/role', (req, res) => {
   });
 });
 
-app.get('/user', (req, res) => {
-  db.query("SELECT 'members' AS role , member_id, member_email, member_username, member_FirstName, member_LastName, member_phone, member_follows  FROM members UNION SELECT 'admins' AS role ,admin_id, admin_email, admin_user, admin_password, admin_first_name, admin_last_name, admin_number FROM admins", (err, result) => {
-    if (err) {
-      console.log(err);
-      res.status(500).send({ exist: false, error: 'Internal Server Error' });
-    } else {
-      res.json(result);
-    }
-  });
+app.get('/users', async (req, res) => {
+  try {
+    const adminsQuery = "SELECT admin_id AS user_id, admin_email AS email, admin_user AS username, admin_first_name AS first_name, admin_last_name AS last_name, admin_number AS phone, role FROM admins";
+    const adminsResult = await new Promise((resolve, reject) => {
+      db.query(adminsQuery,(err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      })
+    })
+
+    const farmersQuery = "SELECT farmer_id AS user_id, farmer_email AS email, farmer_username AS username, farmer_name AS first_name, '' AS last_name, farmer_phone AS phone, role FROM farmers";
+    const farmersResult = await new Promise((resolve, reject) => {
+      db.query(farmersQuery,(err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      })
+    })
+
+    const membersQuery = "SELECT member_id AS user_id, member_email AS email, member_username AS username, member_FirstName AS first_name, member_LastName AS last_name, member_phone AS phone, role FROM members";
+    const membersResult = await new Promise((resolve, reject) => {
+      db.query(membersQuery,(err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      })
+    })
+
+    const providersQuery = "SELECT prov_id AS user_id, prov_email AS email, prov_user AS username, prov_name AS first_name, '' AS last_name, prov_number AS phone, role FROM providers";
+    const providersResult = await new Promise((resolve, reject) => {
+      db.query(providersQuery,(err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      })
+    })
+
+    const tambonQuery = "SELECT tb_id AS user_id, tb_email AS email, tb_user AS username, tb_first_name AS first_name, tb_last_name AS last_name, tb_number AS phone, role FROM tambon";
+    const tambonResult = await new Promise((resolve, reject) => {
+      db.query(tambonQuery,(err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      })
+    })
+
+    const admins = adminsResult;
+    const farmers = farmersResult;
+    const members = membersResult;
+    const providers = providersResult;
+    const tambon = tambonResult;
+
+    const users = [...admins, ...farmers, ...members, ...providers, ...tambon];
+    console.log(adminsResult);
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
 });
+
+
+
 
 async function getNextId() {
   return new Promise((resolve, reject) => {
@@ -548,7 +613,7 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount:  1 }, { name: 'additionalImages' }]), async (req, res) => {
   const {
     jwt_token,
     username,
@@ -579,35 +644,35 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
 
   try {
     // Get farmerId from the database based on the username
-     const farmerIdQuery = "SELECT farmer_id FROM farmers WHERE farmer_username = ?";
-     const farmerIdResult = await new Promise((resolve, reject) => {
-      db.query(farmerIdQuery,[username], (err,result)=>{
+    const farmerIdQuery = "SELECT farmer_id FROM farmers WHERE farmer_username = ?";
+    const farmerIdResult = await new Promise((resolve, reject) => { 
+      db.query(farmerIdQuery, [username], (err, result) => {
         if (err) {
+          console.error('Error checking email and name in database:', err);
           reject(err);
         } else {
-          resolve(result);
-        }
-       });
-     })
+          resolve(result)
+      }
+    }
+    )
+  }
+    )
+    console.log(farmerIdResult);
+    console.log(farmerIdResult[0]);
+    const farmerId = farmerIdResult[0].farmer_id;
 
-     console.log(farmerIdResult);
-     console.log(farmerIdResult[0]);
-     const farmerId = farmerIdResult[0].farmer_id;
-    //console.log(productImage)
-    //const farmerId = "FARM004";
     // Insert product data into the database
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const categoryId = req.body.selectedCategory; // แก้ตรงนี้เพื่อรับค่า category_id จากข้อมูลที่ส่งมา
+    const categoryId = req.body.selectedCategory;
     const quantityAvailable = req.body.quantity_available;
     const pricePerUnit = req.body.price_per_unit;
-    
-const query = `
-  INSERT INTO products (product_id,farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-`;
-await db.query(query, [nextProductId,farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
 
+    const query = `
+      INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, quantity_available, price_per_unit, unit, product_image, last_modified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    `;
+    await db.query(query, [nextProductId, farmerId, productName, description, categoryId, quantityAvailable, pricePerUnit, unit, productImagePath]);
 
     // Handle additionalImages if present
     if (req.files['additionalImages'] && req.files['additionalImages'].length > 0) {
@@ -627,6 +692,7 @@ await db.query(query, [nextProductId,farmerId, productName, description, categor
     res.status(500).send({ success: false, message: 'Internal Server Error' });
   }
 });
+//เพิ่มช่องแทรกรูปใบอนุญาติถ้าไม่มีให้ใส่ null
 
 
 
