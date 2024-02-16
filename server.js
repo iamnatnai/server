@@ -658,7 +658,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     console.log(farmerIdResult);
     console.log(farmerIdResult[0]);
     const farmerId = farmerIdResult[0].farmer_id;
-  
+
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const productVideoFile = req.files['productVideo'] ? req.files['productVideo'][0] : null;
@@ -672,8 +672,8 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
       INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType, last_modified)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?, NOW())
     `;
-    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON,selectedType]);
-    
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType]);
+
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
     console.error('Error adding product:', error);
@@ -716,6 +716,20 @@ app.get('/getproducts', (req, res) => {
   });
 
 });
+
+app.get('/updateview/:id', (req, res) => {
+  const { id } = req.params;
+  // update view_count + 1
+  console.log(id);
+  db.query('UPDATE products SET view_count = view_count + 1 WHERE product_id = ?', [id], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json({ success: true });
+    }
+  });
+})
 
 
 
