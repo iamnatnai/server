@@ -614,7 +614,7 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' },{ name: 'cercificationImage' },]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
   const {
     jwt_token,
     username,
@@ -668,11 +668,11 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     console.log(additionalImages);
     console.log(productImagePath);
     console.log(productVideoPath);
-    const additionalImagesPaths =req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
+    const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
     const additionalImagesJSON = JSON.stringify(additionalImagesPaths);
     const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
     console.log(cercificationImagePath);
-    const jsonselectstandard = JSON.parse(selectedStandard).map((standard,index) => ({
+    const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
       ...standard,
       standard_cercification: cercificationImagePath[index]
     }));
@@ -687,12 +687,12 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     //   // กรณี selectedStandard ไม่ใช่ array
     //   console.error('selectedStandard is not an array');
     // }
-    
+
     const query = `
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, JSON.stringify(jsonselectstandard)]);
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, JSON.stringify(jsonselectstandard)]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
@@ -750,6 +750,18 @@ app.get('/updateview/:id', (req, res) => {
     }
   });
 })
+
+app.get('/listproduct/:farmerID', (req, res) => {
+  const { farmerID } = req.params;
+  db.query('SELECT product_id, product_image, product_name, selectedType, last_modified, price, view_count FROM products WHERE farmer_id = ?', [farmerID], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
 
 
 
