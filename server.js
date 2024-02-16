@@ -699,11 +699,11 @@ app.get('/getproduct/:id', (req, res) => {
 });
 
 app.get('/getproducts', (req, res) => {
-  const { category, page } = req.query;
-  console.log(category, page);
-  let query = `SELECT * FROM products where category_id = '${category}' LIMIT 10 OFFSET ${page * 10}`;
+  const { category, page, sort, order } = req.query;
+  console.log(category, page, sort, order);
+  let query = `SELECT * FROM products where category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10}`;
   if (category == '') {
-    query = `SELECT * FROM products LIMIT 10 OFFSET ${page * 10} `;
+    query = `SELECT * FROM products ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10} `;
   }
 
   db.query(query, (err, result) => {
