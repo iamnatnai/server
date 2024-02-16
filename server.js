@@ -614,7 +614,7 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' },{ name: 'cercificationImage' },]), async (req, res) => {
   const {
     jwt_token,
     username,
@@ -628,6 +628,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     standardName,
     standardNumber,
     certification,
+    cercificationImage,
     exp,
     selectedType,
     price,
@@ -657,6 +658,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     });
     console.log(farmerIdResult);
     console.log(farmerIdResult[0]);
+    console.log(selectedStandard);
     const farmerId = farmerIdResult[0].farmer_id;
 
     const nextProductId = await getNextProductId();
@@ -666,13 +668,31 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     console.log(additionalImages);
     console.log(productImagePath);
     console.log(productVideoPath);
-    const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
+    const additionalImagesPaths =req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
     const additionalImagesJSON = JSON.stringify(additionalImagesPaths);
+    const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
+    console.log(cercificationImagePath);
+    const jsonselectstandard = JSON.parse(selectedStandard).map((standard,index) => ({
+      ...standard,
+      standard_cercification: cercificationImagePath[index]
+    }));
+    console.log(jsonselectstandard);
+    // if (Array.isArray(selectedStandard)) {
+    //   // ตรวจสอบและใช้งาน selectedStandard ได้ตามปกติ
+    //   const combinedData = JSON.stringify(selectedStandard.map(standard => ({
+    //     ...standard,
+    //     cercificationImagePath
+    //   })));
+    // } else {
+    //   // กรณี selectedStandard ไม่ใช่ array
+    //   console.error('selectedStandard is not an array');
+    // }
+    
     const query = `
-      INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType, last_modified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?, NOW())
-    `;
-    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType]);
+  INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+`;
+await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, JSON.stringify(jsonselectstandard)]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
