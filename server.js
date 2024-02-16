@@ -654,32 +654,29 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
         } else {
           resolve(result)
         }
-      }
-      )
-    }
-    )
+      });
+    });
     console.log(farmerIdResult);
     console.log(farmerIdResult[0]);
     const farmerId = farmerIdResult[0].farmer_id;
-
+  
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const productVideoPath = `./uploads/${req.files['productVideo'][0].filename}`;
+    const productVideoFile = req.files['productVideo'] ? req.files['productVideo'][0] : null;
+    const productVideoPath = productVideoFile ? `./uploads/${productVideoFile.filename}` : null;
     console.log(additionalImages);
     console.log(productImagePath);
     console.log(productVideoPath);
     const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
     const additionalImagesJSON = JSON.stringify(additionalImagesPaths);
     const query = `
-      INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image,product_video,additional_image, last_modified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType, last_modified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?, NOW())
     `;
-    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON]);
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON,selectedType]);
     
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
-    console.log(username);
-    console.error(productImage);
     console.error('Error adding product:', error);
     res.status(500).send({ success: false, message: 'Internal Server Error' });
   }
