@@ -351,7 +351,6 @@ app.get('/login', async (req, res) => {
   const secretKey = 'sohot';
   try {
     const decoded = jwt.verify(token, secretKey);
-    console.log('Decoded token:', decoded);
     const newToken = jwt.sign({ username: decoded.username, role: decoded.role }, secretKey, {
       expiresIn: '1h',
     });
@@ -615,7 +614,7 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages'}]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }]), async (req, res) => {
   const {
     jwt_token,
     username,
@@ -682,6 +681,41 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
   }
 });
 
+app.get('/getimage/:image', (req, res) => {
+  const image = req.params.image;
+  res.sendFile(path.join(__dirname, 'uploads', image));
+});
+
+app.get('/getproduct/:id', (req, res) => {
+  const id = req.params.id;
+  db.query('SELECT * FROM products WHERE product_id = ?', [id], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result[0]);
+    }
+  });
+});
+
+app.get('/getproducts', (req, res) => {
+  const { category, page } = req.query;
+  console.log(category, page);
+  let query = `SELECT * FROM products where category_id = '${category}' LIMIT 10 OFFSET ${page * 10}`;
+  if (category == '') {
+    query = `SELECT * FROM products LIMIT 10 OFFSET ${page * 10} `;
+  }
+
+  db.query(query, (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json({ products: result, hasMore: result.length === 10 });
+    }
+  });
+
+});
 
 
 
