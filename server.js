@@ -719,13 +719,13 @@ app.get('/getproduct/:id', (req, res) => {
 });
 
 app.get('/getproducts', (req, res) => {
-  const { category, page } = req.query;
-  console.log(category, page);
-  let query = `SELECT * FROM products where category_id = '${category}' LIMIT 10 OFFSET ${page * 10}`;
+  const { search, category, page, sort, order } = req.query;
+  console.log(category, page, sort, order);
+  let query = `SELECT * FROM products where ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10}`;
   if (category == '') {
-    query = `SELECT * FROM products LIMIT 10 OFFSET ${page * 10} `;
+    query = `SELECT * FROM products ${search !== "" ? `${"where product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10} `;
   }
-
+  console.log(query);
   db.query(query, (err, result) => {
     if (err) {
       console.log(err);
