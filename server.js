@@ -25,7 +25,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
@@ -751,9 +751,9 @@ app.get('/updateview/:id', (req, res) => {
   });
 })
 
-app.get('/listproduct/:farmerID', (req, res) => {
-  const { farmerID } = req.params;
-  db.query('SELECT product_id, product_image, product_name, selectedType, last_modified, price, view_count FROM products WHERE farmer_id = ?', [farmerID], (err, result) => {
+app.get('/myproducts/:username', (req, res) => {
+  const { username } = req.params;
+  db.query('SELECT product_id, product_image, product_description, product_name, selectedType, last_modified, price, view_count FROM products WHERE farmer_id = (select farmer_id from farmers where farmer_username = ?)', [username], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
