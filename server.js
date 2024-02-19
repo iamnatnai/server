@@ -27,6 +27,7 @@ const db = mysql.createConnection({
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
   password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
+  charset: "utf8mb4",
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
       return field.string() === '1'; // 1 = true, 0 = false
@@ -158,7 +159,6 @@ app.post('/register', async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const usernameExists = await checkIfExists('username', username);
     const emailExists = await checkIfExists('email', email);
 
@@ -180,9 +180,10 @@ app.post('/register', async (req, res) => {
     res.status(500).send({ exist: false, error: 'Internal Server Error' });
   }
 });
-async function CheckingUser_username(role, username, value) {
+
+async function checkIfExists(role, column, value) {
   return new Promise((resolve, reject) => {
-    db.query(`SELECT * FROM ${role} WHERE ${username} = ?`, [value], (err, result) => {
+    db.query(`SELECT * FROM ${role} WHERE ${column} = ?`, [value], (err, result) => {
       if (err) {
         reject(err);
       } else {
@@ -192,6 +193,12 @@ async function CheckingUser_username(role, username, value) {
   });
 }
 
+async function checkIfExistsInAllTables(column, value) {
+  const tables = ['admins', 'farmers', 'members', 'providers', 'tambons'];
+  const promises = tables.map(table => checkIfExists(table, column, value));
+  const results = await Promise.all(promises);
+  return results.some(result => result);
+}
 
 app.post('/adduser', async (req, res) => {
   const { username, email, password, firstName, lastName, tel, role } = req.body;
@@ -201,9 +208,9 @@ app.post('/adduser', async (req, res) => {
   }
 
   try {
-    const usernameExists = await checkIfExists('member_username', username);
-    const emailExists = await checkIfExists('member_email', email);
-
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const usernameExists = await checkIfExistsInAllTables('username', username);
+    const emailExists = await checkIfExistsInAllTables('email', email);
     if (usernameExists) {
       return res.status(409).json({ success: false, message: 'Username already exists' });
     }
@@ -211,7 +218,7 @@ app.post('/adduser', async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already exists' });
     }
     const nextUserId = await getNextUserId(role);
-    await insertUser(nextUserId, username, email, password, firstName, lastName, tel, role);
+    await insertUser(nextUserId, username, email, hashedPassword, firstName, lastName, tel, role);
     res.status(201).json({ success: true, message: 'User added successfully' });
   } catch (error) {
     console.error('Error adding user:', error);
@@ -310,7 +317,7 @@ async function getNextId() {
       if (err) {
         reject(err);
       } else {
-        let nextId = 'MEM001';
+        let nextId = 'MEM00001';
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(3), 10) + 1;
@@ -324,32 +331,33 @@ async function getNextId() {
 async function getNextUserId(role) {
   let rolePrefix = '';
   switch (role) {
-    case 'admin':
+    case 'admins':
       rolePrefix = 'ADMIN';
+
       break;
-    case 'farmer':
+    case 'farmers':
       rolePrefix = 'FARM';
       break;
-    case 'provider':
+    case 'providers':
       rolePrefix = 'PROV';
       break;
-    case 'tambon':
+    case 'tambons':
       rolePrefix = 'TB';
       break;
   }
-
+  console.log(role);
   return new Promise((resolve, reject) => {
-    db.query(`SELECT MAX(id) as maxId FROM ${role}s`, (err, result) => {
+    db.query(`SELECT MAX(id) as maxId FROM ${role}`, (err, result) => {
       if (err) {
         reject(err);
       } else {
-        let nextuseId = `${rolePrefix}001`;
+        let nextUserId = `${rolePrefix}00001`;
         if (result[0].maxId) {
           const currentId = result[0].maxId;
-          const numericPart = parseInt(currentId.substring(3), 10) + 1;
-          nextuseId = `${rolePrefix}${numericPart.toString().padStart(3, '0')}`;
+          const numericPart = parseInt(currentId.substring(rolePrefix.length), 10) + 1;
+          nextUserId = `${rolePrefix}${numericPart.toString().padStart(5, '0')}`;
         }
-        resolve(nextuseId);
+        resolve(nextUserId);
       }
     });
   });
@@ -373,8 +381,8 @@ async function insertMember(memberId, username, email, password, firstName, last
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
   return new Promise((resolve, reject) => {
     db.query(
-      `INSERT INTO ${role}s (id,username,email,password,firstname,lastName,phone,${role}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [memberId, username, email, password, firstName, lastName, tel, null],
+      `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [memberId, username, email, password, firstName, lastName, tel, role],
       (err, result) => {
         if (err) {
           reject(err);
@@ -731,15 +739,29 @@ const upload = multer({ storage: storage });
 
 app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
   const {
+    jwt_token,
     username,
     productName,
     category,
     description,
     selectedStandard,
+    standardName,
+    standardNumber,
+    certification,
+    cercificationImage,
+    exp,
     selectedType,
     price,
     unit,
     stock,
+    amount,
+    shippingCost,
+    shippingCostList,
+    selectedTypeDescription,
+    selectedStatus,
+    startDate,
+    endDate,
+    deposit,
   } = req.body;
 
   const token = req.headers.authorization.split(' ')[1];
@@ -760,18 +782,27 @@ app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxC
         }
       });
     });
+    console.log(farmerIdResult);
+    console.log(farmerIdResult[0]);
+    console.log(selectedStandard);
     const farmerId = farmerIdResult[0].id;
+
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const productVideoFile = req.files['productVideo'] ? req.files['productVideo'][0] : null;
     const productVideoPath = productVideoFile ? `./uploads/${productVideoFile.filename}` : null;
+    console.log(additionalImages);
+    console.log(productImagePath);
+    console.log(productVideoPath);
     const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
     const additionalImagesJSON = JSON.stringify(additionalImagesPaths);
     const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
+    console.log(cercificationImagePath);
     const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
       ...standard,
-      standard_cercification: cercificationImagePath ? cercificationImagePath[index] : null
+      standard_cercification: cercificationImagePath[index]
     }));
+    console.log(jsonselectstandard);
     // if (Array.isArray(selectedStandard)) {
     //   // ตรวจสอบและใช้งาน selectedStandard ได้ตามปกติ
     //   const combinedData = JSON.stringify(selectedStandard.map(standard => ({
