@@ -137,7 +137,34 @@ app.post('/register', async (req, res) => {
     res.status(500).send({ exist: false, error: 'Internal Server Error' });
   }
 });
+app.post('/adduser', async (req, res) => {
+  // Extract data from request body
+  const { username, email, password, firstName, lastName, tel, role } = req.body;
 
+  // Prepare data object
+  const data = {
+    username,
+    email,
+    password,
+    firstName,
+    lastName,
+    tel,
+    role
+  };
+
+  try {
+    const response = await axios.post(apiAddUser, data);
+
+    console.log(response.data);
+
+    res.status(200).json(response.data);
+  } catch (error) {
+ 
+    console.error('Error adding user:', error);
+
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 async function checkIfExists(column, value) {
   return new Promise((resolve, reject) => {
     db.query(`SELECT * FROM members WHERE ${column} = ?`, [value], (err, result) => {
@@ -269,7 +296,24 @@ async function insertMember(memberId, username, email, password, firstName, last
     );
   });
 }
-
+async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
+  if (role == 'farmer'){
+    return
+  }
+  return new Promise((resolve, reject) => {
+    db.query(
+      `INSERT INTO ${role}s (member_id, ${role}_username, ${role}_email, ${role}_password, ${role}_FirstName, ${role}_LastName, ${role}_phone, ${role}_follows) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [memberId, username, email, password, firstName, lastName, tel, null],
+      (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
 const jwtOptions = {
   jwtFromRequest: ExtractJwt.fromHeader("authorization"),
   secretOrKey: secretKey,
