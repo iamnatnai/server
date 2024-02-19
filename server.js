@@ -25,7 +25,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
@@ -777,10 +777,10 @@ app.get("/getinfo", (req, res) => {
     const roleWithoutS = role.substring(0, role.length - 1)
     var query
     if (role !== "farmers") {
-      query = `SELECT ${roleWithoutS}_email as email, ${roleWithoutS}_first_name as first_name, ${roleWithoutS}_last_name as last_name, ${roleWithoutS}_phone as phone from ${role} where ${roleWithoutS}_username = "${username}"`
+      query = `SELECT ${roleWithoutS}_username, ${roleWithoutS}_email as email, ${roleWithoutS}_first_name as first_name, ${roleWithoutS}_last_name as last_name, ${roleWithoutS}_phone as phone from ${role} where ${roleWithoutS}_username = "${username}"`
     }
     else {
-      query = `SELECT Farmerstore_name, ${roleWithoutS}_email as email, ${roleWithoutS}_first_name as first_name, ${roleWithoutS}_last_name as last_name, ${roleWithoutS}_phone as phone , ${roleWithoutS}_address as address, ${roleWithoutS}_social_media as social_media , lat, lon from ${role} where ${roleWithoutS}_username = "${username}"`
+      query = `SELECT Farmerstore_name, ${roleWithoutS}_username, ${roleWithoutS}_email as email, ${roleWithoutS}_first_name as first_name, ${roleWithoutS}_last_name as last_name, ${roleWithoutS}_phone as phone , ${roleWithoutS}_address as address, ${roleWithoutS}_social_media as social_media , lat, lon from ${role} where ${roleWithoutS}_username = "${username}"`
 
     }
     console.log(query);
