@@ -688,32 +688,16 @@ const upload = multer({ storage: storage });
 
 app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
   const {
-    jwt_token,
     username,
     productName,
     category,
     description,
-    productImage,
-    productVideo,
     additionalImages,
     selectedStandard,
-    standardName,
-    standardNumber,
-    certification,
-    cercificationImage,
-    exp,
     selectedType,
     price,
     unit,
     stock,
-    amount,
-    shippingCost,
-    shippingCostList,
-    selectedTypeDescription,
-    selectedStatus,
-    startDate,
-    endDate,
-    deposit,
   } = req.body;
 
   try {
@@ -728,27 +712,18 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
         }
       });
     });
-    console.log(farmerIdResult);
-    console.log(farmerIdResult[0]);
-    console.log(selectedStandard);
     const farmerId = farmerIdResult[0].id;
-
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const productVideoFile = req.files['productVideo'] ? req.files['productVideo'][0] : null;
     const productVideoPath = productVideoFile ? `./uploads/${productVideoFile.filename}` : null;
-    console.log(additionalImages);
-    console.log(productImagePath);
-    console.log(productVideoPath);
     const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
     const additionalImagesJSON = JSON.stringify(additionalImagesPaths);
     const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
-    console.log(cercificationImagePath);
     const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
       ...standard,
-      standard_cercification: cercificationImagePath[index]
+      standard_cercification: cercificationImagePath ? cercificationImagePath[index] : null
     }));
-    console.log(jsonselectstandard);
     // if (Array.isArray(selectedStandard)) {
     //   // ตรวจสอบและใช้งาน selectedStandard ได้ตามปกติ
     //   const combinedData = JSON.stringify(selectedStandard.map(standard => ({
@@ -872,6 +847,62 @@ app.get("/getinfo", (req, res) => {
   }
 })
 
+app.post('/updateinfo', async (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
+  const { email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, oldPassword, newPassword } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    const { username, role } = decoded
+    if (username !== req.body.username) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (oldPassword && newPassword) {
+      let oldHashedPassword = await new Promise((resolve, reject) => {
+        db.query(`SELECT password FROM ${role} WHERE username = "${username}"`, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].password);
+          }
+        });
+      })
+      const passwordMatch = await bcrypt.compare(oldPassword, oldHashedPassword);
+      if (!passwordMatch) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
+    var query
+    if (role !== "farmers") {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+    }
+    else {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}" WHERE username = "${username}"`
+    }
+    console.log(query);
+    db.query(query, (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      } else {
+        console.log(result);
+        res.json({ ...result[0], success: true });
+      }
+    });
+
+    return res.status(200);
+  }
+  catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
 
 
 app.listen(3001, () => console.log('Avalable 3001'));
