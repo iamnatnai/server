@@ -137,37 +137,9 @@ app.post('/register', async (req, res) => {
     res.status(500).send({ exist: false, error: 'Internal Server Error' });
   }
 });
-app.post('/adduser', async (req, res) => {
-  // Extract data from request body
-  const { username, email, password, firstName, lastName, tel, role } = req.body;
-
-  // Prepare data object
-  const data = {
-    username,
-    email,
-    password,
-    firstName,
-    lastName,
-    tel,
-    role
-  };
-
-  try {
-    const response = await axios.post(apiAddUser, data);
-
-    console.log(response.data);
-
-    res.status(200).json(response.data);
-  } catch (error) {
- 
-    console.error('Error adding user:', error);
-
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
-  }
-});
-async function checkIfExists(column, value) {
+async function CheckingUser_username(role,username, value) {
   return new Promise((resolve, reject) => {
-    db.query(`SELECT * FROM members WHERE ${column} = ?`, [value], (err, result) => {
+    db.query(`SELECT * FROM ${role} WHERE ${username} = ?`, [value], (err, result) => {
       if (err) {
         reject(err);
       } else {
@@ -176,6 +148,35 @@ async function checkIfExists(column, value) {
     });
   });
 }
+
+
+app.post('/adduser', async (req, res) => {
+  const { username, email, password, firstName, lastName, tel, role } = req.body;
+
+  if (!username || !email || !password || !firstName || !lastName || !tel || !role) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  try {
+    const usernameExists = await checkIfExists('member_username', username);
+    const emailExists = await checkIfExists('member_email', email);
+
+    if (usernameExists) {
+      return res.status(409).json({ success: false, message: 'Username already exists' });
+    }
+    if (emailExists) {
+      return res.status(409).json({ success: false, message: 'Email already exists' });
+    }
+    const nextUserId = await getNextUserId(role);
+    await insertUser(nextUserId, username, email, password, firstName, lastName, tel, role);
+    res.status(201).json({ success: true, message: 'User added successfully' });
+  } catch (error) {
+    console.error('Error adding user:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+
 app.get('/role', (req, res) => {
   db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
     if (err) {
@@ -260,9 +261,6 @@ app.get('/users', async (req, res) => {
   }
 });
 
-
-
-
 async function getNextId() {
   return new Promise((resolve, reject) => {
     db.query('SELECT MAX(id) as maxId FROM members', (err, result) => {
@@ -276,6 +274,39 @@ async function getNextId() {
           nextId = 'MEM' + numericPart.toString().padStart(3, '0');
         }
         resolve(nextId);
+      }
+    });
+  });
+}
+async function getNextUserId(role) {
+  let rolePrefix = '';
+  switch (role) {
+    case 'admin':
+      rolePrefix = 'ADMIN';
+      break;
+    case 'farmer':
+      rolePrefix = 'FARM';
+      break;
+    case 'provider':
+      rolePrefix = 'PROV';
+      break;
+    case 'tambon':
+      rolePrefix = 'TB';
+      break;
+  }
+
+  return new Promise((resolve, reject) => {
+    db.query(`SELECT MAX(id) as maxId FROM ${role}s`, (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        let nextuseId = `${rolePrefix}001`;
+        if (result[0].maxId) {
+          const currentId = result[0].maxId;
+          const numericPart = parseInt(currentId.substring(3), 10) + 1;
+          nextuseId = `${rolePrefix}${numericPart.toString().padStart(3, '0')}`;
+        }
+        resolve(nextuseId);
       }
     });
   });
@@ -297,18 +328,15 @@ async function insertMember(memberId, username, email, password, firstName, last
   });
 }
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
-  if (role == 'farmer'){
-    return
-  }
   return new Promise((resolve, reject) => {
     db.query(
-      `INSERT INTO ${role}s (member_id, ${role}_username, ${role}_email, ${role}_password, ${role}_FirstName, ${role}_LastName, ${role}_phone, ${role}_follows) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${role}s (id,username,email,password,firstname,lastName,phone,${role}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [memberId, username, email, password, firstName, lastName, tel, null],
       (err, result) => {
         if (err) {
           reject(err);
         } else {
-          resolve();
+          resolve(result);
         }
       }
     );
