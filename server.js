@@ -27,6 +27,7 @@ const db = mysql.createConnection({
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
   password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
+  charset : "utf8mb4",
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
       return field.string() === '1'; // 1 = true, 0 = false
