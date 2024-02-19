@@ -25,7 +25,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
