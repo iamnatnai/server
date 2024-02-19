@@ -115,9 +115,8 @@ app.post('/register', async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    const usernameExists = await checkIfExists('username', username);
-    const emailExists = await checkIfExists('email', email);
+     const usernameExists = await checkIfExists('username', username);
+     const emailExists = await checkIfExists('email', email);
 
     if (usernameExists) {
       return res.status(409).send({ exist: false, error: 'Username already exists' });
@@ -137,9 +136,9 @@ app.post('/register', async (req, res) => {
     res.status(500).send({ exist: false, error: 'Internal Server Error' });
   }
 });
-async function CheckingUser_username(role,username, value) {
+async function checkIfExists(role, column, value) {
   return new Promise((resolve, reject) => {
-    db.query(`SELECT * FROM ${role} WHERE ${username} = ?`, [value], (err, result) => {
+    db.query(`SELECT * FROM ${role} WHERE ${column} = ?`, [value], (err, result) => {
       if (err) {
         reject(err);
       } else {
@@ -158,17 +157,17 @@ app.post('/adduser', async (req, res) => {
   }
 
   try {
-    const usernameExists = await checkIfExists('member_username', username);
-    const emailExists = await checkIfExists('member_email', email);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const usernameExists = await checkIfExists(role, 'username', username);
 
     if (usernameExists) {
       return res.status(409).json({ success: false, message: 'Username already exists' });
     }
-    if (emailExists) {
-      return res.status(409).json({ success: false, message: 'Email already exists' });
-    }
+    // if (emailExists) {
+    //   return res.status(409).json({ success: false, message: 'Email already exists' });
+    // }
     const nextUserId = await getNextUserId(role);
-    await insertUser(nextUserId, username, email, password, firstName, lastName, tel, role);
+    await insertUser(nextUserId, username, email, hashedPassword, firstName, lastName, tel, role);
     res.status(201).json({ success: true, message: 'User added successfully' });
   } catch (error) {
     console.error('Error adding user:', error);
@@ -281,22 +280,22 @@ async function getNextId() {
 async function getNextUserId(role) {
   let rolePrefix = '';
   switch (role) {
-    case 'admin':
+    case 'admins':
       rolePrefix = 'ADMIN';
       break;
-    case 'farmer':
+    case 'farmers':
       rolePrefix = 'FARM';
       break;
-    case 'provider':
+    case 'providers':
       rolePrefix = 'PROV';
       break;
-    case 'tambon':
+    case 'tambons':
       rolePrefix = 'TB';
       break;
   }
 
   return new Promise((resolve, reject) => {
-    db.query(`SELECT MAX(id) as maxId FROM ${role}s`, (err, result) => {
+    db.query(`SELECT MAX(id) as maxId FROM ${role}`, (err, result) => {
       if (err) {
         reject(err);
       } else {
@@ -330,8 +329,8 @@ async function insertMember(memberId, username, email, password, firstName, last
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
   return new Promise((resolve, reject) => {
     db.query(
-      `INSERT INTO ${role}s (id,username,email,password,firstname,lastName,phone,${role}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [memberId, username, email, password, firstName, lastName, tel, null],
+      `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [memberId, username, email, password, firstName, lastName, tel, role],
       (err, result) => {
         if (err) {
           reject(err);
