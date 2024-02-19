@@ -266,11 +266,11 @@ async function getNextId() {
       if (err) {
         reject(err);
       } else {
-        let nextId = 'MEM001';
+        let nextId = 'MEM00001';
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(3), 10) + 1;
-          nextId = 'MEM' + numericPart.toString().padStart(3, '0');
+          nextId = 'MEM' + numericPart.toString().padStart(5, '0');
         }
         resolve(nextId);
       }
@@ -282,6 +282,7 @@ async function getNextUserId(role) {
   switch (role) {
     case 'admins':
       rolePrefix = 'ADMIN';
+
       break;
     case 'farmers':
       rolePrefix = 'FARM';
@@ -293,19 +294,19 @@ async function getNextUserId(role) {
       rolePrefix = 'TB';
       break;
   }
-
+  console.log(role);
   return new Promise((resolve, reject) => {
     db.query(`SELECT MAX(id) as maxId FROM ${role}`, (err, result) => {
       if (err) {
         reject(err);
       } else {
-        let nextuseId = `${rolePrefix}001`;
+        let nextUserId = `${rolePrefix}00001`;
         if (result[0].maxId) {
           const currentId = result[0].maxId;
-          const numericPart = parseInt(currentId.substring(3), 10) + 1;
-          nextuseId = `${rolePrefix}${numericPart.toString().padStart(3, '0')}`;
+          const numericPart = parseInt(currentId.substring(rolePrefix.length), 10) + 1;
+          nextUserId = `${rolePrefix}${numericPart.toString().padStart(5, '0')}`;
         }
-        resolve(nextuseId);
+        resolve(nextUserId);
       }
     });
   });
