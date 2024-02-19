@@ -48,15 +48,15 @@ app.post('/checkinguser', (req, res) => {
   console.log('username :', username);
   db.query(
     `
-    SELECT 'admins' AS role, admin_user AS username FROM admins WHERE admin_user = ?
+    SELECT 'admins' AS role, username FROM admins WHERE username = ?
     UNION
-    SELECT 'farmers' AS role, farmer_username AS username FROM farmers WHERE farmer_username = ?
+    SELECT 'farmers' AS role, username FROM farmers WHERE username = ?
     UNION
-    SELECT 'members' AS role, member_username AS username FROM members WHERE member_username = ?
+    SELECT 'members' AS role, username FROM members WHERE username = ?
     UNION
-    SELECT 'providers' AS role, prov_user AS username FROM providers WHERE prov_user = ?
+    SELECT 'providers' AS role, username FROM providers WHERE username = ?
     UNION
-    SELECT 'tambon' AS role, tb_user AS username FROM tambon WHERE tb_user = ?
+    SELECT 'tambon' AS role, username FROM tambons WHERE username = ?
     `,
     [username, username, username, username, username],
     (err, result) => {
@@ -79,15 +79,15 @@ app.post('/checkingemail', (req, res) => {
   console.log('email:', email);
   db.query(
     `
-    SELECT admin_email AS email FROM admins WHERE admin_email = ?
+    SELECT email FROM admins WHERE email = ?
     UNION
-    SELECT farmer_email AS email FROM farmers WHERE farmer_email = ?
+    SELECT email FROM farmers WHERE email = ?
     UNION
-    SELECT member_email AS email FROM members WHERE member_email = ?
+    SELECT email FROM members WHERE email = ?
     UNION
-    SELECT prov_email AS email FROM providers WHERE prov_email = ?
+    SELECT email FROM providers WHERE email = ?
     UNION
-    SELECT tb_email AS email FROM tambon WHERE tb_email = ?
+    SELECT email FROM tambons WHERE email = ?
     `,
     [email, email, email, email, email],
     (err, result) => {
@@ -116,8 +116,8 @@ app.post('/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const usernameExists = await checkIfExists('member_username', username);
-    const emailExists = await checkIfExists('member_email', email);
+    const usernameExists = await checkIfExists('username', username);
+    const emailExists = await checkIfExists('email', email);
 
     if (usernameExists) {
       return res.status(409).send({ exist: false, error: 'Username already exists' });
@@ -177,7 +177,7 @@ async function checkIfExists(column, value) {
   });
 }
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role_id, 'แอดมิน' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambon;", (err, result) => {
+  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -189,7 +189,7 @@ app.get('/role', (req, res) => {
 
 app.get('/users', async (req, res) => {
   try {
-    const adminsQuery = "SELECT admin_id AS user_id, admin_email AS email, admin_user AS username, admin_first_name AS first_name, admin_last_name AS last_name, admin_number AS phone, role FROM admins";
+    const adminsQuery = "SELECT id, email, username, firstname, lastname, phone FROM admins";
     const adminsResult = await new Promise((resolve, reject) => {
       db.query(adminsQuery, (err, result) => {
         if (err) {
@@ -200,7 +200,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const farmersQuery = "SELECT farmer_id AS user_id, farmer_email AS email, farmer_username AS username, farmer_name AS first_name, '' AS last_name, farmer_phone AS phone, role FROM farmers";
+    const farmersQuery = "SELECT id, email, username, firstname, lastname, phone FROM farmers";
     const farmersResult = await new Promise((resolve, reject) => {
       db.query(farmersQuery, (err, result) => {
         if (err) {
@@ -211,7 +211,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const membersQuery = "SELECT member_id AS user_id, member_email AS email, member_username AS username, member_FirstName AS first_name, member_LastName AS last_name, member_phone AS phone, role FROM members";
+    const membersQuery = "SELECT id, email, username, firstname, lastname, phone FROM members";
     const membersResult = await new Promise((resolve, reject) => {
       db.query(membersQuery, (err, result) => {
         if (err) {
@@ -222,7 +222,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const providersQuery = "SELECT prov_id AS user_id, prov_email AS email, prov_user AS username, prov_name AS first_name, '' AS last_name, prov_number AS phone, role FROM providers";
+    const providersQuery = "SELECT id, email, username, firstname, lastname, phone FROM providers";
     const providersResult = await new Promise((resolve, reject) => {
       db.query(providersQuery, (err, result) => {
         if (err) {
@@ -233,7 +233,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const tambonQuery = "SELECT tb_id AS user_id, tb_email AS email, tb_user AS username, tb_first_name AS first_name, tb_last_name AS last_name, tb_number AS phone, role FROM tambon";
+    const tambonQuery = "SELECT id, email, username, firstname, lastname, phone FROM tambons";
     const tambonResult = await new Promise((resolve, reject) => {
       db.query(tambonQuery, (err, result) => {
         if (err) {
@@ -265,7 +265,7 @@ app.get('/users', async (req, res) => {
 
 async function getNextId() {
   return new Promise((resolve, reject) => {
-    db.query('SELECT MAX(member_id) as maxId FROM members', (err, result) => {
+    db.query('SELECT MAX(id) as maxId FROM members', (err, result) => {
       if (err) {
         reject(err);
       } else {
@@ -284,8 +284,8 @@ async function getNextId() {
 async function insertMember(memberId, username, email, password, firstName, lastName, tel) {
   return new Promise((resolve, reject) => {
     db.query(
-      'INSERT INTO members (member_id, member_username, member_email, member_password, member_FirstName, member_LastName, member_phone, member_follows) VALUES (?, ?, ?, ?, ?, ?, ?,?)',
-      [memberId, username, email, password, firstName, lastName, tel, null],
+      'INSERT INTO members (id, username, email, password, firstname, lastname, phone, member_follows, role) VALUES (?, ?, ?, ?, ?, ?, ?,?,?)',
+      [memberId, username, email, password, firstName, lastName, tel, null, 'members'],
       (err, result) => {
         if (err) {
           reject(err);
@@ -437,15 +437,15 @@ app.get('/login', async (req, res) => {
 async function getUserByUsername(username) {
   return new Promise((resolve, reject) => {
     db.query(`
-    SELECT 'admins' AS role, admin_id AS user_id, admin_user AS uze_name, admin_password AS pazz FROM admins WHERE admin_user = ?
+    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins WHERE username = ?
     UNION
-    SELECT 'farmers' AS role, farmer_id AS user_id, farmer_username AS uze_name, farmer_password AS pazz FROM farmers WHERE farmer_username = ?
+    SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers WHERE username = ?
     UNION
-    SELECT 'members' AS role, member_id AS user_id, member_username AS uze_name, member_password AS pazz FROM members WHERE member_username = ?
+    SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members WHERE username = ?
     UNION
-    SELECT 'providers' AS role, prov_id AS user_id, prov_user AS uze_name, prov_password AS pazz FROM providers WHERE prov_user = ?
+    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers WHERE username = ?
     UNION
-    SELECT 'tambon' AS role, tb_id AS user_id, tb_user AS uze_name, tb_password AS pazz FROM tambon WHERE tb_user = ?
+    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons WHERE username = ?
     `, [username, username, username, username, username], (err, result) => {
       if (err) {
         reject(err);
@@ -515,7 +515,7 @@ app.get('/standardproducts', (req, res) => {
 
 function checkIfEmailAndNameMatch(email, firstName, lastName) {
   return new Promise((resolve, reject) => {
-    const query = 'SELECT * FROM members WHERE member_email = ? AND member_FirstName = ? AND member_LastName = ?';
+    const query = 'SELECT * FROM members WHERE email = ? AND firstname = ? AND lastname = ?';
     db.query(query, [email, firstName, lastName], (err, result) => {
       if (err) {
         console.error('Error checking email and name in database:', err);
@@ -601,7 +601,7 @@ async function updatePasswordInDatabase(email, newPassword) {
 
     const hashedPassword = await hashPassword(newPassword);
 
-    db.query('UPDATE members SET member_password = ? WHERE member_email = ?', [hashedPassword, email], (err, result) => {
+    db.query('UPDATE members SET password = ? WHERE email = ?', [hashedPassword, email], (err, result) => {
       if (err) {
         console.error('Error updating password in database:', err);
       } else {
@@ -658,7 +658,7 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' },{ name: 'cercificationImage' },]), async (req, res) => {
+app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
   const {
     jwt_token,
     username,
@@ -689,7 +689,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
   } = req.body;
 
   try {
-    const farmerIdQuery = "SELECT farmer_id FROM farmers WHERE farmer_username = ?";
+    const farmerIdQuery = "SELECT id FROM farmers WHERE username = ?";
     const farmerIdResult = await new Promise((resolve, reject) => {
       db.query(farmerIdQuery, [username], (err, result) => {
         if (err) {
@@ -703,7 +703,7 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     console.log(farmerIdResult);
     console.log(farmerIdResult[0]);
     console.log(selectedStandard);
-    const farmerId = farmerIdResult[0].farmer_id;
+    const farmerId = farmerIdResult[0].id;
 
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
@@ -712,11 +712,11 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     console.log(additionalImages);
     console.log(productImagePath);
     console.log(productVideoPath);
-    const additionalImagesPaths =req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
+    const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
     const additionalImagesJSON = JSON.stringify(additionalImagesPaths);
     const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
     console.log(cercificationImagePath);
-    const jsonselectstandard = JSON.parse(selectedStandard).map((standard,index) => ({
+    const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
       ...standard,
       standard_cercification: cercificationImagePath[index]
     }));
@@ -731,12 +731,12 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     //   // กรณี selectedStandard ไม่ใช่ array
     //   console.error('selectedStandard is not an array');
     // }
-    
+
     const query = `
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, JSON.stringify(jsonselectstandard)]);
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, JSON.stringify(jsonselectstandard)]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
@@ -793,6 +793,55 @@ app.get('/updateview/:id', (req, res) => {
       res.json({ success: true });
     }
   });
+})
+
+app.get('/myproducts/:username', (req, res) => {
+  const { username } = req.params;
+  db.query('SELECT product_id, product_image, product_description, product_name, selectedType, last_modified, price, view_count FROM products WHERE farmer_id COLLATE utf8mb4_general_ci = (select id from farmers where username = ?)', [username], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result);
+    }
+  });
+});
+
+app.get("/getinfo", (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
+
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    const { username, role } = decoded
+    var query
+    if (role !== "farmers") {
+      query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
+    }
+    else {
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, socialmedia , lat, lon from ${role} where username = "${username}"`
+
+    }
+    console.log(query);
+    db.query(query, (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      } else {
+        console.log(result);
+        res.json({ ...result[0], success: true });
+      }
+    });
+
+    return res.status(200);
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
 })
 
 
