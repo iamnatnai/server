@@ -43,6 +43,49 @@ db.connect((err) => {
   }
 });
 
+const checkAdmin = (req, res, next) => {
+  const token = req.headers.authorization.split(' ')[1];
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== 'admins') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+const checkFarmer = (req, res, next) => {
+  const token = req.headers.authorization.split(' ')[1];
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== 'farmers' || decoded.role !== 'admins') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+
+
+
+
+
 app.post('/checkinguser', (req, res) => {
   const username = req.body.username;
   console.log('username :', username);
@@ -137,7 +180,7 @@ app.post('/register', async (req, res) => {
     res.status(500).send({ exist: false, error: 'Internal Server Error' });
   }
 });
-async function CheckingUser_username(role,username, value) {
+async function CheckingUser_username(role, username, value) {
   return new Promise((resolve, reject) => {
     db.query(`SELECT * FROM ${role} WHERE ${username} = ?`, [value], (err, result) => {
       if (err) {
@@ -188,9 +231,9 @@ app.get('/role', (req, res) => {
   });
 });
 
-app.get('/users', async (req, res) => {
+app.get('/users', checkAdmin, async (req, res) => {
   try {
-    const adminsQuery = "SELECT id, email, username, firstname, lastname, phone FROM admins";
+    const adminsQuery = "SELECT email, username, firstname, lastname, phone, role FROM admins";
     const adminsResult = await new Promise((resolve, reject) => {
       db.query(adminsQuery, (err, result) => {
         if (err) {
@@ -201,7 +244,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const farmersQuery = "SELECT id, email, username, firstname, lastname, phone FROM farmers";
+    const farmersQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers";
     const farmersResult = await new Promise((resolve, reject) => {
       db.query(farmersQuery, (err, result) => {
         if (err) {
@@ -212,7 +255,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const membersQuery = "SELECT id, email, username, firstname, lastname, phone FROM members";
+    const membersQuery = "SELECT email, username, firstname, lastname, phone, role FROM members";
     const membersResult = await new Promise((resolve, reject) => {
       db.query(membersQuery, (err, result) => {
         if (err) {
@@ -223,7 +266,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const providersQuery = "SELECT id, email, username, firstname, lastname, phone FROM providers";
+    const providersQuery = "SELECT email, username, firstname, lastname, phone, role FROM providers";
     const providersResult = await new Promise((resolve, reject) => {
       db.query(providersQuery, (err, result) => {
         if (err) {
@@ -234,7 +277,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const tambonQuery = "SELECT id, email, username, firstname, lastname, phone FROM tambons";
+    const tambonQuery = "SELECT email, username, firstname, lastname, phone, role FROM tambons";
     const tambonResult = await new Promise((resolve, reject) => {
       db.query(tambonQuery, (err, result) => {
         if (err) {
@@ -686,19 +729,24 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
+app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
   const {
     username,
     productName,
     category,
     description,
-    additionalImages,
     selectedStandard,
     selectedType,
     price,
     unit,
     stock,
   } = req.body;
+
+  const token = req.headers.authorization.split(' ')[1];
+  const secretKey = 'sohot';
+  if (username !== jwt.verify(token, secretKey).username) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  }
 
   try {
     const farmerIdQuery = "SELECT id FROM farmers WHERE username = ?";
@@ -849,11 +897,10 @@ app.get("/getinfo", (req, res) => {
 
 app.post('/updateinfo', async (req, res) => {
   const token = req.headers.authorization.split(' ')[1];
-  const { email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, oldPassword, newPassword } = req.body;
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-
+  const { email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, oldPassword, newPassword } = req.body;
   const secretKey = 'sohot';
   try {
     const decoded = jwt.verify(token, secretKey);
@@ -892,7 +939,7 @@ app.post('/updateinfo', async (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         console.log(result);
-        res.json({ ...result[0], success: true });
+        res.json(result[0]);
       }
     });
 
@@ -903,6 +950,63 @@ app.post('/updateinfo', async (req, res) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 })
+
+app.post("/updateinfoadmin", checkAdmin, (req, res) => {
+  const { username, email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, newPassword, role } = req.body;
+  if (!email || !firstname || !lastname || !phone || !role || !username) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  try {
+    var query
+    if (role !== "farmers") {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+    }
+    else {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}" WHERE username = "${username}"`
+    }
+    console.log(query);
+    db.query(query, (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      } else {
+        console.log(result);
+        res.json(result[0]);
+      }
+    });
+
+    return res.status(200);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
+
+  const { role, username } = req.params;
+  var query
+  if (role !== "farmers") {
+    query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
+  }
+  else {
+    query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, socialmedia , lat, lon from ${role} where username = "${username}"`
+
+  }
+  db.query(query, (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      console.log(result);
+      res.json({ ...result[0] });
+    }
+  });
+
+  return res.status(200);
+
+
+});
 
 
 app.listen(3001, () => console.log('Avalable 3001'));
