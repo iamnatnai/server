@@ -763,6 +763,44 @@ app.get('/myproducts/:username', (req, res) => {
   });
 });
 
+app.get("/getinfo", (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
+
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    const { username, role } = decoded
+    const roleWithoutS = role.substring(0, role.length - 1)
+    var query
+    if (role !== "farmers") {
+      query = `SELECT ${roleWithoutS}_email as email, ${roleWithoutS}_first_name as first_name, ${roleWithoutS}_last_name as last_name, ${roleWithoutS}_phone as phone from ${role} where ${roleWithoutS}_username = "${username}"`
+    }
+    else {
+      query = `SELECT Farmerstore_name, ${roleWithoutS}_email as email, ${roleWithoutS}_first_name as first_name, ${roleWithoutS}_last_name as last_name, ${roleWithoutS}_phone as phone , ${roleWithoutS}_address as address, ${roleWithoutS}_social_media as social_media , lat, lon from ${role} where ${roleWithoutS}_username = "${username}"`
+
+    }
+    console.log(query);
+    db.query(query, (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      } else {
+        console.log(result);
+        res.json({ ...result[0], success: true });
+      }
+    });
+
+    return res.status(200);
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
+
 
 
 app.listen(3001, () => console.log('Avalable 3001'));
