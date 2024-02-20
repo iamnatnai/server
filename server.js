@@ -27,7 +27,7 @@ const db = mysql.createConnection({
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
   password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
-  charset : "utf8mb4",
+  charset: "utf8mb4",
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
       return field.string() === '1'; // 1 = true, 0 = false
@@ -116,8 +116,8 @@ app.post('/register', async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-     const usernameExists = await checkIfExists('username', username);
-     const emailExists = await checkIfExists('email', email);
+    const usernameExists = await checkIfExists('username', username);
+    const emailExists = await checkIfExists('email', email);
 
     if (usernameExists) {
       return res.status(409).send({ exist: false, error: 'Username already exists' });
@@ -171,9 +171,9 @@ app.post('/adduser', async (req, res) => {
     if (usernameExists) {
       return res.status(409).json({ success: false, message: 'Username already exists' });
     }
-     if (emailExists) {
+    if (emailExists) {
       return res.status(409).json({ success: false, message: 'Email already exists' });
-     }
+    }
     const nextUserId = await getNextUserId(role);
     await insertUser(nextUserId, username, email, hashedPassword, firstName, lastName, tel, role);
     res.status(201).json({ success: true, message: 'User added successfully' });
@@ -749,18 +749,18 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
     console.log(productImagePath);
     console.log(productVideoPath);
     var additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
-    var additionalImagesJSON 
-    if (additionalImagesPaths == null ) {
-       additionalImagesJSON = null ;
+    var additionalImagesJSON
+    if (additionalImagesPaths == null) {
+      additionalImagesJSON = null;
     } else {
-       additionalImagesJSON = JSON.stringify(additionalImagesPaths);
+      additionalImagesJSON = JSON.stringify(additionalImagesPaths);
     }
-    
+
     const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
     console.log(cercificationImagePath);
     const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
       ...standard,
-      standard_cercification: cercificationImagePath[index]
+      standard_cercification: cercificationImagePath ? cercificationImagePath[index] : null,
     }));
     console.log(jsonselectstandard);
     // if (Array.isArray(selectedStandard)) {
