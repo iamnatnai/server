@@ -15,6 +15,7 @@ const port = 3000;
 const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
+const { error } = require('console');
 const secretKey = 'pifOvrart4';
 require('dotenv').config();
 
@@ -1018,6 +1019,57 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
 
 
 });
+
+app.post('/checkout', async (req, res) => {
+  const { cartList } = req.body;
+  if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
+    return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
+  }
+
+  for (const item of cartList) {
+    try {
+      const { product_id, amount } = item;
+      const getProductQuery = 'SELECT stock FROM products WHERE product_id = ?';
+      const [product] = await new Promise((resolve, reject) => {
+        db.query(getProductQuery, [product_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
+      })
+      if (!product || product.length === 0) {
+        console.error(`Product ID ${product_id} not found`);
+        return res.status(400).send({ error: `Product ID ${product_id} not found` });
+      }
+      console.log(product);
+      const currentStock = product.stock;
+      if (amount > currentStock) {
+        console.error(`Insufficient stock for product ID ${product_id}`);
+        return res.status(400).send({ error: `Insufficient stock for product ID ${product_id}` });
+      }
+
+      const newStock = currentStock - amount;
+      const updateStockQuery = 'UPDATE products SET stock = ? WHERE product_id = ?';
+      await new Promise((resolve, reject) => {
+        db.query(updateStockQuery, [newStock, product_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+      console.log(`Stock updated for product ID ${product_id}`);
+    } catch (error) {
+      console.error('Error updating stock:', error);
+    }
+  }
+
+  res.status(200).json({ success: true, message: 'Checkout completed' });
+});
+
 
 
 app.listen(3001, () => console.log('Avalable 3001'));
