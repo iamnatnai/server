@@ -44,6 +44,49 @@ db.connect((err) => {
   }
 });
 
+const checkAdmin = (req, res, next) => {
+  const token = req.headers.authorization.split(' ')[1];
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== 'admins') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+const checkFarmer = (req, res, next) => {
+  const token = req.headers.authorization.split(' ')[1];
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== 'farmers' || decoded.role !== 'admins') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+
+
+
+
+
 app.post('/checkinguser', (req, res) => {
   const username = req.body.username;
   console.log('username :', username);
@@ -195,9 +238,9 @@ app.get('/role', (req, res) => {
   });
 });
 
-app.get('/users', async (req, res) => {
+app.get('/users', checkAdmin, async (req, res) => {
   try {
-    const adminsQuery = "SELECT id, email, username, firstname, lastname, phone FROM admins";
+    const adminsQuery = "SELECT email, username, firstname, lastname, phone, role FROM admins";
     const adminsResult = await new Promise((resolve, reject) => {
       db.query(adminsQuery, (err, result) => {
         if (err) {
@@ -208,7 +251,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const farmersQuery = "SELECT id, email, username, firstname, lastname, phone FROM farmers";
+    const farmersQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers";
     const farmersResult = await new Promise((resolve, reject) => {
       db.query(farmersQuery, (err, result) => {
         if (err) {
@@ -219,7 +262,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const membersQuery = "SELECT id, email, username, firstname, lastname, phone FROM members";
+    const membersQuery = "SELECT email, username, firstname, lastname, phone, role FROM members";
     const membersResult = await new Promise((resolve, reject) => {
       db.query(membersQuery, (err, result) => {
         if (err) {
@@ -230,7 +273,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const providersQuery = "SELECT id, email, username, firstname, lastname, phone FROM providers";
+    const providersQuery = "SELECT email, username, firstname, lastname, phone, role FROM providers";
     const providersResult = await new Promise((resolve, reject) => {
       db.query(providersQuery, (err, result) => {
         if (err) {
@@ -241,7 +284,7 @@ app.get('/users', async (req, res) => {
       })
     })
 
-    const tambonQuery = "SELECT id, email, username, firstname, lastname, phone FROM tambons";
+    const tambonQuery = "SELECT email, username, firstname, lastname, phone, role FROM tambons";
     const tambonResult = await new Promise((resolve, reject) => {
       db.query(tambonQuery, (err, result) => {
         if (err) {
@@ -694,35 +737,24 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
+app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
   const {
-    jwt_token,
     username,
     productName,
     category,
     description,
-    productImage,
-    productVideo,
-    additionalImages,
     selectedStandard,
-    standardName,
-    standardNumber,
-    certification,
-    cercificationImage,
-    exp,
     selectedType,
     price,
     unit,
     stock,
-    amount,
-    shippingCost,
-    shippingCostList,
-    selectedTypeDescription,
-    selectedStatus,
-    startDate,
-    endDate,
-    deposit,
   } = req.body;
+
+  const token = req.headers.authorization.split(' ')[1];
+  const secretKey = 'sohot';
+  if (username !== jwt.verify(token, secretKey).username) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  }
 
   try {
     const farmerIdQuery = "SELECT id FROM farmers WHERE username = ?";
@@ -736,31 +768,19 @@ app.post('/addproduct', upload.fields([{ name: 'productImage', maxCount: 1 }, { 
         }
       });
     });
-    console.log(farmerIdResult);
-    console.log(farmerIdResult[0]);
-    console.log(selectedStandard);
     const farmerId = farmerIdResult[0].id;
 
     const nextProductId = await getNextProductId();
     const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
     const productVideoFile = req.files['productVideo'] ? req.files['productVideo'][0] : null;
     const productVideoPath = productVideoFile ? `./uploads/${productVideoFile.filename}` : null;
-    console.log(additionalImages);
-    console.log(productImagePath);
-    console.log(productVideoPath);
-    var additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
-    var additionalImagesJSON
-    if (additionalImagesPaths == null) {
-      additionalImagesJSON = null;
-    } else {
-      additionalImagesJSON = JSON.stringify(additionalImagesPaths);
-    }
-
+    const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
+    const additionalImagesJSON = additionalImagesPaths ? JSON.stringify(additionalImagesPaths) : null;
     const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
     console.log(cercificationImagePath);
     const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
       ...standard,
-      standard_cercification: cercificationImagePath ? cercificationImagePath[index] : null,
+      standard_cercification: cercificationImagePath ? cercificationImagePath[index] : null
     }));
     console.log(jsonselectstandard);
     // if (Array.isArray(selectedStandard)) {
@@ -886,6 +906,118 @@ app.get("/getinfo", (req, res) => {
   }
 })
 
+app.post('/updateinfo', async (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  const { email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, oldPassword, newPassword } = req.body;
+  const secretKey = 'sohot';
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    const { username, role } = decoded
+    if (username !== req.body.username) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (oldPassword && newPassword) {
+      let oldHashedPassword = await new Promise((resolve, reject) => {
+        db.query(`SELECT password FROM ${role} WHERE username = "${username}"`, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].password);
+          }
+        });
+      })
+      const passwordMatch = await bcrypt.compare(oldPassword, oldHashedPassword);
+      if (!passwordMatch) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
+    var query
+    if (role !== "farmers") {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+    }
+    else {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}" WHERE username = "${username}"`
+    }
+    console.log(query);
+    db.query(query, (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      } else {
+        console.log(result);
+        res.json(result[0]);
+      }
+    });
+
+    return res.status(200);
+  }
+  catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
+
+app.post("/updateinfoadmin", checkAdmin, (req, res) => {
+  const { username, email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, newPassword, role } = req.body;
+  if (!email || !firstname || !lastname || !phone || !role || !username) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  try {
+    var query
+    if (role !== "farmers") {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+    }
+    else {
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}" WHERE username = "${username}"`
+    }
+    console.log(query);
+    db.query(query, (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      } else {
+        console.log(result);
+        res.json(result[0]);
+      }
+    });
+
+    return res.status(200);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
+
+  const { role, username } = req.params;
+  var query
+  if (role !== "farmers") {
+    query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
+  }
+  else {
+    query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, socialmedia , lat, lon from ${role} where username = "${username}"`
+
+  }
+  db.query(query, (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      console.log(result);
+      res.json({ ...result[0] });
+    }
+  });
+
+  return res.status(200);
+
+
+});
 
 
 app.listen(3001, () => console.log('Avalable 3001'));
