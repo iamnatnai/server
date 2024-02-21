@@ -15,7 +15,7 @@ const port = 3000;
 const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
-const secretKey = 'sohot';
+const secretKey = 'pifOvrart4';
 require('dotenv').config();
 
 app.use(cors());
@@ -402,7 +402,7 @@ app.post('/login', async (req, res) => {
 
     }
 
-    const token = jwt.sign({ username: user.uze_name, ID: user.user_id, role: user.role }, 'sohot', {
+    const token = jwt.sign({ username: user.uze_name, ID: user.user_id, role: user.role }, 'pifOvrart4', {
       expiresIn: '1h',
     });
 
@@ -428,7 +428,7 @@ app.get('/login', async (req, res) => {
     return res.status(400).json({ error: 'Token not provided' });
   }
 
-  const secretKey = 'sohot';
+  const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
     const newToken = jwt.sign({ username: decoded.username, role: decoded.role }, secretKey, {
@@ -856,7 +856,7 @@ app.get("/getinfo", (req, res) => {
     return res.status(400).json({ error: 'Token not provided' });
   }
 
-  const secretKey = 'sohot';
+  const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
     const { username, role } = decoded
