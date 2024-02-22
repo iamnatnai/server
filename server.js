@@ -26,7 +26,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   charset: "utf8mb4",
   typeCast: function (field, next) {
@@ -161,8 +161,8 @@ app.post('/register', async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const usernameExists = await checkIfExists('username', username);
-    const emailExists = await checkIfExists('email', email);
+    const usernameExists = await checkIfExistsInAllTables('username', username);
+    const emailExists = await checkIfExistsInAllTables('email', email);
 
     if (usernameExists) {
       return res.status(409).send({ exist: false, error: 'Username already exists' });
