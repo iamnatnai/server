@@ -1154,13 +1154,13 @@ app.post('/checkout', async (req, res) => {
             if (err) {
               reject(err);
             } else {
-              let nextId = 'ITEM001';
+              let nextId = 'ITEM00001';
               if (result[0].maxId) {
                 const currentId = result[0].maxId;
                 console.log(currentId);
                 const numericPart = parseInt(currentId.substring(4), 10) + 1;
                 console.log(numericPart);
-                nextId = 'ITEM' + numericPart.toString().padStart(3, '0');
+                nextId = 'ITEM' + numericPart.toString().padStart(5, '0');
               }
               resolve(nextId);
             }
