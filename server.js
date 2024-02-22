@@ -1084,17 +1084,68 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
 
 });
 
+// app.post('/checkout', async (req, res) => {
+//   const { cartList } = req.body;
+//   if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
+//     return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
+//   }
+
+//   const failedProducts = [];
+
+//   for (const item of cartList) {
+//     try {
+//       const { product_id, amount } = item;
+//       const getProductQuery = 'SELECT stock FROM products WHERE product_id = ?';
+//       const [product] = await new Promise((resolve, reject) => {
+//         db.query(getProductQuery, [product_id], (err, result) => {
+//           if (err) {
+//             reject(err);
+//           } else {
+//             resolve(result);
+//           }
+//         });
+//       });
+
+//       if (!product || product.length === 0) {
+//         console.error(`Product ID ${product_id} not found`);
+//         failedProducts.push({ product_id, error: `Product ID ${product_id} not found` });
+//         continue;
+//       }
+
+//       const currentStock = product.stock;
+//       if (amount > currentStock) {
+//         console.error(`Insufficient stock for product ID ${product_id}`);
+//         failedProducts.push({ product_id, error: `Insufficient stock for product ID ${product_id}` });
+//       }
+//     } catch (error) {
+//       console.error('Error updating stock:', error);
+//     }
+//   }
+
+//   if (failedProducts.length > 0) {
+//     return res.status(400).json({ success: false, message: 'Some products are not available', failedProducts });
+//   } else {
+//     return res.status(200).json({ success: true, message: 'All products are available' });
+//   }
+// });
+
+
 app.post('/checkout', async (req, res) => {
   const { cartList } = req.body;
-  console.log(cartList);
+  const { order_id, member_id } = req.body; // Assuming you have order_id and member_id in the request body
   if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
     return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
   }
 
-  const failedProducts = [];
+  try {
+    await new Promise((resolve, reject) => {
+      db.beginTransaction(err => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
 
-  for (const item of cartList) {
-    try {
+    for (const item of cartList) {
       const { product_id, amount } = item;
       const getProductQuery = 'SELECT stock FROM products WHERE product_id = ?';
       const [product] = await new Promise((resolve, reject) => {
@@ -1109,27 +1160,116 @@ app.post('/checkout', async (req, res) => {
 
       if (!product || product.length === 0) {
         console.error(`Product ID ${product_id} not found`);
-        failedProducts.push({ product_id, error: `Product ID ${product_id} not found` });
-        continue;
+        return res.status(400).send({ error: `Product ID ${product_id} not found` });
       }
 
-      const currentStock = product.stock;
+      const currentStock = product.stock; // Corrected to access the stock property
       if (amount > currentStock) {
         console.error(`Insufficient stock for product ID ${product_id}`);
-        failedProducts.push({ product_id, error: `Insufficient stock for product ID ${product_id}` });
+        return res.status(400).send({ error: `Insufficient stock for product ID ${product_id}` });
       }
-    } catch (error) {
-      console.error('Error updating stock:', error);
-    }
-  }
 
-  if (failedProducts.length > 0) {
-    return res.status(400).json({ success: false, message: 'Some products are not available', failedProducts });
-  } else {
-    return res.status(200).json({ success: true, message: 'All products are available' });
+      const newStock = currentStock - amount;
+      const updateStockQuery = 'UPDATE products SET stock = ? WHERE product_id = ?';
+      await new Promise((resolve, reject) => {
+        db.query(updateStockQuery, [newStock, product_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+      async function getNextItemId() {
+        return new Promise((resolve, reject) => {
+          db.query('SELECT MAX(item_id) as maxId FROM order_items', (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let nextId = 'ITEM00001';
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                console.log(currentId);
+                const numericPart = parseInt(currentId.substring(4), 10) + 1;
+                console.log(numericPart);
+                nextId = 'ITEM' + numericPart.toString().padStart(5, '0');
+              }
+              resolve(nextId);
+            }
+          });
+        });
+      }
+      const getProductPriceQuery = 'SELECT price FROM products WHERE product_id = ?';
+      const [result] = await new Promise((resolve, reject) => {
+        db.query(getProductPriceQuery, [product_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            if (result.length === 0) {
+              reject(new Error(`Product ID ${product_id} not found`));
+            } else {
+              resolve(result);
+            }
+          }
+        });
+      });
+      console.log("this");
+      console.log(result.price);
+      const price = result.price;
+      const totalProductPrice = price * amount;
+
+      const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
+      const secretKey = 'pifOvrart4';
+      const decoded = jwt.verify(token, secretKey);
+      console.log(decoded);
+      const nextitemId = await getNextItemId();
+      const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,price, amount, member_id) VALUES (?,?,?,?, ?)';
+      await new Promise((resolve, reject) => {
+        db.query(insertOrderItemQuery, [nextitemId, product_id, totalProductPrice, amount, decoded.ID], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+
+            resolve(result);
+          }
+          console.log("nextitemId");
+          console.log(nextitemId);
+        });
+      });
+    }
+
+
+    await new Promise((resolve, reject) => {
+      db.commit(err => {
+        if (err) {
+          db.rollback(() => {
+            reject(err);
+          });
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    res.status(200).json({ success: true, message: 'Checkout completed' });
+  } catch (error) {
+    console.error('Error during checkout:', error);
+
+    // Rollback transaction
+    await new Promise((resolve, reject) => {
+      db.rollback(err => {
+        if (err) {
+          reject(err);
+        } else {
+          console.log('Transaction rolled back.');
+          resolve();
+        }
+      });
+    });
+
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-
 
 
 app.listen(3001, () => console.log('Avalable 3001'));
