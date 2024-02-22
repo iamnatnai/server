@@ -26,7 +26,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   charset: "utf8mb4",
   typeCast: function (field, next) {
@@ -845,6 +845,34 @@ app.get('/getproducts', (req, res) => {
 
 });
 
+app.delete('/deleteproduct/:id', checkFarmer, async (req, res) => {
+  const { id } = req.params;
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
+  const secretKey = 'pifOvrart4';
+  const username = jwt.verify(token, secretKey).username;
+  const farmerIdQuery = "SELECT id FROM farmers WHERE username = ?";
+  const farmerIdResult = await new Promise((resolve, reject) => {
+    db.query(farmerIdQuery, [username], (err, result) => {
+      if (err) {
+        console.error('Error checking email and name in database:', err);
+        reject(err);
+      } else {
+        resolve(result)
+      }
+    });
+  });
+  const farmerId = farmerIdResult[0].id;
+  //soft delete
+  db.query('UPDATE products SET isavailable = 0 WHERE product_id = ? and farmer_id =', [id, farmerId], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json({ success: true });
+    }
+  });
+});
+
 app.get('/updateview/:id', (req, res) => {
   const { id } = req.params;
   // update view_count + 1
@@ -887,7 +915,7 @@ app.get("/getinfo", (req, res) => {
       query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
     }
     else {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, socialmedia , lat, lon from ${role} where username = "${username}"`
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
 
     }
     console.log(query);
@@ -897,7 +925,7 @@ app.get("/getinfo", (req, res) => {
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
       } else {
         console.log(result);
-        res.json({ ...result[0], success: true });
+        res.json(result[0]);
       }
     });
 
@@ -919,9 +947,11 @@ app.post('/updateinfo', async (req, res) => {
     lastname = null,
     phone = null,
     address = null,
-    socialmedia = null,
+    facebooklink = null,
+    lineid = null,
     lat = null,
-    lon = null,
+    lng = null,
+    zipcode = null,
     farmerstorename = null,
     province = null,
     amphure = null,
@@ -958,7 +988,7 @@ app.post('/updateinfo', async (req, res) => {
       query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
     else {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -986,9 +1016,11 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
     lastname = null,
     phone = null,
     address = null,
-    socialmedia = null,
+    facebooklink = null,
+    lineid = null,
     lat = null,
-    lon = null,
+    lng = null,
+    zipcode = null,
     farmerstorename = null,
     province = null,
     amphure = null,
@@ -1006,7 +1038,7 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
       query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
     else {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -1034,7 +1066,7 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
     query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
   }
   else {
-    query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, socialmedia , lat, lon from ${role} where username = "${username}"`
+    query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
 
   }
   db.query(query, (err, result) => {
@@ -1043,7 +1075,7 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
       console.log(result);
-      res.json({ ...result[0] });
+      res.json(result[0]);
     }
   });
 
@@ -1054,6 +1086,7 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
 
 app.post('/checkout', async (req, res) => {
   const { cartList } = req.body;
+  console.log(cartList);
   if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
     return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
   }
