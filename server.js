@@ -230,7 +230,7 @@ app.post('/adduser', checkAdmin, async (req, res) => {
 
 
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
+  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providersUNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
