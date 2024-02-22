@@ -46,7 +46,7 @@ db.connect((err) => {
 });
 
 const checkAdmin = (req, res, next) => {
-  const token = req.headers.authorization.split(' ')[1];
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
@@ -65,7 +65,7 @@ const checkAdmin = (req, res, next) => {
 }
 
 const checkFarmer = (req, res, next) => {
-  const token = req.headers.authorization.split(' ')[1];
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
@@ -73,7 +73,7 @@ const checkFarmer = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, secretKey);
     console.log(decoded);
-    if (decoded.role !== 'farmers' || decoded.role !== 'admins') {
+    if (decoded.role !== 'farmers' && decoded.role !== 'admins') {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     next();
@@ -202,7 +202,7 @@ async function checkIfExistsInAllTables(column, value) {
   return results.some(result => result);
 }
 
-app.post('/adduser', async (req, res) => {
+app.post('/adduser', checkAdmin, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, role } = req.body;
 
   if (!username || !email || !password || !firstName || !lastName || !tel || !role) {
@@ -467,7 +467,7 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/login', async (req, res) => {
-  const token = req.headers.authorization.split(' ')[1];
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
 
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
@@ -752,7 +752,7 @@ app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxC
     stock,
   } = req.body;
 
-  const token = req.headers.authorization.split(' ')[1];
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
   const secretKey = 'pifOvrart4';
   if (username !== jwt.verify(token, secretKey).username) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -872,7 +872,7 @@ app.get('/myproducts/:username', (req, res) => {
 });
 
 app.get("/getinfo", (req, res) => {
-  const token = req.headers.authorization.split(' ')[1];
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
 
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
@@ -909,11 +909,26 @@ app.get("/getinfo", (req, res) => {
 })
 
 app.post('/updateinfo', async (req, res) => {
-  const token = req.headers.authorization.split(' ')[1];
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-  const { email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, oldPassword, newPassword } = req.body;
+  const {
+    email = null,
+    firstname = null,
+    lastname = null,
+    phone = null,
+    address = null,
+    socialmedia = null,
+    lat = null,
+    lon = null,
+    farmerstorename = null,
+    province = null,
+    amphure = null,
+    tambon = null,
+    oldPassword = null,
+    newPassword = null
+  } = req.body;
   const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
@@ -943,7 +958,7 @@ app.post('/updateinfo', async (req, res) => {
       query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
     else {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -965,7 +980,23 @@ app.post('/updateinfo', async (req, res) => {
 })
 
 app.post("/updateinfoadmin", checkAdmin, (req, res) => {
-  const { username, email, firstname, lastname, phone, address, socialmedia, lat, lon, farmerstorename, newPassword, role } = req.body;
+  const {
+    email = null,
+    firstname = null,
+    lastname = null,
+    phone = null,
+    address = null,
+    socialmedia = null,
+    lat = null,
+    lon = null,
+    farmerstorename = null,
+    province = null,
+    amphure = null,
+    tambon = null,
+    username = null,
+    role = null,
+    newPassword = null
+  } = req.body;
   if (!email || !firstname || !lastname || !phone || !role || !username) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
@@ -975,7 +1006,7 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
       query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
     else {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", socialmedia = "${socialmedia}", lat = "${lat}", lon = "${lon}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -1003,7 +1034,7 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
     query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
   }
   else {
-    query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, socialmedia , lat, lon from ${role} where username = "${username}"`
+    query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, socialmedia , lat, lon from ${role} where username = "${username}"`
 
   }
   db.query(query, (err, result) => {
@@ -1042,7 +1073,7 @@ app.post('/checkout', async (req, res) => {
           }
         });
       });
-      
+
       if (!product || product.length === 0) {
         console.error(`Product ID ${product_id} not found`);
         failedProducts.push({ product_id, error: `Product ID ${product_id} not found` });
