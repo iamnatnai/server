@@ -230,7 +230,7 @@ app.post('/adduser', checkAdmin, async (req, res) => {
 
 
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
+  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambons' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -1152,7 +1152,7 @@ app.post('/checkout', async (req, res) => {
         else resolve();
       });
     });
-    
+
 
     async function getNextORDID() {
       return new Promise((resolve, reject) => {
@@ -1185,7 +1185,7 @@ app.post('/checkout', async (req, res) => {
         console.log("ORDNXT", ORDNXT);
       });
     });
-    var SUMITNOW = 0 
+    var SUMITNOW = 0
     for (const item of cartList) {
       const { product_id, amount } = item;
       console.log(decoded);
@@ -1217,13 +1217,13 @@ app.post('/checkout', async (req, res) => {
       console.log(result.price);
       const price = result.price;
       const totalProductPrice = price * amount;
-      SUMITNOW = SUMITNOW + totalProductPrice 
-      
+      SUMITNOW = SUMITNOW + totalProductPrice
+
       if (!product || product.length === 0) {
         console.error(`Product ID ${product_id} not found`);
         return res.status(400).send({ error: `Product ID ${product_id} not found` });
       }
-      if (amount <= 0 ) {
+      if (amount <= 0) {
         console.error(`Insufficient stock for product ID ${product_id}`);
         return res.status(400).send({ error: `NOT TRUE` });
       }
@@ -1267,7 +1267,7 @@ app.post('/checkout', async (req, res) => {
       const nextitemId = await getNextItemId();
       const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, amount) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
-        db.query(insertOrderItemQuery, [nextitemId, product_id,ORDNXT, totalProductPrice, amount], (err, result) => {
+        db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
           if (err) {
             reject(err);
           } else {
@@ -1276,7 +1276,7 @@ app.post('/checkout', async (req, res) => {
           }
           console.log("nextitemId");
           console.log(nextitemId);
-          
+
         });
       });
     }
@@ -1292,7 +1292,7 @@ app.post('/checkout', async (req, res) => {
         console.log(SUMITNOW);
       });
     });
-    
+
     await new Promise((resolve, reject) => {
       db.commit(err => {
         if (err) {
@@ -1324,7 +1324,8 @@ app.post('/checkout', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-app.post('/orderlist', async (req, res) => {
+
+app.get('/orderlist', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
     const secretKey = 'pifOvrart4';
@@ -1346,5 +1347,130 @@ app.post('/orderlist', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+app.post('/myproduct', async (req, res) => {
+  try {
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const secretKey = 'pifOvrart4';
+    const decoded = jwt.verify(token, secretKey);
+    const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
+    const orders = await new Promise((resolve, reject) => {
+      db.query(orderQuery, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    res.status(200).json({ success: true, orders: orders });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+app.post('/farmersorder', async (req, res) => {
+  async function insertOrder(orderData, farmerId) {
+    const { order_id, products, total_amount, customer_info, date_buys, status } = orderData;
+  
+    // สร้างคำสั่ง SQL เพื่อเพิ่มข้อมูลการสั่งซื้อลงในฐานข้อมูล
+    const insertOrderQuery = `INSERT INTO orders (order_id, total_amount, member_id, date_buys, status)
+                              VALUES (?, ?, ?, ?, ?)`;
+    await new Promise((resolve, reject) => {
+      db.query(insertOrderQuery, [order_id, total_amount, customer_info.member_id, date_buys, status], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  
+    // เพิ่มข้อมูลสินค้าที่ถูกสั่งลงในฐานข้อมูล
+    const insertProductPromises = products.map(product => insertOrderedProduct(order_id, product));
+    await Promise.all(insertProductPromises);
+  }
+  
+  async function insertOrderedProduct(orderId, productData) {
+    const { product_id, amount, price } = productData;
+  
+    // สร้างคำสั่ง SQL เพื่อเพิ่มข้อมูลสินค้าที่ถูกสั่งลงในฐานข้อมูล
+    const insertProductQuery = `INSERT INTO ordered_products (order_id, product_id, amount, price)
+                                VALUES (?, ?, ?, ?)`;
+    await new Promise((resolve, reject) => {
+      db.query(insertProductQuery, [orderId, product_id, amount, price], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  try {
+    const ordersData = req.body; // รับก้อนข้อมูลที่ถูกส่งมา
+    if (!Array.isArray(ordersData)) {
+      return res.status(400).json({ success: false, message: 'Invalid orders data format' });
+    }
+
+    // ตรวจสอบข้อมูลในก้อนข้อมูลก่อนหน้า
+    for (const order of ordersData) {
+      if (!order.order_id || !order.products || !Array.isArray(order.products) || order.products.length === 0 ||
+          !order.total_amount || !order.customer_info || !order.customer_info.member_id || !order.date_buys ||
+          !order.status) {
+        return res.status(400).json({ success: false, message: 'Incomplete order data' });
+      }
+    }
+
+    // ระบุรายละเอียดการยืนยันและรอการยืนยัน
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const secretKey = 'pifOvrart4';
+    const decoded = jwt.verify(token, secretKey);
+
+    // ส่งข้อมูลสั่งซื้อให้กับฐานข้อมูล
+    const insertOrderPromises = ordersData.map(order => insertOrder(order, decoded.ID));
+    await Promise.all(insertOrderPromises);
+
+    return res.status(200).json({ success: true, message: 'Orders added successfully' });
+  } catch (error) {
+    console.error('Error adding orders:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+
+app.get('/comment', async (req, res) => {
+  const { rating, comment, product_id } = req.body;
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+  const secretKey = 'pifOvrart4';
+  const decoded = jwt.verify(token, secretKey);
+  if (!decoded.ID || !comment || !product_id || !rating) {
+    return res.status(400).json({ success: false, message: 'Incomplete comment data' });
+  }
+  if (rating < 1 || rating > 5) {
+    return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+  }
+
+  try {
+    const insertCommentQuery = 'INSERT INTO product_reviews (member_id, rating, comment, product_id) VALUES (?, ?, ?, ?)';
+    await new Promise((resolve, reject) => {
+      db.query(insertCommentQuery, [decoded.ID , rating, comment, product_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    return res.status(200).json({ success: true, message: 'Comment added successfully' });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+
 
 app.listen(3001, () => console.log('Avalable 3001'));
