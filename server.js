@@ -1324,6 +1324,27 @@ app.post('/checkout', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+app.post('/orderlist', async (req, res) => {
+  try {
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const secretKey = 'pifOvrart4';
+    const decoded = jwt.verify(token, secretKey);
+    const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
+    const orders = await new Promise((resolve, reject) => {
+      db.query(orderQuery, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
 
+    res.status(200).json({ success: true, orders: orders });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 app.listen(3001, () => console.log('Avalable 3001'));
