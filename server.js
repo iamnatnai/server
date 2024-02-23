@@ -204,7 +204,6 @@ async function checkIfExistsInAllTables(column, value) {
 
 app.post('/adduser', checkAdmin, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, role } = req.body;
-
   if (!username || !email || !password || !firstName || !lastName || !tel || !role) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
@@ -240,73 +239,95 @@ app.get('/role', (req, res) => {
   });
 });
 
-app.get('/users', checkAdmin, async (req, res) => {
+app.get('/users', async (req, res) => {
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+  const decoded = jwt.verify(token, secretKey);
+  const role = decoded.role;
+
+  if (role !== 'admins' && role !== 'tambons') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   try {
-    const adminsQuery = "SELECT email, username, firstname, lastname, phone, role FROM admins";
-    const adminsResult = await new Promise((resolve, reject) => {
-      db.query(adminsQuery, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+    if (role === 'admins') {
+      const adminsQuery = "SELECT email, username, firstname, lastname, phone, role FROM admins";
+      const adminsResult = await new Promise((resolve, reject) => {
+        db.query(adminsQuery, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
       })
-    })
 
-    const farmersQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers";
-    const farmersResult = await new Promise((resolve, reject) => {
-      db.query(farmersQuery, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+      const farmersQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers";
+      const farmersResult = await new Promise((resolve, reject) => {
+        db.query(farmersQuery, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
       })
-    })
 
-    const membersQuery = "SELECT email, username, firstname, lastname, phone, role FROM members";
-    const membersResult = await new Promise((resolve, reject) => {
-      db.query(membersQuery, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+      const membersQuery = "SELECT email, username, firstname, lastname, phone, role FROM members";
+      const membersResult = await new Promise((resolve, reject) => {
+        db.query(membersQuery, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
       })
-    })
 
-    const providersQuery = "SELECT email, username, firstname, lastname, phone, role FROM providers";
-    const providersResult = await new Promise((resolve, reject) => {
-      db.query(providersQuery, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+      const providersQuery = "SELECT email, username, firstname, lastname, phone, role FROM providers";
+      const providersResult = await new Promise((resolve, reject) => {
+        db.query(providersQuery, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
       })
-    })
 
-    const tambonQuery = "SELECT email, username, firstname, lastname, phone, role FROM tambons";
-    const tambonResult = await new Promise((resolve, reject) => {
-      db.query(tambonQuery, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+      const tambonQuery = "SELECT email, username, firstname, lastname, phone, role FROM tambons";
+      const tambonResult = await new Promise((resolve, reject) => {
+        db.query(tambonQuery, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
       })
-    })
 
-    const admins = adminsResult;
-    const farmers = farmersResult;
-    const members = membersResult;
-    const providers = providersResult;
-    const tambon = tambonResult;
+      const admins = adminsResult;
+      const farmers = farmersResult;
+      const members = membersResult;
+      const providers = providersResult;
+      const tambon = tambonResult;
 
-    const users = [...admins, ...farmers, ...members, ...providers, ...tambon];
-    console.log(adminsResult);
+      const users = [...admins, ...farmers, ...members, ...providers, ...tambon];
 
-    res.status(200).json(users);
+      res.status(200).json(users);
+    } else {
+      const farmerQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers";
+      const farmerResult = await new Promise((resolve, reject) => {
+        db.query(farmerQuery, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
+      }
+      )
+      res.status(200).json(farmerResult);
+    }
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -577,6 +598,52 @@ app.get('/categories', (req, res) => {
     }
   });
 });
+
+app.post('/categories', checkAdmin, async (req, res) => {
+  const { category_id, category_name, bgcolor } = req.body;
+  console.log(req.body);
+  if (!category_id || !category_name || !bgcolor) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  // find if category_id is exist on database
+
+  const query = 'SELECT * FROM categories WHERE category_id = ?';
+  let result = await new Promise((resolve, reject) => {
+    db.query(query, [category_id], (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+
+  if (result.length > 0) {
+    db.query('UPDATE categories SET category_name = ?, bgcolor = ? WHERE category_id = ?', [category_name, bgcolor, category_id], (err, result) => {
+      if (err) {
+        console.error('Error updating category:', err);
+        return res.status(500).json({ success: false, message: 'Internal Server Error' });
+      } else {
+        return res.status(200).json({ success: true, message: 'Category updated successfully' });
+      }
+    });
+  }
+  else {
+    db.query('INSERT INTO categories (category_id, category_name, bgcolor) VALUES (?, ?, ?)', [category_id, category_name, bgcolor], (err, result) => {
+      if (err) {
+        console.error('Error adding category:', err);
+        return res.status(500).json({ success: false, message: 'Internal Server Error' });
+      } else {
+        return res.status(201).json({ success: true, message: 'Category added successfully' });
+      }
+    });
+  }
+
+
+
+
+});
+
 app.get('/producttypes', (req, res) => {
   db.query("SELECT * FROM product_types", (err, result) => {
     if (err) {
