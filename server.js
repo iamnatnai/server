@@ -481,7 +481,7 @@ app.get('/login', async (req, res) => {
   const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
-    const newToken = jwt.sign({ username: decoded.username, role: decoded.role }, secretKey, {
+    const newToken = jwt.sign({ username: decoded.username, ID: decoded.ID, role: decoded.role }, secretKey, {
       expiresIn: '1h',
     });
 
@@ -1119,6 +1119,7 @@ app.post('/checkout', async (req, res) => {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
     const secretKey = 'pifOvrart4';
     const decoded = jwt.verify(token, secretKey);
+    console.log();
     await new Promise((resolve, reject) => {
       db.beginTransaction(err => {
         if (err) reject(err);
