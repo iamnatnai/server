@@ -323,7 +323,8 @@ async function getNextId() {
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(3), 10) + 1;
-          nextId = 'MEM' + numericPart.toString().padStart(3, '0');
+
+          nextId = 'MEM' + numericPart.toString().padStart(5, '0');
         }
         resolve(nextId);
       }
@@ -335,7 +336,9 @@ async function getNextUserId(role) {
   switch (role) {
     case 'admins':
       rolePrefix = 'ADMIN';
-
+      break;
+    case 'members':
+      rolePrefix = 'MEM';
       break;
     case 'farmers':
       rolePrefix = 'FARM';
@@ -357,6 +360,7 @@ async function getNextUserId(role) {
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(rolePrefix.length), 10) + 1;
+          console.log(numericPart);
           nextUserId = `${rolePrefix}${numericPart.toString().padStart(5, '0')}`;
         }
         resolve(nextUserId);
@@ -374,12 +378,13 @@ async function insertMember(memberId, username, email, password, firstName, last
         if (err) {
           reject(err);
         } else {
-          resolve();
+          resolve(result);
         }
       }
     );
   });
 }
+
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
   return new Promise((resolve, reject) => {
     db.query(
