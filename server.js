@@ -26,7 +26,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   charset: "utf8mb4",
   typeCast: function (field, next) {
@@ -905,7 +905,6 @@ app.get("/getinfo", (req, res) => {
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-
   const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
@@ -918,7 +917,6 @@ app.get("/getinfo", (req, res) => {
       query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
 
     }
-    console.log(query);
     db.query(query, (err, result) => {
       if (err) {
         console.log(err);
@@ -956,39 +954,15 @@ app.post('/updateinfo', async (req, res) => {
     province = null,
     amphure = null,
     tambon = null,
-    oldPassword = null,
-    newPassword = null
   } = req.body;
-  const secretKey = 'pifOvrart4';
   try {
-    const decoded = jwt.verify(token, secretKey);
-    const { username, role } = decoded
-    if (username !== req.body.username) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    if (oldPassword && newPassword) {
-      let oldHashedPassword = await new Promise((resolve, reject) => {
-        db.query(`SELECT password FROM ${role} WHERE username = "${username}"`, (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result[0].password);
-          }
-        });
-      })
-      const passwordMatch = await bcrypt.compare(oldPassword, oldHashedPassword);
-      if (!passwordMatch) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    }
 
     var query
     if (role !== "farmers") {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
     else {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -1027,7 +1001,6 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
     tambon = null,
     username = null,
     role = null,
-    newPassword = null
   } = req.body;
   if (!email || !firstname || !lastname || !phone || !role || !username) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -1035,10 +1008,10 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
   try {
     var query
     if (role !== "farmers") {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
     else {
-      query = `UPDATE ${role} SET ${newPassword ? `password = ${bcrypt.hashSync(newPassword, 10)},` : ""} email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -1271,5 +1244,58 @@ app.post('/checkout', async (req, res) => {
   }
 });
 
+app.post("/changepassword", async (req, res) => {
+  const { oldpassword, newpassword, usernameBody, roleBody } = req.body;
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+
+  const checkMatchPssword = async (role, username, password) => {
+    const hashedPassword = await new Promise((resolve, reject) => {
+      db.query(`SELECT password FROM ${role} WHERE username = "${username}"`, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result[0].password);
+        }
+      });
+    });
+
+    const passwordMatch = await bcrypt.compare(password, hashedPassword);
+    return passwordMatch;
+  }
+  if (!token) {
+    return res.status(400).json({ success: false, message: 'Token not provided' });
+  }
+
+  const decoded = jwt.verify(token, secretKey);
+  var { role: roleDecoded, username: usernameDecoded } = decoded;
+
+  try {
+    // ถ้าไม่ใช่ admin ต้องเช็คว่า password เดิมตรงกับที่อยู่ใน database หรือไม่
+    if (roleDecoded !== "admins") {
+      if (!await checkMatchPssword(roleDecoded, usernameDecoded, oldpassword)) {
+        console.log("Password not match");
+        return res.status(400).json({ success: false, message: 'Password not match' });
+
+      }
+    }
+
+    const newHashedPassword = await bcrypt.hash(newpassword, 10);
+
+    await new Promise((resolve, reject) => {
+      db.query(`UPDATE ${roleDecoded !== "admins" ? roleDecoded : roleBody} SET password = "${newHashedPassword}" WHERE username = "${roleDecoded !== "admins" ? usernameDecoded : usernameBody}"`, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    return res.status(200).json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 app.listen(3001, () => console.log('Avalable 3001'));
