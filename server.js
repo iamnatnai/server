@@ -230,7 +230,7 @@ app.post('/adduser', checkAdmin, async (req, res) => {
 
 
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
+  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -323,7 +323,8 @@ async function getNextId() {
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(3), 10) + 1;
-          nextId = 'MEM' + numericPart.toString().padStart(3, '0');
+
+          nextId = 'MEM' + numericPart.toString().padStart(5, '0');
         }
         resolve(nextId);
       }
@@ -335,7 +336,9 @@ async function getNextUserId(role) {
   switch (role) {
     case 'admins':
       rolePrefix = 'ADMIN';
-
+      break;
+    case 'members':
+      rolePrefix = 'MEM';
       break;
     case 'farmers':
       rolePrefix = 'FARM';
@@ -357,6 +360,7 @@ async function getNextUserId(role) {
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(rolePrefix.length), 10) + 1;
+          console.log(numericPart);
           nextUserId = `${rolePrefix}${numericPart.toString().padStart(5, '0')}`;
         }
         resolve(nextUserId);
@@ -374,12 +378,13 @@ async function insertMember(memberId, username, email, password, firstName, last
         if (err) {
           reject(err);
         } else {
-          resolve();
+          resolve(result);
         }
       }
     );
   });
 }
+
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
   return new Promise((resolve, reject) => {
     db.query(
@@ -1111,6 +1116,9 @@ app.post('/checkout', async (req, res) => {
   }
 
   try {
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
+    const secretKey = 'pifOvrart4';
+    const decoded = jwt.verify(token, secretKey);
     await new Promise((resolve, reject) => {
       db.beginTransaction(err => {
         if (err) reject(err);
@@ -1118,8 +1126,42 @@ app.post('/checkout', async (req, res) => {
       });
     });
 
+
+    async function getNextORDID() {
+      return new Promise((resolve, reject) => {
+        db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            let ORDNXT = 'ORD00001';
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              console.log(currentId);
+              const numericPart = parseInt(currentId.substring(3), 10) + 1;
+              console.log(numericPart);
+              ORDNXT = 'ORD' + numericPart.toString().padStart(5, '0');
+            }
+            resolve(ORDNXT);
+          }
+        });
+      });
+    }
+    const ORDNXT = await getNextORDID();
+    const insertOrderVB = 'INSERT INTO order_sumary (id,status,member_id,date_buys) VALUES (?,?,?,NOW())';
+    await new Promise((resolve, reject) => {
+      db.query(insertOrderVB, [ORDNXT, "waiting", decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+        console.log("ORDNXT", ORDNXT);
+      });
+    });
+    var SUMITNOW = 0
     for (const item of cartList) {
       const { product_id, amount } = item;
+      console.log(decoded);
       const getProductQuery = 'SELECT stock FROM products WHERE product_id = ?';
       const [product] = await new Promise((resolve, reject) => {
         db.query(getProductQuery, [product_id], (err, result) => {
@@ -1130,10 +1172,33 @@ app.post('/checkout', async (req, res) => {
           }
         });
       });
+      const getProductPriceQuery = 'SELECT price FROM products WHERE product_id = ?';
+      const [result] = await new Promise((resolve, reject) => {
+        db.query(getProductPriceQuery, [product_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            if (result.length === 0) {
+              reject(new Error(`Product ID ${product_id} not found`));
+            } else {
+              resolve(result);
+            }
+          }
+        });
+      });
+      console.log("this");
+      console.log(result.price);
+      const price = result.price;
+      const totalProductPrice = price * amount;
+      SUMITNOW = SUMITNOW + totalProductPrice
 
       if (!product || product.length === 0) {
         console.error(`Product ID ${product_id} not found`);
         return res.status(400).send({ error: `Product ID ${product_id} not found` });
+      }
+      if (amount <= 0) {
+        console.error(`Insufficient stock for product ID ${product_id}`);
+        return res.status(400).send({ error: `NOT TRUE` });
       }
 
       const currentStock = product.stock; // Corrected to access the stock property
@@ -1172,33 +1237,10 @@ app.post('/checkout', async (req, res) => {
           });
         });
       }
-      const getProductPriceQuery = 'SELECT price FROM products WHERE product_id = ?';
-      const [result] = await new Promise((resolve, reject) => {
-        db.query(getProductPriceQuery, [product_id], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            if (result.length === 0) {
-              reject(new Error(`Product ID ${product_id} not found`));
-            } else {
-              resolve(result);
-            }
-          }
-        });
-      });
-      console.log("this");
-      console.log(result.price);
-      const price = result.price;
-      const totalProductPrice = price * amount;
-
-      const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
-      const secretKey = 'pifOvrart4';
-      const decoded = jwt.verify(token, secretKey);
-      console.log(decoded);
       const nextitemId = await getNextItemId();
-      const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,price, amount, member_id) VALUES (?,?,?,?, ?)';
+      const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, amount) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
-        db.query(insertOrderItemQuery, [nextitemId, product_id, totalProductPrice, amount, decoded.ID], (err, result) => {
+        db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
           if (err) {
             reject(err);
           } else {
@@ -1207,10 +1249,22 @@ app.post('/checkout', async (req, res) => {
           }
           console.log("nextitemId");
           console.log(nextitemId);
+
         });
       });
     }
 
+    const UpdateOrderSum = 'UPDATE order_sumary SET total_amount = ? WHERE id = ?';
+    await new Promise((resolve, reject) => {
+      db.query(UpdateOrderSum, [SUMITNOW, ORDNXT], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+        console.log(SUMITNOW);
+      });
+    });
 
     await new Promise((resolve, reject) => {
       db.commit(err => {
@@ -1243,6 +1297,28 @@ app.post('/checkout', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+app.post('/orderlist', async (req, res) => {
+  try {
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const secretKey = 'pifOvrart4';
+    const decoded = jwt.verify(token, secretKey);
+    const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
+    const orders = await new Promise((resolve, reject) => {
+      db.query(orderQuery, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    res.status(200).json({ success: true, orders: orders });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 
 app.post("/changepassword", async (req, res) => {
   const { oldpassword, newpassword, usernameBody, roleBody } = req.body;
