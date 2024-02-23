@@ -26,7 +26,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   charset: "utf8mb4",
   typeCast: function (field, next) {
@@ -1110,6 +1110,7 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
 
 app.post('/checkout', async (req, res) => {
   const { cartList } = req.body;
+  var SUMITNOW = 0
   const { order_id, member_id } = req.body; // Assuming you have order_id and member_id in the request body
   if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
     return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
@@ -1148,18 +1149,7 @@ app.post('/checkout', async (req, res) => {
       });
     }
     const ORDNXT = await getNextORDID();
-    const insertOrderVB = 'INSERT INTO order_sumary (id,status,member_id,date_buys) VALUES (?,?,?,NOW())';
-    await new Promise((resolve, reject) => {
-      db.query(insertOrderVB, [ORDNXT, "waiting", decoded.ID], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-        console.log("ORDNXT", ORDNXT);
-      });
-    });
-    var SUMITNOW = 0
+
     for (const item of cartList) {
       const { product_id, amount } = item;
       console.log(decoded);
@@ -1238,7 +1228,20 @@ app.post('/checkout', async (req, res) => {
           });
         });
       }
+      console.log("++++++");
+      console.log(decoded.ID);
       const nextitemId = await getNextItemId();
+      const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,date_buys) VALUES (?,?,?,?,NOW())';
+    await new Promise((resolve, reject) => {
+      db.query(insertOrderVB, [ORDNXT, "waiting", SUMITNOW, decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+        console.log("ORDNXT", ORDNXT);
+      });
+    });
       const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, amount) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
         db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
@@ -1255,17 +1258,7 @@ app.post('/checkout', async (req, res) => {
       });
     }
 
-    const UpdateOrderSum = 'UPDATE order_sumary SET total_amount = ? WHERE id = ?';
-    await new Promise((resolve, reject) => {
-      db.query(UpdateOrderSum, [SUMITNOW, ORDNXT], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-        console.log(SUMITNOW);
-      });
-    });
+    
 
     await new Promise((resolve, reject) => {
       db.commit(err => {
@@ -1342,73 +1335,66 @@ app.post('/myproduct', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-app.post('/farmersorder', async (req, res) => {
-  async function insertOrder(orderData, farmerId) {
-    const { order_id, products, total_amount, customer_info, date_buys, status } = orderData;
-  
-    // สร้างคำสั่ง SQL เพื่อเพิ่มข้อมูลการสั่งซื้อลงในฐานข้อมูล
-    const insertOrderQuery = `INSERT INTO orders (order_id, total_amount, member_id, date_buys, status)
-                              VALUES (?, ?, ?, ?, ?)`;
-    await new Promise((resolve, reject) => {
-      db.query(insertOrderQuery, [order_id, total_amount, customer_info.member_id, date_buys, status], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-  
-    // เพิ่มข้อมูลสินค้าที่ถูกสั่งลงในฐานข้อมูล
-    const insertProductPromises = products.map(product => insertOrderedProduct(order_id, product));
-    await Promise.all(insertProductPromises);
-  }
-  
-  async function insertOrderedProduct(orderId, productData) {
-    const { product_id, amount, price } = productData;
-  
-    // สร้างคำสั่ง SQL เพื่อเพิ่มข้อมูลสินค้าที่ถูกสั่งลงในฐานข้อมูล
-    const insertProductQuery = `INSERT INTO ordered_products (order_id, product_id, amount, price)
-                                VALUES (?, ?, ?, ?)`;
-    await new Promise((resolve, reject) => {
-      db.query(insertProductQuery, [orderId, product_id, amount, price], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-  }
-
+app.get('/farmerorder', async (req, res) => {
   try {
-    const ordersData = req.body; // รับก้อนข้อมูลที่ถูกส่งมา
-    if (!Array.isArray(ordersData)) {
-      return res.status(400).json({ success: false, message: 'Invalid orders data format' });
-    }
-
-    // ตรวจสอบข้อมูลในก้อนข้อมูลก่อนหน้า
-    for (const order of ordersData) {
-      if (!order.order_id || !order.products || !Array.isArray(order.products) || order.products.length === 0 ||
-          !order.total_amount || !order.customer_info || !order.customer_info.member_id || !order.date_buys ||
-          !order.status) {
-        return res.status(400).json({ success: false, message: 'Incomplete order data' });
-      }
-    }
-
-    // ระบุรายละเอียดการยืนยันและรอการยืนยัน
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
     const secretKey = 'pifOvrart4';
     const decoded = jwt.verify(token, secretKey);
+    const orderItemsQuery = `
+    SELECT oi.order_id, oi.product_id, oi.amount, oi.price, 
+    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, 
+    m.firstname, m.lastname, m.phone, m.address
+    FROM order_items oi
+    INNER JOIN order_sumary os ON oi.order_id = os.id
+    INNER JOIN members m ON os.member_id = m.id
+    INNER JOIN products p ON oi.product_id = p.product_id
+    INNER JOIN farmers f ON p.farmer_id = f.id
+    WHERE f.id = ?
 
-    // ส่งข้อมูลสั่งซื้อให้กับฐานข้อมูล
-    const insertOrderPromises = ordersData.map(order => insertOrder(order, decoded.ID));
-    await Promise.all(insertOrderPromises);
+    `;
+    const orderItemsResult = await new Promise((resolve, reject) => {
+      db.query(orderItemsQuery, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
 
-    return res.status(200).json({ success: true, message: 'Orders added successfully' });
+    const farmerOrdersMap = new Map();
+    orderItemsResult.forEach(orderItem => {
+      const order_id = orderItem.order_id;
+      if (!farmerOrdersMap.has(order_id)) {
+        farmerOrdersMap.set(order_id, {
+          order_id: order_id,
+          products: [],
+          total_amount: orderItem.total_amount,
+          transaction_confirm: orderItem.transaction_confirm,
+          customer_info: {
+            member_id: orderItem.member_id,
+            first_name: orderItem.first_name,
+            last_name: orderItem.last_name,
+            phone: orderItem.phone,
+            address: orderItem.address
+          },
+          date_buys: new Date(orderItem.date_buys).toLocaleString(),
+          date_complete: orderItem.date_complete,
+          status: orderItem.status
+        });
+      }
+      farmerOrdersMap.get(order_id).products.push({
+        product_id: orderItem.product_id,
+        amount: orderItem.amount,
+        price: orderItem.price
+      });
+    });
+
+    const farmerOrders = Array.from(farmerOrdersMap.values());
+    res.json(farmerOrders);
   } catch (error) {
-    console.error('Error adding orders:', error);
-    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+    console.error('Error fetching farmer orders:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
 
@@ -1428,7 +1414,7 @@ app.get('/comment', async (req, res) => {
   try {
     const insertCommentQuery = 'INSERT INTO product_reviews (member_id, rating, comment, product_id) VALUES (?, ?, ?, ?)';
     await new Promise((resolve, reject) => {
-      db.query(insertCommentQuery, [decoded.ID , rating, comment, product_id], (err, result) => {
+      db.query(insertCommentQuery, [decoded.ID, rating, comment, product_id], (err, result) => {
         if (err) {
           reject(err);
         } else {
