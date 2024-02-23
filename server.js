@@ -26,7 +26,7 @@ const db = mysql.createConnection({
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
-  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '1234',
+  password: process.env.production == "true" ? 'xGHYb$#34f2RIGhJc' : '',
   database: process.env.production == "true" ? 'thebestkasetnont' : 'kaset_data',
   charset: "utf8mb4",
   typeCast: function (field, next) {
@@ -229,7 +229,7 @@ app.post('/adduser', checkAdmin, async (req, res) => {
 
 
 app.get('/role', (req, res) => {
-  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambon' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
+  db.query("SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'ผู้ว่าราชการจังหวัด' AS role_name FROM providers UNION SELECT 'tambons' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -1177,6 +1177,7 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
 
 app.post('/checkout', async (req, res) => {
   const { cartList } = req.body;
+  var SUMITNOW = 0
   const { order_id, member_id } = req.body; // Assuming you have order_id and member_id in the request body
   if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
     return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
@@ -1215,18 +1216,7 @@ app.post('/checkout', async (req, res) => {
       });
     }
     const ORDNXT = await getNextORDID();
-    const insertOrderVB = 'INSERT INTO order_sumary (id,status,member_id,date_buys) VALUES (?,?,?,NOW())';
-    await new Promise((resolve, reject) => {
-      db.query(insertOrderVB, [ORDNXT, "waiting", decoded.ID], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-        console.log("ORDNXT", ORDNXT);
-      });
-    });
-    var SUMITNOW = 0
+
     for (const item of cartList) {
       const { product_id, amount } = item;
       console.log(decoded);
@@ -1305,7 +1295,20 @@ app.post('/checkout', async (req, res) => {
           });
         });
       }
+      console.log("++++++");
+      console.log(decoded.ID);
       const nextitemId = await getNextItemId();
+      const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,date_buys) VALUES (?,?,?,?,NOW())';
+    await new Promise((resolve, reject) => {
+      db.query(insertOrderVB, [ORDNXT, "waiting", SUMITNOW, decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+        console.log("ORDNXT", ORDNXT);
+      });
+    });
       const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, amount) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
         db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
@@ -1322,17 +1325,7 @@ app.post('/checkout', async (req, res) => {
       });
     }
 
-    const UpdateOrderSum = 'UPDATE order_sumary SET total_amount = ? WHERE id = ?';
-    await new Promise((resolve, reject) => {
-      db.query(UpdateOrderSum, [SUMITNOW, ORDNXT], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-        console.log(SUMITNOW);
-      });
-    });
+    
 
     await new Promise((resolve, reject) => {
       db.commit(err => {
@@ -1365,7 +1358,8 @@ app.post('/checkout', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-app.post('/orderlist', async (req, res) => {
+
+app.get('/orderlist', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
     const secretKey = 'pifOvrart4';
@@ -1386,6 +1380,124 @@ app.post('/orderlist', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+app.post('/myproduct', async (req, res) => {
+  try {
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const secretKey = 'pifOvrart4';
+    const decoded = jwt.verify(token, secretKey);
+    const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
+    const orders = await new Promise((resolve, reject) => {
+      db.query(orderQuery, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    res.status(200).json({ success: true, orders: orders });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+app.get('/farmerorder', async (req, res) => {
+  try {
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const secretKey = 'pifOvrart4';
+    const decoded = jwt.verify(token, secretKey);
+    const orderItemsQuery = `
+    SELECT oi.order_id, oi.product_id, oi.amount, oi.price, 
+    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, 
+    m.firstname, m.lastname, m.phone, m.address
+    FROM order_items oi
+    INNER JOIN order_sumary os ON oi.order_id = os.id
+    INNER JOIN members m ON os.member_id = m.id
+    INNER JOIN products p ON oi.product_id = p.product_id
+    INNER JOIN farmers f ON p.farmer_id = f.id
+    WHERE f.id = ?
+
+    `;
+    const orderItemsResult = await new Promise((resolve, reject) => {
+      db.query(orderItemsQuery, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    const farmerOrdersMap = new Map();
+    orderItemsResult.forEach(orderItem => {
+      const order_id = orderItem.order_id;
+      if (!farmerOrdersMap.has(order_id)) {
+        farmerOrdersMap.set(order_id, {
+          order_id: order_id,
+          products: [],
+          total_amount: orderItem.total_amount,
+          transaction_confirm: orderItem.transaction_confirm,
+          customer_info: {
+            member_id: orderItem.member_id,
+            first_name: orderItem.first_name,
+            last_name: orderItem.last_name,
+            phone: orderItem.phone,
+            address: orderItem.address
+          },
+          date_buys: new Date(orderItem.date_buys).toLocaleString(),
+          date_complete: orderItem.date_complete,
+          status: orderItem.status
+        });
+      }
+      farmerOrdersMap.get(order_id).products.push({
+        product_id: orderItem.product_id,
+        amount: orderItem.amount,
+        price: orderItem.price
+      });
+    });
+
+    const farmerOrders = Array.from(farmerOrdersMap.values());
+    res.json(farmerOrders);
+  } catch (error) {
+    console.error('Error fetching farmer orders:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+
+app.get('/comment', async (req, res) => {
+  const { rating, comment, product_id } = req.body;
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+  const secretKey = 'pifOvrart4';
+  const decoded = jwt.verify(token, secretKey);
+  if (!decoded.ID || !comment || !product_id || !rating) {
+    return res.status(400).json({ success: false, message: 'Incomplete comment data' });
+  }
+  if (rating < 1 || rating > 5) {
+    return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+  }
+
+  try {
+    const insertCommentQuery = 'INSERT INTO product_reviews (member_id, rating, comment, product_id) VALUES (?, ?, ?, ?)';
+    await new Promise((resolve, reject) => {
+      db.query(insertCommentQuery, [decoded.ID, rating, comment, product_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    return res.status(200).json({ success: true, message: 'Comment added successfully' });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+
 
 
 app.post("/changepassword", async (req, res) => {
