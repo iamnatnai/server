@@ -1530,17 +1530,74 @@ app.get('/comment', async (req, res) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   const secretKey = 'pifOvrart4';
   const decoded = jwt.verify(token, secretKey);
+
+  // Function to get the next review ID
+  async function getNextReviewId() {
+    return new Promise((resolve, reject) => {
+      db.query('SELECT MAX(review_id) as maxId  FROM product_reviews', (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          let nextRev = 'REV0000001';
+          if (result[0].maxId) {
+            const currentId = result[0].maxId;
+            const numericPart = parseInt(currentId.substring(3), 10) + 1;
+            nextRev = 'REV' + numericPart.toString().padStart(7, '0');
+          }
+          resolve(nextRev);
+        }
+      });
+    });
+  }
+
+  // Check if all necessary data is provided
   if (!decoded.ID || !comment || !product_id || !rating) {
     return res.status(400).json({ success: false, message: 'Incomplete comment data' });
   }
+
+  // Check if rating is valid
   if (rating < 1 || rating > 5) {
     return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
   }
 
   try {
-    const insertCommentQuery = 'INSERT INTO product_reviews (member_id, rating, comment, product_id) VALUES (?, ?, ?, ?)';
+    // Check if the member has purchased the product
+    const checkOrderQuery = 'SELECT os.id AS order_id FROM order_sumary os INNER JOIN order_items oi ON os.id = oi.order_id WHERE os.member_id = ? AND oi.product_id = ?';
+    const [orderResult] = await new Promise((resolve, reject) => {
+    db.query(checkOrderQuery, [decoded.ID, product_id], (err, result) => {
+    if (err) {
+      reject(err);
+    } else {
+      resolve(result);
+    }
+    });
+    });
+
+    const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ?';
+    const duplicateOrders = await new Promise((resolve, reject) => {
+  db.query(checkDuplicateOrderQuery, [orderResult.order_id], (err, result) => {
+    if (err) {
+      reject(err);
+    } else {
+      console.log(result);
+      resolve(result);
+    }
+  });
+});
+if (duplicateOrders.length > 0 ) {
+  return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
+}
+console.log(duplicateOrders);
+    if (!orderResult || orderResult.length === 0) {
+      return res.status(400).json({ success: false, message: 'Member has not purchased this product' });
+    }
+    
+    const nextReviewId = await getNextReviewId();
+
+    const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id) VALUES (?, ?, ?, ?, ?, ?)';
+    console.log(orderResult.order_id);
     await new Promise((resolve, reject) => {
-      db.query(insertCommentQuery, [decoded.ID, rating, comment, product_id], (err, result) => {
+      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id,orderResult.order_id], (err, result) => {
         if (err) {
           reject(err);
         } else {
