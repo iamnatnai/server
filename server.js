@@ -947,18 +947,31 @@ app.get('/getproduct/:id', (req, res) => {
 
 app.get('/getproducts', (req, res) => {
   const { search, category, page, sort, order } = req.query;
-  console.log(category, page, sort, order);
-  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10}`;
+  let perPage = 40;
+  let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
+  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * perPage}`;
   if (category == '') {
-    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10} `;
+    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"product_name LIKE '%" + search + "%' AND"}`}` : ''}`;
+    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * perPage} `;
   }
-  console.log(query);
+
+  let maxPage = new Promise((resolve, reject) => {
+    db.query(queryMaxPage, (err, result) => {
+      if (err) {
+        console.log(err);
+        reject(err);
+      } else {
+        resolve(result[0].maxPage);
+      }
+    });
+  });
+
   db.query(query, (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
-      res.json({ products: result, hasMore: result.length === 10 });
+      res.json({ products: result, maxPage: maxPage % perPage === 0 ? maxPage / perPage : Math.floor(maxPage / perPage) + 1 });
     }
   });
 
