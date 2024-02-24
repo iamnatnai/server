@@ -951,10 +951,10 @@ app.get('/getproducts', async (req, res) => {
   const { search, category, page, sort, order } = req.query;
   let perPage = 40;
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
-  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * perPage}`;
+  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
     queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"product_name LIKE '%" + search + "%' AND"}`}` : ''}`;
-    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * perPage} `;
+    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
 
   let AllPage = await new Promise((resolve, reject) => {
