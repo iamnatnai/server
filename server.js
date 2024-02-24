@@ -15,7 +15,6 @@ const port = 3000;
 const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
-const { error } = require('console');
 const secretKey = 'pifOvrart4';
 require('dotenv').config();
 
@@ -630,11 +629,28 @@ app.get('/categories', (req, res) => {
 });
 
 app.post('/categories', checkAdmin, async (req, res) => {
-  const { category_id, category_name, bgcolor } = req.body;
-  console.log(req.body);
-  if (!category_id || !category_name || !bgcolor) {
+  const { category_name, bgcolor } = req.body;
+  if (!category_name || !bgcolor) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
+
+  let category_id = await new Promise((resolve, reject) => {
+    db.query('SELECT MAX(category_id) as maxId FROM categories', (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        let nextId = 'CAT0001';
+        if (result[0].maxId) {
+          const currentIdNumericPart = parseInt(result[0].maxId.substring(3), 10);
+          const nextNumericPart = currentIdNumericPart + 1;
+          const paddedNextNumericPart = String(nextNumericPart).padStart(4, '0');
+          nextId = 'CAT' + paddedNextNumericPart;
+        }
+        resolve(nextId);
+      }
+    });
+  });
+
   // find if category_id is exist on database
 
   const query = 'SELECT * FROM categories WHERE category_id = ?';
