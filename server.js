@@ -1486,13 +1486,26 @@ app.get('/orderlist', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-app.post('/myproduct', async (req, res) => {
+app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   try {
+    const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
+    
+    const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
+
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
     const decoded = jwt.verify(token, secretKey);
-    const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
-    const orders = await new Promise((resolve, reject) => {
-      db.query(orderQuery, [decoded.ID], (err, result) => {
+
+    // Check if product slip file exists in the request
+    if (!productSlipFile) {
+      return res.status(400).json({ success: false, message: 'Product slip file is required' });
+    }
+    
+    // Extract order_id from the request
+    const { order_id } = req.body;
+
+    const orderQuery = 'UPDATE order_sumary SET transaction_confirm = ? ,status = ? WHERE id = ? AND member_id = ?';
+    const updatedOrders = await new Promise((resolve, reject) => {
+      db.query(orderQuery, [productSlipPath, 'pending', order_id, decoded.ID], (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -1500,13 +1513,24 @@ app.post('/myproduct', async (req, res) => {
         }
       });
     });
-
-    res.status(200).json({ success: true, orders: orders });
+    
+    // Return success response with the updated orders
+    res.status(200).json({ success: true, message: 'Order transaction confirmation updated successfully', orders: updatedOrders });
   } catch (error) {
-    console.error('Error fetching orders:', error);
+    // Handle errors
+    console.error('Error updating order transaction confirmation:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
+
+
+
+
+
+
+
+
 app.get('/farmerorder', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
@@ -1607,40 +1631,40 @@ app.get('/comment', async (req, res) => {
     // Check if the member has purchased the product
     const checkOrderQuery = 'SELECT os.id AS order_id FROM order_sumary os INNER JOIN order_items oi ON os.id = oi.order_id WHERE os.member_id = ? AND oi.product_id = ?';
     const [orderResult] = await new Promise((resolve, reject) => {
-    db.query(checkOrderQuery, [decoded.ID, product_id], (err, result) => {
-    if (err) {
-      reject(err);
-    } else {
-      resolve(result);
-    }
-    });
+      db.query(checkOrderQuery, [decoded.ID, product_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
     });
 
     const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ?';
     const duplicateOrders = await new Promise((resolve, reject) => {
-  db.query(checkDuplicateOrderQuery, [orderResult.order_id], (err, result) => {
-    if (err) {
-      reject(err);
-    } else {
-      console.log(result);
-      resolve(result);
+      db.query(checkDuplicateOrderQuery, [orderResult.order_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          console.log(result);
+          resolve(result);
+        }
+      });
+    });
+    if (duplicateOrders.length > 0) {
+      return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
     }
-  });
-});
-if (duplicateOrders.length > 0 ) {
-  return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
-}
-console.log(duplicateOrders);
+    console.log(duplicateOrders);
     if (!orderResult || orderResult.length === 0) {
       return res.status(400).json({ success: false, message: 'Member has not purchased this product' });
     }
-    
+
     const nextReviewId = await getNextReviewId();
 
     const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id) VALUES (?, ?, ?, ?, ?, ?)';
     console.log(orderResult.order_id);
     await new Promise((resolve, reject) => {
-      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id,orderResult.order_id], (err, result) => {
+      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, orderResult.order_id], (err, result) => {
         if (err) {
           reject(err);
         } else {
