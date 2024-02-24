@@ -967,7 +967,6 @@ app.get('/getproducts', async (req, res) => {
       }
     });
   });
-  console.log(maxPage);
   db.query(query, (err, result) => {
     if (err) {
       console.log(err);
@@ -1491,7 +1490,7 @@ app.get('/orderlist', async (req, res) => {
 app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   try {
     const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
-    
+
     const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
 
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
@@ -1501,7 +1500,7 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
     if (!productSlipFile) {
       return res.status(400).json({ success: false, message: 'Product slip file is required' });
     }
-    
+
     // Extract order_id from the request
     const { order_id } = req.body;
 
@@ -1515,7 +1514,7 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
         }
       });
     });
-    
+
     // Return success response with the updated orders
     res.status(200).json({ success: true, message: 'Order transaction confirmation updated successfully', orders: updatedOrders });
   } catch (error) {
