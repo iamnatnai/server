@@ -1292,6 +1292,66 @@ app.post('/checkout', async (req, res) => {
   }
 });
 
+
+app.post('/farmerorder', async (req, res) => {
+  try {
+    const { order_id, status } = req.body;
+    async function addComment(order_id, comment) {
+  const insertCommentQuery = 'UPDATE order_sumary SET comment = ? WHERE id = ?';
+  await new Promise((resolve, reject) => {
+    db.query(insertCommentQuery, [comment, order_id], (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+}
+const updateDonedate = 'UPDATE order_sumary SET date_complete = NOW() WHERE id = ?';
+await new Promise((resolve, reject) => {
+  db.query(updateDonedate, [order_id], (err, result) => {
+    if (err) {
+      reject(err);
+    } else {
+      resolve(result);
+    }
+  });
+});
+    // Validate request body
+    if (!order_id || !status) {
+      return res.status(400).json({ success: false, message: 'Incomplete request data' });
+    }
+    if (status === "reject") {
+      const { comment } = req.body;
+      if (!comment) {
+        return res.status(400).json({ success: false, message: 'Comment is required for rejection' });
+      }
+      await addComment(order_id, comment);
+    }
+    // Update order status in the database
+    const updateOrderStatusQuery = 'UPDATE order_sumary SET status = ? WHERE id = ?';
+    await new Promise((resolve, reject) => {
+      db.query(updateOrderStatusQuery, [status, order_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+          }
+          resolve(result);
+        }
+      });
+    });
+    
+    return res.status(200).json({ success: true, message: 'Order status updated successfully' });
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+
 app.get('/orderlist', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
@@ -1350,7 +1410,6 @@ app.get('/farmerorder', async (req, res) => {
     INNER JOIN products p ON oi.product_id = p.product_id
     INNER JOIN farmers f ON p.farmer_id = f.id
     WHERE f.id = ?
-
     `;
     const orderItemsResult = await new Promise((resolve, reject) => {
       db.query(orderItemsQuery, [decoded.ID], (err, result) => {
@@ -1429,9 +1488,6 @@ app.get('/comment', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-
-
-
 
 app.post("/changepassword", async (req, res) => {
   const { oldpassword, newpassword, usernameBody, roleBody } = req.body;
