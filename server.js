@@ -50,7 +50,6 @@ const checkAdmin = (req, res, next) => {
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-  const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
     if (decoded.role !== 'admins') {
@@ -69,7 +68,6 @@ const checkFarmer = (req, res, next) => {
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-  const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
     console.log(decoded);
@@ -250,7 +248,7 @@ app.get('/users', async (req, res) => {
 
   try {
     if (role === 'admins') {
-      const adminsQuery = "SELECT email, username, firstname, lastname, phone, role FROM admins";
+      const adminsQuery = "SELECT email, username, firstname, lastname, phone, role FROM admins WHERE available = 1";
       const adminsResult = await new Promise((resolve, reject) => {
         db.query(adminsQuery, (err, result) => {
           if (err) {
@@ -261,7 +259,7 @@ app.get('/users', async (req, res) => {
         })
       })
 
-      const farmersQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers";
+      const farmersQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers WHERE available = 1";
       const farmersResult = await new Promise((resolve, reject) => {
         db.query(farmersQuery, (err, result) => {
           if (err) {
@@ -272,7 +270,7 @@ app.get('/users', async (req, res) => {
         })
       })
 
-      const membersQuery = "SELECT email, username, firstname, lastname, phone, role FROM members";
+      const membersQuery = "SELECT email, username, firstname, lastname, phone, role FROM members WHERE available = 1";
       const membersResult = await new Promise((resolve, reject) => {
         db.query(membersQuery, (err, result) => {
           if (err) {
@@ -283,7 +281,7 @@ app.get('/users', async (req, res) => {
         })
       })
 
-      const providersQuery = "SELECT email, username, firstname, lastname, phone, role FROM providers";
+      const providersQuery = "SELECT email, username, firstname, lastname, phone, role FROM providers WHERE available = 1";
       const providersResult = await new Promise((resolve, reject) => {
         db.query(providersQuery, (err, result) => {
           if (err) {
@@ -294,7 +292,7 @@ app.get('/users', async (req, res) => {
         })
       })
 
-      const tambonQuery = "SELECT email, username, firstname, lastname, phone, role FROM tambons";
+      const tambonQuery = "SELECT email, username, firstname, lastname, phone, role FROM tambons WHERE available = 1";
       const tambonResult = await new Promise((resolve, reject) => {
         db.query(tambonQuery, (err, result) => {
           if (err) {
@@ -315,7 +313,7 @@ app.get('/users', async (req, res) => {
 
       res.status(200).json(users);
     } else {
-      const farmerQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers";
+      const farmerQuery = "SELECT email, username, firstname, lastname, phone, role FROM farmers WHERE available = 1";
       const farmerResult = await new Promise((resolve, reject) => {
         db.query(farmerQuery, (err, result) => {
           if (err) {
@@ -333,6 +331,41 @@ app.get('/users', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+app.delete('/deleteuser/:role/:username', async (req, res) => {
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+
+  const decoded = jwt.verify(token, secretKey);
+  if (decoded.role !== 'admins' && decoded.role !== 'tambons') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { role, username } = req.params;
+  console.log(role, username);
+  if (decoded.role === "tambons" && role !== "farmers") {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    //soft delete
+    const query = `UPDATE ${role} SET available = 0 WHERE username = "${username}"`
+    await new Promise((resolve, reject) => {
+      db.query(query, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    res.status(200).json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+
+});
+
 
 async function getNextId() {
   return new Promise((resolve, reject) => {
@@ -457,7 +490,6 @@ app.post('/login', async (req, res) => {
     const user = await getUserByUsername(username);
 
     if (!user) {
-      console.log("bad");
       return res.status(401).send({ status: false, error: 'Invalid username or password' });
     }
     console.log('User:', user.uze_name);
@@ -473,7 +505,7 @@ app.post('/login', async (req, res) => {
 
     }
 
-    const token = jwt.sign({ username: user.uze_name, ID: user.user_id, role: user.role }, 'pifOvrart4', {
+    const token = jwt.sign({ username: user.uze_name, ID: user.user_id, role: user.role }, secretKey, {
       expiresIn: '1h',
     });
 
@@ -498,8 +530,6 @@ app.get('/login', async (req, res) => {
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-
-  const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
     const newToken = jwt.sign({ username: decoded.username, ID: decoded.ID, role: decoded.role }, secretKey, {
@@ -544,15 +574,15 @@ app.get('/login', async (req, res) => {
 async function getUserByUsername(username) {
   return new Promise((resolve, reject) => {
     db.query(`
-    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins WHERE username = ?
+    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins WHERE username = ? and available = 1
     UNION
-    SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers WHERE username = ?
+    SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers WHERE username = ? and available = 1
     UNION
-    SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members WHERE username = ?
+    SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members WHERE username = ? and available = 1
     UNION
-    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers WHERE username = ?
+    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers WHERE username = ? and available = 1
     UNION
-    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons WHERE username = ?
+    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons WHERE username = ? and available = 1
     `, [username, username, username, username, username], (err, result) => {
       if (err) {
         reject(err);
@@ -825,7 +855,6 @@ app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxC
   } = req.body;
 
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
-  const secretKey = 'pifOvrart4';
   if (username !== jwt.verify(token, secretKey).username) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
   }
@@ -888,7 +917,7 @@ app.get('/getimage/:image', (req, res) => {
 
 app.get('/getproduct/:id', (req, res) => {
   const id = req.params.id;
-  db.query('SELECT * FROM products WHERE product_id = ?', [id], (err, result) => {
+  db.query('SELECT * FROM products WHERE product_id = ? and available = 1', [id], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -901,9 +930,9 @@ app.get('/getproduct/:id', (req, res) => {
 app.get('/getproducts', (req, res) => {
   const { search, category, page, sort, order } = req.query;
   console.log(category, page, sort, order);
-  let query = `SELECT * FROM products where ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10}`;
+  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10}`;
   if (category == '') {
-    query = `SELECT * FROM products ${search !== "" ? `${"where product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10} `;
+    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * 10} `;
   }
   console.log(query);
   db.query(query, (err, result) => {
@@ -920,22 +949,11 @@ app.get('/getproducts', (req, res) => {
 app.delete('/deleteproduct/:id', checkFarmer, async (req, res) => {
   const { id } = req.params;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
-  const secretKey = 'pifOvrart4';
-  const username = jwt.verify(token, secretKey).username;
-  const farmerIdQuery = "SELECT id FROM farmers WHERE username = ?";
-  const farmerIdResult = await new Promise((resolve, reject) => {
-    db.query(farmerIdQuery, [username], (err, result) => {
-      if (err) {
-        console.error('Error checking email and name in database:', err);
-        reject(err);
-      } else {
-        resolve(result)
-      }
-    });
-  });
-  const farmerId = farmerIdResult[0].id;
+  const decoded = jwt.verify(token, secretKey);
+  console.log(decoded.ID);
+
   //soft delete
-  db.query('UPDATE products SET isavailable = 0 WHERE product_id = ? and farmer_id =', [id, farmerId], (err, result) => {
+  db.query(`UPDATE products SET available = 0 WHERE product_id = "${id}" and farmer_id = "${decoded.ID}"`, (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -961,7 +979,7 @@ app.get('/updateview/:id', (req, res) => {
 
 app.get('/myproducts/:username', (req, res) => {
   const { username } = req.params;
-  db.query('SELECT product_id, product_image, product_description, product_name, selectedType, last_modified, price, view_count FROM products WHERE farmer_id COLLATE utf8mb4_general_ci = (select id from farmers where username = ?)', [username], (err, result) => {
+  db.query('SELECT product_id, product_image, product_description, product_name, selectedType, last_modified, price, view_count FROM products WHERE available = 1 and farmer_id COLLATE utf8mb4_general_ci = (select id from farmers where username = ?)', [username], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -977,7 +995,6 @@ app.get("/getinfo", (req, res) => {
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-  const secretKey = 'pifOvrart4';
   try {
     const decoded = jwt.verify(token, secretKey);
     const { username, role } = decoded
@@ -1185,7 +1202,6 @@ app.post('/checkout', async (req, res) => {
 
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
-    const secretKey = 'pifOvrart4';
     const decoded = jwt.verify(token, secretKey);
     console.log();
     await new Promise((resolve, reject) => {
@@ -1299,16 +1315,16 @@ app.post('/checkout', async (req, res) => {
       console.log(decoded.ID);
       const nextitemId = await getNextItemId();
       const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,date_buys) VALUES (?,?,?,?,NOW())';
-    await new Promise((resolve, reject) => {
-      db.query(insertOrderVB, [ORDNXT, "waiting", SUMITNOW, decoded.ID], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-        console.log("ORDNXT", ORDNXT);
+      await new Promise((resolve, reject) => {
+        db.query(insertOrderVB, [ORDNXT, "waiting", SUMITNOW, decoded.ID], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+          console.log("ORDNXT", ORDNXT);
+        });
       });
-    });
       const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, amount) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
         db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
@@ -1325,7 +1341,7 @@ app.post('/checkout', async (req, res) => {
       });
     }
 
-    
+
 
     await new Promise((resolve, reject) => {
       db.commit(err => {
@@ -1364,27 +1380,27 @@ app.post('/farmerorder', async (req, res) => {
   try {
     const { order_id, status } = req.body;
     async function addComment(order_id, comment) {
-  const insertCommentQuery = 'UPDATE order_sumary SET comment = ? WHERE id = ?';
-  await new Promise((resolve, reject) => {
-    db.query(insertCommentQuery, [comment, order_id], (err, result) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
-}
-const updateDonedate = 'UPDATE order_sumary SET date_complete = NOW() WHERE id = ?';
-await new Promise((resolve, reject) => {
-  db.query(updateDonedate, [order_id], (err, result) => {
-    if (err) {
-      reject(err);
-    } else {
-      resolve(result);
+      const insertCommentQuery = 'UPDATE order_sumary SET comment = ? WHERE id = ?';
+      await new Promise((resolve, reject) => {
+        db.query(insertCommentQuery, [comment, order_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
     }
-  });
-});
+    const updateDonedate = 'UPDATE order_sumary SET date_complete = NOW() WHERE id = ?';
+    await new Promise((resolve, reject) => {
+      db.query(updateDonedate, [order_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
     // Validate request body
     if (!order_id || !status) {
       return res.status(400).json({ success: false, message: 'Incomplete request data' });
@@ -1410,7 +1426,7 @@ await new Promise((resolve, reject) => {
         }
       });
     });
-    
+
     return res.status(200).json({ success: true, message: 'Order status updated successfully' });
   } catch (error) {
     console.error('Error updating order status:', error);
@@ -1422,7 +1438,6 @@ await new Promise((resolve, reject) => {
 app.get('/orderlist', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
-    const secretKey = 'pifOvrart4';
     const decoded = jwt.verify(token, secretKey);
     const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
     const orders = await new Promise((resolve, reject) => {
@@ -1443,7 +1458,6 @@ app.get('/orderlist', async (req, res) => {
 app.post('/myproduct', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
-    const secretKey = 'pifOvrart4';
     const decoded = jwt.verify(token, secretKey);
     const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
     const orders = await new Promise((resolve, reject) => {
@@ -1465,7 +1479,6 @@ app.post('/myproduct', async (req, res) => {
 app.get('/farmerorder', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
-    const secretKey = 'pifOvrart4';
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
     SELECT oi.order_id, oi.product_id, oi.amount, oi.price, 
@@ -1528,7 +1541,6 @@ app.get('/farmerorder', async (req, res) => {
 app.get('/comment', async (req, res) => {
   const { rating, comment, product_id } = req.body;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
-  const secretKey = 'pifOvrart4';
   const decoded = jwt.verify(token, secretKey);
   if (!decoded.ID || !comment || !product_id || !rating) {
     return res.status(400).json({ success: false, message: 'Incomplete comment data' });
