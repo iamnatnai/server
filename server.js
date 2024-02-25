@@ -629,7 +629,8 @@ app.get('/categories', (req, res) => {
 });
 
 app.post('/categories', checkAdmin, async (req, res) => {
-  const { category_id = null, category_name, bgcolor } = req.body;
+  let { category_id = null, category_name, bgcolor } = req.body;
+  console.log(category_id, category_name, bgcolor);
   if (!category_name || !bgcolor) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
@@ -643,6 +644,7 @@ app.post('/categories', checkAdmin, async (req, res) => {
           let nextId = 'CAT0001';
           if (result[0].maxId) {
             const currentIdNumericPart = parseInt(result[0].maxId.substring(3), 10);
+            console.log(result[0]);
             const nextNumericPart = currentIdNumericPart + 1;
             const paddedNextNumericPart = String(nextNumericPart).padStart(4, '0');
             nextId = 'CAT' + paddedNextNumericPart;
@@ -651,6 +653,7 @@ app.post('/categories', checkAdmin, async (req, res) => {
         }
       });
     });
+    console.log(category_id);
   }
 
   // find if category_id is exist on database
@@ -870,6 +873,7 @@ app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxC
     price,
     unit,
     stock,
+    shippingcost = null
   } = req.body;
 
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
@@ -898,7 +902,6 @@ app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxC
     const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
     const additionalImagesJSON = additionalImagesPaths ? JSON.stringify(additionalImagesPaths) : null;
     const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
-    console.log(cercificationImagePath);
     const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
       ...standard,
       standard_cercification: cercificationImagePath ? cercificationImagePath[index] : null
@@ -916,10 +919,10 @@ app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxC
     // }
 
     const query = `
-  INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
+  INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, JSON.stringify(jsonselectstandard)]);
+    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, shippingcost, JSON.stringify(jsonselectstandard)]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
@@ -935,27 +938,29 @@ app.get('/getimage/:image', (req, res) => {
 
 app.get('/getproduct/:id', (req, res) => {
   const id = req.params.id;
+  console.log(id);
   db.query('SELECT * FROM products WHERE product_id = ? and available = 1', [id], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
+      console.log(result[0]);
       res.json(result[0]);
     }
   });
 });
 
-app.get('/getproducts', (req, res) => {
+app.get('/getproducts', async (req, res) => {
   const { search, category, page, sort, order } = req.query;
   let perPage = 40;
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
-  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * perPage}`;
+  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
     queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"product_name LIKE '%" + search + "%' AND"}`}` : ''}`;
-    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT 10 OFFSET ${page * perPage} `;
+    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
 
-  let maxPage = new Promise((resolve, reject) => {
+  let AllPage = await new Promise((resolve, reject) => {
     db.query(queryMaxPage, (err, result) => {
       if (err) {
         console.log(err);
@@ -965,13 +970,12 @@ app.get('/getproducts', (req, res) => {
       }
     });
   });
-
   db.query(query, (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
-      res.json({ products: result, maxPage: maxPage % perPage === 0 ? maxPage / perPage : Math.floor(maxPage / perPage) + 1 });
+      res.json({ products: result, maxPage: AllPage % perPage === 0 ? AllPage / perPage : Math.floor(AllPage / perPage) + 1 });
     }
   });
 
@@ -1489,7 +1493,7 @@ app.get('/orderlist', async (req, res) => {
 app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   try {
     const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
-    
+
     const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
 
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
@@ -1499,7 +1503,7 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
     if (!productSlipFile) {
       return res.status(400).json({ success: false, message: 'Product slip file is required' });
     }
-    
+
     // Extract order_id from the request
     const { order_id } = req.body;
 
@@ -1513,7 +1517,7 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
         }
       });
     });
-    
+
     // Return success response with the updated orders
     res.status(200).json({ success: true, message: 'Order transaction confirmation updated successfully', orders: updatedOrders });
   } catch (error) {
