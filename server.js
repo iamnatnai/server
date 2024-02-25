@@ -1523,12 +1523,53 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
   }
 });
 
+app.post('/image_store', upload.fields([{ name: 'image', maxCount:10}]), async (req, res) => {
+  try {
+    const imagePaths = req.files['image'] ? req.files['image'].map(file => `./uploads/${file.filename}`) : null;
+    const thetenimageJSON = imagePaths ? JSON.stringify(imagePaths) : null;
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const decoded = jwt.verify(token, secretKey);
+    const nextimageId = await getNextImageId() ;
+    async function getNextImageId() {
+      return new Promise((resolve, reject) => {
+        db.query('SELECT MAX(id) as maxId FROM image', (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            let nextimageId = 'img0000000001';
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              const numericPart = parseInt(currentId.substring(3), 10) + 1;
+    
+              nextimageId = 'MEM' + numericPart.toString().padStart(13, '0');
+            }
+            resolve(nextimageId);
+          }
+        });
+      });
+    }
+    if (!req.files['image']) {
+      return res.status(400).json({ success: false, message: 'No images uploaded' });
+    }
 
-
-
-
-
-
+    const insertImageQuery = 'INSERT INTO image (id,imagepath, member_id) VALUES (?,?, ?)';
+    const insertImage = await new Promise((resolve, reject) => {
+      db.query(insertImageQuery, [nextimageId,thetenimageJSON, decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    
+    res.status(200).json({ success: true, message: 'Images uploaded successfully', insertedImage: insertImage });
+  } catch (error) {
+    // Handle errors
+    console.error('Error uploading images:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 
 app.get('/farmerorder', async (req, res) => {
