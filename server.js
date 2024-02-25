@@ -862,67 +862,41 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
-app.post('/addproduct', checkFarmer, upload.fields([{ name: 'productImage', maxCount: 1 }, { name: 'productVideo', maxCount: 1 }, { name: 'additionalImages' }, { name: 'cercificationImage' },]), async (req, res) => {
+app.post('/addproduct', checkFarmer, async (req, res) => {
   const {
-    username,
-    productName,
-    category,
-    description,
-    selectedStandard,
+    product_id,
+    product_name,
+    category_id,
+    product_description,
     selectedType,
     price,
     unit,
     stock,
-    shippingcost = null
+    selectedStatus,
+    startDate,
+    endDate,
+    product_image,
+    product_video,
+    additional_images,
+    certificate,
+    shippingcost,
   } = req.body;
 
-  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
-  if (username !== jwt.verify(token, secretKey).username) {
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
-  }
-
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+  const decoded = jwt.verify(token, secretKey);
   try {
-    const farmerIdQuery = "SELECT id FROM farmers WHERE username = ?";
-    const farmerIdResult = await new Promise((resolve, reject) => {
-      db.query(farmerIdQuery, [username], (err, result) => {
-        if (err) {
-          console.error('Error checking email and name in database:', err);
-          reject(err);
-        } else {
-          resolve(result)
-        }
-      });
-    });
-    const farmerId = farmerIdResult[0].id;
-
+    let { ID: farmerId } = decoded
+    if (product_id) {
+      const query = `UPDATE products SET product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, shippingcost = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
+      await db.query(query, [product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost, product_id, farmerId]);
+      return res.status(200).send({ success: true, message: 'Product updated successfully' });
+    }
     const nextProductId = await getNextProductId();
-    const productImagePath = `./uploads/${req.files['productImage'][0].filename}`;
-    const productVideoFile = req.files['productVideo'] ? req.files['productVideo'][0] : null;
-    const productVideoPath = productVideoFile ? `./uploads/${productVideoFile.filename}` : null;
-    const additionalImagesPaths = req.files['additionalImages'] ? req.files['additionalImages'].map(file => `./uploads/${file.filename}`) : null;
-    const additionalImagesJSON = additionalImagesPaths ? JSON.stringify(additionalImagesPaths) : null;
-    const cercificationImagePath = req.files['cercificationImage'] ? req.files['cercificationImage'].map(file => `./uploads/${file.filename}`) : null;
-    const jsonselectstandard = JSON.parse(selectedStandard).map((standard, index) => ({
-      ...standard,
-      standard_cercification: cercificationImagePath ? cercificationImagePath[index] : null
-    }));
-    console.log(jsonselectstandard);
-    // if (Array.isArray(selectedStandard)) {
-    //   // ตรวจสอบและใช้งาน selectedStandard ได้ตามปกติ
-    //   const combinedData = JSON.stringify(selectedStandard.map(standard => ({
-    //     ...standard,
-    //     cercificationImagePath
-    //   })));
-    // } else {
-    //   // กรณี selectedStandard ไม่ใช่ array
-    //   console.error('selectedStandard is not an array');
-    // }
-
     const query = `
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-    await db.query(query, [nextProductId, farmerId, productName, description, category, stock, price, unit, productImagePath, productVideoPath, additionalImagesJSON, selectedType, shippingcost, JSON.stringify(jsonselectstandard)]);
+    await db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, shippingcost, certificate]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
@@ -1526,48 +1500,69 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+app.get('/imagestore', async (req, res) => {
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  const decoded = jwt.verify(token, secretKey);
 
-app.post('/image_store', upload.fields([{ name: 'image', maxCount:10}]), async (req, res) => {
+  const imageQuery = 'SELECT imagepath FROM image WHERE farmer_id = ?';
+  const images = await new Promise((resolve, reject) => {
+    db.query(imageQuery, [decoded.ID], (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+  res.status(200).json({ images });
+
+
+})
+app.post('/imageupload', upload.fields([{ name: 'image', maxCount: 10 }]), async (req, res) => {
   try {
-    const imagePaths = req.files['image'] ? req.files['image'].map(file => `./uploads/${file.filename}`) : null;
-    const thetenimageJSON = imagePaths ? JSON.stringify(imagePaths) : null;
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
     const decoded = jwt.verify(token, secretKey);
-    const nextimageId = await getNextImageId() ;
-    async function getNextImageId() {
-      return new Promise((resolve, reject) => {
-        db.query('SELECT MAX(id) as maxId FROM image', (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            let nextimageId = 'img0000000001';
-            if (result[0].maxId) {
-              const currentId = result[0].maxId;
-              const numericPart = parseInt(currentId.substring(3), 10) + 1;
-    
-              nextimageId = 'MEM' + numericPart.toString().padStart(13, '0');
-            }
-            resolve(nextimageId);
-          }
-        });
-      });
-    }
     if (!req.files['image']) {
       return res.status(400).json({ success: false, message: 'No images uploaded' });
     }
-
-    const insertImageQuery = 'INSERT INTO image (id,imagepath, member_id) VALUES (?,?, ?)';
-    const insertImage = await new Promise((resolve, reject) => {
-      db.query(insertImageQuery, [nextimageId,thetenimageJSON, decoded.ID], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+    const imagePaths = req.files['image'] ? req.files['image'].map(file => `./uploads/${file.filename}`) : null;
+    imagePaths.map(async (imagePath, index) => {
+      async function getNextImageId(index) {
+        return new Promise((resolve, reject) => {
+          db.query('SELECT MAX(id) as maxId FROM image', (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              console.log(result);
+              let nextimageId = 'IMG000000001';
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                const numericPart = parseInt(currentId.substring(3), 10) + 1 + index;
+                console.log(numericPart, numericPart.toString().padStart(9, '0'));
+                nextimageId = 'IMG' + numericPart.toString().padStart(9, '0');
+              }
+              resolve(nextimageId);
+            }
+          });
+        });
+      }
+      const nextimageId = await getNextImageId(index);
+      const insertImageQuery = 'INSERT INTO image (id, imagepath, farmer_id) VALUES (?,?, ?)';
+      await new Promise((resolve, reject) => {
+        db.query(insertImageQuery, [nextimageId, imagePath, decoded.ID], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
       });
     });
-    
-    res.status(200).json({ success: true, message: 'Images uploaded successfully', insertedImage: insertImage });
+
+    res.status(200).json({ success: true, message: 'Images uploaded successfully' });
   } catch (error) {
     // Handle errors
     console.error('Error uploading images:', error);
