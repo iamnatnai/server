@@ -629,7 +629,8 @@ app.get('/categories', (req, res) => {
 });
 
 app.post('/categories', checkAdmin, async (req, res) => {
-  const { category_id = null, category_name, bgcolor } = req.body;
+  let { category_id = null, category_name, bgcolor } = req.body;
+  console.log(category_id, category_name, bgcolor);
   if (!category_name || !bgcolor) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
@@ -643,6 +644,7 @@ app.post('/categories', checkAdmin, async (req, res) => {
           let nextId = 'CAT0001';
           if (result[0].maxId) {
             const currentIdNumericPart = parseInt(result[0].maxId.substring(3), 10);
+            console.log(result[0]);
             const nextNumericPart = currentIdNumericPart + 1;
             const paddedNextNumericPart = String(nextNumericPart).padStart(4, '0');
             nextId = 'CAT' + paddedNextNumericPart;
@@ -651,6 +653,7 @@ app.post('/categories', checkAdmin, async (req, res) => {
         }
       });
     });
+    console.log(category_id);
   }
 
   // find if category_id is exist on database
