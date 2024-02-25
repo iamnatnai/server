@@ -1221,26 +1221,6 @@ app.post('/checkout', async (req, res) => {
     });
 
 
-    async function getNextORDID() {
-      return new Promise((resolve, reject) => {
-        db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            let ORDNXT = 'ORD00001';
-            if (result[0].maxId) {
-              const currentId = result[0].maxId;
-              console.log(currentId);
-              const numericPart = parseInt(currentId.substring(3), 10) + 1;
-              console.log(numericPart);
-              ORDNXT = 'ORD' + numericPart.toString().padStart(5, '0');
-            }
-            resolve(ORDNXT);
-          }
-        });
-      });
-    }
-    const ORDNXT = await getNextORDID();
 
     for (const item of cartList) {
       const { product_id, amount } = item;
@@ -1255,6 +1235,26 @@ app.post('/checkout', async (req, res) => {
           }
         });
       });
+      async function getNextORDID() {
+        return new Promise((resolve, reject) => {
+          db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let ORDNXT = 'ORD00001';
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                console.log(currentId);
+                const numericPart = parseInt(currentId.substring(3), 10) + 1;
+                console.log(numericPart);
+                ORDNXT = 'ORD' + numericPart.toString().padStart(5, '0');
+              }
+              resolve(ORDNXT);
+            }
+          });
+        });
+      }
+      const ORDNXT = await getNextORDID();
       const getProductPriceQuery = 'SELECT price FROM products WHERE product_id = ?';
       const [result] = await new Promise((resolve, reject) => {
         db.query(getProductPriceQuery, [product_id], (err, result) => {
@@ -1334,7 +1334,7 @@ app.post('/checkout', async (req, res) => {
           console.log("ORDNXT", ORDNXT);
         });
       });
-      const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, amount) VALUES (?,?,?,?,?)';
+      const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, quantity) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
         db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
           if (err) {
@@ -1388,6 +1388,7 @@ app.post('/checkout', async (req, res) => {
 app.post('/farmerorder', async (req, res) => {
   try {
     const { order_id, status } = req.body;
+
     async function addComment(order_id, comment) {
       const insertCommentQuery = 'UPDATE order_sumary SET comment = ? WHERE id = ?';
       await new Promise((resolve, reject) => {
@@ -1400,6 +1401,7 @@ app.post('/farmerorder', async (req, res) => {
         });
       });
     }
+
     const updateDonedate = 'UPDATE order_sumary SET date_complete = NOW() WHERE id = ?';
     await new Promise((resolve, reject) => {
       db.query(updateDonedate, [order_id], (err, result) => {
@@ -1410,17 +1412,23 @@ app.post('/farmerorder', async (req, res) => {
         }
       });
     });
+
     // Validate request body
     if (!order_id || !status) {
       return res.status(400).json({ success: false, message: 'Incomplete request data' });
     }
-    if (status === "reject") {
+
+    if (status === "complete") {
+      // Update comment to null for complete status
+      await addComment(order_id, null);
+    } else if (status === "reject") {
       const { comment } = req.body;
       if (!comment) {
         return res.status(400).json({ success: false, message: 'Comment is required for rejection' });
       }
       await addComment(order_id, comment);
     }
+
     // Update order status in the database
     const updateOrderStatusQuery = 'UPDATE order_sumary SET status = ? WHERE id = ?';
     await new Promise((resolve, reject) => {
@@ -1450,10 +1458,34 @@ app.get('/orderlist', async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const orderQuery = 'SELECT * FROM order_sumary WHERE member_id = ?';
     const orders = await new Promise((resolve, reject) => {
-      db.query(orderQuery, [decoded.ID], (err, result) => {
+      db.query(orderQuery, [decoded.ID], async (err, result) => {
         if (err) {
           reject(err);
         } else {
+          for (const order of result) {
+            if (!order.transaction_confirm) {
+              order.transaction_confirm = null;
+            }
+            const products = await new Promise((resolve, reject) => {
+              const orderItemsQuery = 'SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, oi.price FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?';
+              db.query(orderItemsQuery, [order.id], (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  const formattedProducts = result.map(product => ({
+                    product_id: product.product_id,
+                    product_name: product.product_name,
+                    product_image: product.product_image,
+                    quantity: product.quantity,
+                    price: product.price
+                  }));
+                  resolve(formattedProducts);
+                }
+              });
+            });
+            order.products = products;
+            delete order.member_id;
+          }
           resolve(result);
         }
       });
@@ -1464,6 +1496,7 @@ app.get('/orderlist', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
 app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   try {
     const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
@@ -1570,15 +1603,15 @@ app.post('/imageupload', upload.fields([{ name: 'image', maxCount: 10 }]), async
   }
 });
 
-
 app.get('/farmerorder', async (req, res) => {
   try {
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
-    SELECT oi.order_id, oi.product_id, oi.amount, oi.price, 
+    SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, 
     os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, 
-    m.firstname, m.lastname, m.phone, m.address
+    m.id, m.firstname, m.lastname, m.phone, m.address,
+    p.product_name, p.product_image
     FROM order_items oi
     INNER JOIN order_sumary os ON oi.order_id = os.id
     INNER JOIN members m ON os.member_id = m.id
@@ -1606,9 +1639,9 @@ app.get('/farmerorder', async (req, res) => {
           total_amount: orderItem.total_amount,
           transaction_confirm: orderItem.transaction_confirm,
           customer_info: {
-            member_id: orderItem.member_id,
-            first_name: orderItem.first_name,
-            last_name: orderItem.last_name,
+            member_id: orderItem.id,
+            firstname: orderItem.firstname,
+            lastname: orderItem.lastname,
             phone: orderItem.phone,
             address: orderItem.address
           },
@@ -1619,8 +1652,10 @@ app.get('/farmerorder', async (req, res) => {
       }
       farmerOrdersMap.get(order_id).products.push({
         product_id: orderItem.product_id,
-        amount: orderItem.amount,
-        price: orderItem.price
+        product_name: orderItem.product_name,
+        product_image: orderItem.product_image,
+        quantity: orderItem.quantity,
+        price: orderItem.price,
       });
     });
 
@@ -1631,6 +1666,7 @@ app.get('/farmerorder', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
 
 
 app.get('/comment', async (req, res) => {
@@ -1655,6 +1691,27 @@ app.get('/comment', async (req, res) => {
         }
       });
     });
+  }
+  const checkOrderStatusQuery = `
+SELECT os.id AS order_id 
+FROM order_sumary os 
+INNER JOIN order_items oi ON os.id = oi.order_id 
+WHERE os.member_id = ? 
+AND oi.product_id = ? 
+AND os.status = 'complete'
+`;
+  const orderResult = await new Promise((resolve, reject) => {
+    db.query(checkOrderStatusQuery, [decoded.ID, product_id], (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+
+  if (!orderResult || orderResult.length === 0) {
+    return res.status(400).json({ success: false, message: 'Member has not purchased this product or order is not complete' });
   }
 
   // Check if all necessary data is provided
