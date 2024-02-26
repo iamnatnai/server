@@ -1223,17 +1223,19 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
 // });
 
 
-app.post('/checkout', async (req, res) => {
-  const { cartList } = req.body;
+app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
+  let { cartList } = req.body;
+  console.log(req.body.cartList);
   var SUMITNOW = 0
-  const { order_id, member_id } = req.body; // Assuming you have order_id and member_id in the request body
-  if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
-    return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
-  }
 
   try {
+    cartList = JSON.parse(cartList)
+    if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
+      return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
+    }
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
     const decoded = jwt.verify(token, secretKey);
+
     console.log();
     await new Promise((resolve, reject) => {
       db.beginTransaction(err => {
@@ -1241,13 +1243,14 @@ app.post('/checkout', async (req, res) => {
         else resolve();
       });
     });
-
-
-
+    let idoffarmer 
     for (const item of cartList) {
       const { product_id, amount } = item;
       console.log(decoded);
-      const getProductQuery = 'SELECT stock FROM products WHERE product_id = ?';
+      const getProductQuery = 'SELECT stock, farmer_id, selectedType FROM products WHERE product_id = ?';
+      const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
+      const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
+      console.log(productSlipPath);
       const [product] = await new Promise((resolve, reject) => {
         db.query(getProductQuery, [product_id], (err, result) => {
           if (err) {
@@ -1257,6 +1260,19 @@ app.post('/checkout', async (req, res) => {
           }
         });
       });
+      console.log("idoffarmer");
+      console.log(idoffarmer);
+      console.log(product.farmer_id);
+      console.log(product.selectedType);
+      if (!idoffarmer) {
+        idoffarmer=product.farmer_id
+      }
+      else if(idoffarmer != product.farmer_id) {
+        return res.status(400).json({ success: false, message: 'Cart items must be from the same farmer' });
+      }
+      if (product.selectedType !="สินค้าจัดส่งพัสดุ") {
+        return res.status(400).json({ success: false, message: 'Order Has Not avalable' })
+      }
       async function getNextORDID() {
         return new Promise((resolve, reject) => {
           db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
@@ -1296,7 +1312,8 @@ app.post('/checkout', async (req, res) => {
       const price = result.price;
       const totalProductPrice = price * amount;
       SUMITNOW = SUMITNOW + totalProductPrice
-
+      console.log(product.farmer_id);
+      console.log(cartList[0].farmer_id);
       if (!product || product.length === 0) {
         console.error(`Product ID ${product_id} not found`);
         return res.status(400).send({ error: `Product ID ${product_id} not found` });
@@ -1345,9 +1362,9 @@ app.post('/checkout', async (req, res) => {
       console.log("++++++");
       console.log(decoded.ID);
       const nextitemId = await getNextItemId();
-      const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,date_buys) VALUES (?,?,?,?,NOW())';
+      const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,date_buys) VALUES (?,?,?,?,?,NOW())';
       await new Promise((resolve, reject) => {
-        db.query(insertOrderVB, [ORDNXT, "waiting", SUMITNOW, decoded.ID], (err, result) => {
+        db.query(insertOrderVB, [ORDNXT, 'pending', SUMITNOW, decoded.ID, productSlipPath], (err, result) => {
           if (err) {
             reject(err);
           } else {
@@ -1367,7 +1384,6 @@ app.post('/checkout', async (req, res) => {
           }
           console.log("nextitemId");
           console.log(nextitemId);
-
         });
       });
     }
@@ -1555,6 +1571,7 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
 app.get('/imagestore', async (req, res) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   if (!token) {
