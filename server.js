@@ -950,9 +950,10 @@ app.get('/getproducts', async (req, res) => {
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
   let query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
-    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"product_name LIKE '%" + search + "%' AND"}`}` : ''}`;
+    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${",product_name LIKE '%" + search + "%'"}`}` : ''}`;
     query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
+  console.log(query);
 
   let AllPage = await new Promise((resolve, reject) => {
     db.query(queryMaxPage, (err, result) => {
@@ -969,6 +970,7 @@ app.get('/getproducts', async (req, res) => {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
+      console.log(result);
       res.json({ products: result, maxPage: AllPage % perPage === 0 ? AllPage / perPage : Math.floor(AllPage / perPage) + 1 });
     }
   });
@@ -1629,7 +1631,7 @@ app.get('/farmerorder', async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
     SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, 
-    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, 
+    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number,
     m.id, m.firstname, m.lastname, m.phone, m.address,
     p.product_name, p.product_image
     FROM order_items oi
@@ -1656,6 +1658,7 @@ app.get('/farmerorder', async (req, res) => {
         farmerOrdersMap.set(order_id, {
           order_id: order_id,
           products: [],
+          tracking_number: orderItem.tracking_number,
           total_amount: orderItem.total_amount,
           transaction_confirm: orderItem.transaction_confirm,
           customer_info: {
@@ -1687,6 +1690,36 @@ app.get('/farmerorder', async (req, res) => {
   }
 });
 
+app.post('/confirmorder', async (req, res) => {
+  try {
+    const { order_id, status, comment, tracking_number } = req.body;
+    if (!order_id || !status) {
+      return res.status(400).json({ success: false, message: 'Incomplete request data' });
+    }
+
+    if (status !== "complete" && status !== "reject" && status !== "waiting") {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    console.log(req.body);
+
+    const updateOrderStatusQuery = `UPDATE order_sumary SET status = ? ${comment ? `,comment = "${comment}"` : ''} ${status == "complete" ? `${",tracking_number = " + tracking_number + ",date_complete = NOW()"}` : ''} WHERE id = ?`;
+    console.log(updateOrderStatusQuery);
+    const updatedOrders = await new Promise((resolve, reject) => {
+      db.query(updateOrderStatusQuery, [status, order_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    res.status(200).json({ success: true, message: 'Order status updated successfully', orders: updatedOrders });
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 
 app.post('/comment', async (req, res) => {
