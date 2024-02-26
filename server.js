@@ -76,6 +76,24 @@ const checkAdmin = (req, res, next) => {
   }
 }
 
+const checkTambon = (req, res, next) => {
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== 'tambons') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
 const checkFarmer = (req, res, next) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
   if (!token) {
@@ -213,7 +231,43 @@ async function checkIfExistsInAllTables(column, value) {
   return results.some(result => result);
 }
 
-app.post('/adduser', checkAdmin, async (req, res) => {
+app.post('/addfarmer', checkAdmin, async (req, res) => {
+  const { username, email, password, firstName, lastName, tel, lat, lng } = req.body;
+  if (!username || !email || !password || !firstName || !lastName || !tel) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const usernameExists = await checkIfExistsInAllTables('username', username);
+    const emailExists = await checkIfExistsInAllTables('email', email);
+    if (usernameExists) {
+      return res.status(409).json({ success: false, message: 'Username already exists' });
+    }
+    if (emailExists) {
+      return res.status(409).json({ success: false, message: 'Email already exists' });
+    }
+    const nextUserId = await getNextUserId('farmers');
+    await insertUser(nextUserId, username, email, hashedPassword, firstName, lastName, tel, 'farmers');
+    const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, lat, lng, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    await new Promise((resolve, reject) => {
+      db.query(query, [nextUserId, username, email, hashedPassword, firstName, lastName, tel, lat, lng, 'farmers'], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    res.status(201).json({ success: true, message: 'Farmer added successfully' });
+  } catch (error) {
+    console.error('Error adding farmer:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+
+})
+
+app.post('/adduser', checkTambon, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, role } = req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel || !role) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -644,9 +698,23 @@ app.get('/categories', (req, res) => {
 
 app.post('/categories', checkAdmin, async (req, res) => {
   let { category_id = null, category_name, bgcolor } = req.body;
-  console.log(category_id, category_name, bgcolor);
   if (!category_name || !bgcolor) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  //check if category_name is exist
+  let queryCategory_name = 'SELECT * FROM categories WHERE category_name = ?';
+  let category_nameResult = await new Promise((resolve, reject) => {
+    db.query(queryCategory_name, [category_name], (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+
+  if (category_nameResult.length > 0) {
+    return res.status(409).json({ success: false, message: 'Category already exists' });
   }
 
   if (!category_id) {
@@ -1032,6 +1100,9 @@ app.get("/getinfo", (req, res) => {
     if (role !== "farmers") {
       query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
     }
+    else if (role === "members") {
+      query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`
+    }
     else {
       query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
 
@@ -1080,8 +1151,13 @@ app.post('/updateinfo', async (req, res) => {
     if (role !== "farmers") {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
+    else if (role === "members") {
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" , address = "${address}" WHERE username = "${username}"`
+
+    }
     else {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -1129,6 +1205,9 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
     if (role !== "farmers") {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
+    else if (role === "members") {
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}" WHERE username = "${username}"`
+    }
     else {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
@@ -1156,6 +1235,9 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
   var query
   if (role !== "farmers") {
     query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
+  }
+  else if (role === "members") {
+    query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`
   }
   else {
     query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
@@ -1228,6 +1310,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
   var SUMITNOW = 0
 
   try {
+    console.log(cartList);
     cartList = JSON.parse(cartList)
     if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
       return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
@@ -1537,7 +1620,6 @@ app.get('/orderlist', async (req, res) => {
 app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   try {
     const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
-
     const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
 
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
