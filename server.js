@@ -939,8 +939,14 @@ app.get('/getproduct/:id', (req, res) => {
 });
 
 app.get('/getproducts', async (req, res) => {
-  const { search, category, page, sort, order } = req.query;
-  let perPage = 40;
+  let { search, category, page, sort, order, perPage } = req.query;
+  if (page < 1) {
+    page = 1;
+  }
+  page -= 1;
+  if (!perPage) {
+    perPage = 40;
+  }
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
   let query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
@@ -1792,7 +1798,7 @@ AND os.status = 'complete'
 });
 app.get('/getcomment/:id', (req, res) => {
   const id = req.params.id;
-  
+
   // ตรวจสอบค่า ID ที่รับเข้ามา
   if (!id || isNaN(id)) {
     return res.status(400).json({ success: false, error: 'Invalid product ID' });
