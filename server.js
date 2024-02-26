@@ -1683,7 +1683,7 @@ app.get('/farmerorder', async (req, res) => {
 
 
 
-app.get('/comment', async (req, res) => {
+app.post('/comment', async (req, res) => {
   const { rating, comment, product_id } = req.body;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   const decoded = jwt.verify(token, secretKey);
@@ -1789,6 +1789,28 @@ AND os.status = 'complete'
     console.error('Error adding comment:', error);
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
+});
+app.get('/getcomment/:id', (req, res) => {
+  const id = req.params.id;
+  
+  // ตรวจสอบค่า ID ที่รับเข้ามา
+  if (!id || isNaN(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid product ID' });
+  }
+
+  db.query('SELECT * FROM comment WHERE product_id = ? AND available = 1', [id], (err, result) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+
+    if (result.length === 0) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    const product = result[0];
+    res.json({ success: true, product: product });
+  });
 });
 
 app.post("/changepassword", async (req, res) => {
