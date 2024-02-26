@@ -1241,13 +1241,62 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
         else resolve();
       });
     });
-    let idoffarmer 
+    let idoffarmer
+    const getAddress = 'SELECT address FROM members WHERE id = ?';
+    const memberaddress = await new Promise((resolve, reject) => {
+      db.query(getAddress, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
+    const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
+    if (req.body.address) {
+      address = req.body.address;
+    } else {
+      address = memberaddress[0].address;
+    }
+    console.log(memberaddress);
+    console.log(address);
+    console.log("-+-+-+-+--++--+-+-+-+-+-+-+-+-+-+-+");
+    async function getNextORDID() {
+      return new Promise((resolve, reject) => {
+        db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            let ORDNXT = 'ORD00001';
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              console.log(currentId);
+              const numericPart = parseInt(currentId.substring(3), 10) + 1;
+              console.log(numericPart);
+              ORDNXT = 'ORD' + numericPart.toString().padStart(5, '0');
+            }
+            resolve(ORDNXT);
+          }
+        });
+      });
+    }
+    const ORDNXT = await getNextORDID();
+    const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,date_buys) VALUES (?,?,?,?,?,?,NOW())';
+    await new Promise((resolve, reject) => {
+      db.query(insertOrderVB, [ORDNXT, 'pending', SUMITNOW, decoded.ID,productSlipPath,address], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+        console.log("ORDNXT", ORDNXT);
+      });
+    });
     for (const item of cartList) {
       const { product_id, amount } = item;
       console.log(decoded);
       const getProductQuery = 'SELECT stock, farmer_id, selectedType FROM products WHERE product_id = ?';
-      const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
-      const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
       console.log(productSlipPath);
       const [product] = await new Promise((resolve, reject) => {
         db.query(getProductQuery, [product_id], (err, result) => {
@@ -1263,34 +1312,14 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       console.log(product.farmer_id);
       console.log(product.selectedType);
       if (!idoffarmer) {
-        idoffarmer=product.farmer_id
+        idoffarmer = product.farmer_id
       }
-      else if(idoffarmer != product.farmer_id) {
+      else if (idoffarmer != product.farmer_id) {
         return res.status(400).json({ success: false, message: 'Cart items must be from the same farmer' });
       }
-      if (product.selectedType !="สินค้าจัดส่งพัสดุ") {
+      if (product.selectedType != "สินค้าจัดส่งพัสดุ") {
         return res.status(400).json({ success: false, message: 'Order Has Not avalable' })
       }
-      async function getNextORDID() {
-        return new Promise((resolve, reject) => {
-          db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              let ORDNXT = 'ORD00001';
-              if (result[0].maxId) {
-                const currentId = result[0].maxId;
-                console.log(currentId);
-                const numericPart = parseInt(currentId.substring(3), 10) + 1;
-                console.log(numericPart);
-                ORDNXT = 'ORD' + numericPart.toString().padStart(5, '0');
-              }
-              resolve(ORDNXT);
-            }
-          });
-        });
-      }
-      const ORDNXT = await getNextORDID();
       const getProductPriceQuery = 'SELECT price FROM products WHERE product_id = ?';
       const [result] = await new Promise((resolve, reject) => {
         db.query(getProductPriceQuery, [product_id], (err, result) => {
@@ -1320,13 +1349,11 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
         console.error(`Insufficient stock for product ID ${product_id}`);
         return res.status(400).send({ error: `NOT TRUE` });
       }
-
       const currentStock = product.stock; // Corrected to access the stock property
       if (amount > currentStock) {
         console.error(`Insufficient stock for product ID ${product_id}`);
         return res.status(400).send({ error: `Insufficient stock for product ID ${product_id}` });
       }
-
       const newStock = currentStock - amount;
       const updateStockQuery = 'UPDATE products SET stock = ? WHERE product_id = ?';
       await new Promise((resolve, reject) => {
@@ -1360,17 +1387,6 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       console.log("++++++");
       console.log(decoded.ID);
       const nextitemId = await getNextItemId();
-      const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,date_buys) VALUES (?,?,?,?,?,NOW())';
-      await new Promise((resolve, reject) => {
-        db.query(insertOrderVB, [ORDNXT, 'pending', SUMITNOW, decoded.ID, productSlipPath], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-          console.log("ORDNXT", ORDNXT);
-        });
-      });
       const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, quantity) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
         db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
