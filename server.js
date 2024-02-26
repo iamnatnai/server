@@ -21,7 +21,7 @@ require('dotenv').config();
 app.use(cors());
 app.use(express.json());
 
-const db = mysql.createConnection({
+var db_config = {
   host: 'localhost',
   socketPath: process.env.production == "true" ? '/var/run/mysqld/mysqld.sock' : undefined,
   user: process.env.production == "true" ? 'thebestkasetnont' : 'root',
@@ -34,15 +34,29 @@ const db = mysql.createConnection({
     }
     return next();
   },
-});
+};
 
-db.connect((err) => {
-  if (err) {
-    console.error('เกิดข้อผิดพลาดในการเชื่อมต่อกับ MySQL:', err);
-  } else {
-    console.log('Connencted \n -----------------------------------------');
-  }
-});
+var db
+function handleDisconnect() {
+  db = mysql.createConnection(db_config);
+  db.connect(function (err) {
+    if (err) {
+      console.error('เกิดข้อผิดพลาดในการเชื่อมต่อกับ MySQL:', err);
+    } else {
+      console.log('Connencted \n -----------------------------------------');
+    }
+  });
+  db.on('error', function (err) {
+    console.log('db error', err);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+      handleDisconnect();
+    } else {
+      throw err;
+    }
+  });
+}
+
+handleDisconnect();
 
 const checkAdmin = (req, res, next) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
@@ -894,9 +908,9 @@ app.post('/addproduct', checkFarmer, async (req, res) => {
     const nextProductId = await getNextProductId();
     const query = `
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-    await db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, shippingcost, certificate]);
+    await db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
