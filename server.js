@@ -950,7 +950,7 @@ app.get('/getproducts', async (req, res) => {
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
   let query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
-    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${",product_name LIKE '%" + search + "%'"}`}` : ''}`;
+    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"and product_name LIKE '%" + search + "%'"}`}` : ''}`;
     query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
   console.log(query);
@@ -1243,7 +1243,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
         else resolve();
       });
     });
-    let idoffarmer 
+    let idoffarmer
     for (const item of cartList) {
       const { product_id, amount } = item;
       console.log(decoded);
@@ -1265,12 +1265,12 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       console.log(product.farmer_id);
       console.log(product.selectedType);
       if (!idoffarmer) {
-        idoffarmer=product.farmer_id
+        idoffarmer = product.farmer_id
       }
-      else if(idoffarmer != product.farmer_id) {
+      else if (idoffarmer != product.farmer_id) {
         return res.status(400).json({ success: false, message: 'Cart items must be from the same farmer' });
       }
-      if (product.selectedType !="สินค้าจัดส่งพัสดุ") {
+      if (product.selectedType != "สินค้าจัดส่งพัสดุ") {
         return res.status(400).json({ success: false, message: 'Order Has Not avalable' })
       }
       async function getNextORDID() {
