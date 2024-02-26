@@ -939,13 +939,19 @@ app.get('/getproduct/:id', (req, res) => {
 });
 
 app.get('/getproducts', async (req, res) => {
-  const { search, category, page, sort, order } = req.query;
-  let perPage = 40;
+  let { search, category, page, sort, order, perPage } = req.query;
+  if (page < 1) {
+    page = 1;
+  }
+  page -= 1;
+  if (!perPage) {
+    perPage = 40;
+  }
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
-  let query = `SELECT * FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
+  let query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
     queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"product_name LIKE '%" + search + "%' AND"}`}` : ''}`;
-    query = `SELECT * FROM products where available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
+    query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
 
   let AllPage = await new Promise((resolve, reject) => {
