@@ -939,7 +939,7 @@ app.get('/getproduct/:id', (req, res) => {
 });
 
 app.get('/getproducts', async (req, res) => {
-  let { search, category, page, sort, order, perPage } = req.query;
+  let { search, category, page, sort, order, perPage, groupby } = req.query;
   if (page < 1) {
     page = 1;
   }
@@ -948,10 +948,10 @@ app.get('/getproducts', async (req, res) => {
     perPage = 40;
   }
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
-  let query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
+  let query = `SELECT p.*, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ${groupby ? "group by p.farmer_id" : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
     queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"and product_name LIKE '%" + search + "%'"}`}` : ''}`;
-    query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
+    query = `SELECT p.*, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ${groupby ? "group by p.farmer_id" : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
   console.log(query);
 
@@ -970,7 +970,6 @@ app.get('/getproducts', async (req, res) => {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
     } else {
-      console.log(result);
       res.json({ products: result, maxPage: AllPage % perPage === 0 ? AllPage / perPage : Math.floor(AllPage / perPage) + 1 });
     }
   });
