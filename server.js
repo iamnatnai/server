@@ -799,10 +799,10 @@ app.get('/standardproducts', (req, res) => {
 });
 
 
-function checkIfEmailAndNameMatch(email, firstName, lastName) {
+function checkIfEmailAndNameMatch(email) {
   return new Promise((resolve, reject) => {
-    const query = 'SELECT * FROM members WHERE email = ? AND firstname = ? AND lastname = ?';
-    db.query(query, [email, firstName, lastName], (err, result) => {
+    const query = 'SELECT * FROM members WHERE email = ? ';
+    db.query(query, [email], (err, result) => {
       if (err) {
         console.error('Error checking email and name in database:', err);
         reject(err);
@@ -818,10 +818,10 @@ function checkIfEmailAndNameMatch(email, firstName, lastName) {
 }
 
 app.post('/forgot', async (req, res) => {
-  const { email, firstName, lastName } = req.body;
+  const { email } = req.body;
 
   try {
-    const isMatch = await checkIfEmailAndNameMatch(email, firstName, lastName);
+    const isMatch = await checkIfEmailAndNameMatch(email);
 
     if (isMatch) {
       const newPassword = generateRandomPassword();
@@ -831,13 +831,13 @@ app.post('/forgot', async (req, res) => {
 
       updatePasswordInDatabase(email, newPassword);
 
-      res.json({ name: 'true' });
+      res.json({ email: 'true' });
     } else {
-      res.json({ name: 'false' });
+      res.json({ email: 'false' });
     }
   } catch (error) {
     console.error('Error in forgot endpoint:', error);
-    res.status(500).json({ name: 'false' });
+    res.status(500).json({ email: 'false' });
   }
 });
 
