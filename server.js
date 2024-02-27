@@ -1976,9 +1976,6 @@ app.get('/getcomment/:id', (req, res) => {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
-
-
-
     // ส่งข้อมูลความคิดเห็นกลับไปในรูปแบบ JSON
     res.json({ success: true, reviews: result });
   });
@@ -1986,7 +1983,8 @@ app.get('/getcomment/:id', (req, res) => {
 app.post('/editcomment/:id', async (req, res) => {
   const commentId = req.params.id;
   const { rating, comment } = req.body;
-
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+  const decoded = jwt.verify(token, secretKey);
   // ตรวจสอบค่า ID ที่รับเข้ามา
   if (!commentId) {
     return res.status(400).json({ success: false, error: 'Invalid comment ID' });
@@ -2004,16 +2002,16 @@ app.post('/editcomment/:id', async (req, res) => {
         }
       });
     });
-
+    if (decoded.ID != existingComment.member_id) {
+      return res.status(404).json({ success: false, error: 'you are hacker' });
+    }
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
     if (!existingComment) {
       return res.status(404).json({ success: false, error: 'Comment not found' });
     }
     const updateCommentQuery = 'UPDATE product_reviews SET rating = ?, comment = ? WHERE review_id = ?';
-    console.log(up);
-    console.log("commentId:", commentId);
-    console.log("rating:", rating);
-    console.log("comment:", comment);
-
 const EDITC = await new Promise((resolve, reject) => {
   db.query(updateCommentQuery, [rating, comment, commentId], (err, result) => {
     if (err) {
