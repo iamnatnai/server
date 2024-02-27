@@ -992,10 +992,9 @@ app.get('/getimage/:image', (req, res) => {
   res.sendFile(path.join(__dirname, 'uploads', image));
 });
 
-app.get('/getproduct/:shopname/:productname', (req, res) => {
-  const { productname, shopname } = req.params;
-  console.log(id);
-  db.query('SELECT * FROM products WHERE product_name = ? and farmerstorename = ? and available = 1', [productname, shopname], (err, result) => {
+app.get('/getproduct/:shopname/:product_id', (req, res) => {
+  const { product_id, shopname } = req.params;
+  db.query('SELECT p.* FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;', [product_id, shopname], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -1090,7 +1089,7 @@ app.get('/updateview/:id', (req, res) => {
 
 app.get('/myproducts/:username', (req, res) => {
   const { username } = req.params;
-  db.query('SELECT product_id, product_image, product_description, product_name, selectedType, last_modified, price, view_count FROM products WHERE available = 1 and farmer_id COLLATE utf8mb4_general_ci = (select id from farmers where username = ?)', [username], (err, result) => {
+  db.query('SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType, p.last_modified, p.price, p.view_count, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;', [username], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
