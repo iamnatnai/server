@@ -686,7 +686,7 @@ async function getUserByUsername(username) {
 
 
 app.get('/categories', (req, res) => {
-  db.query("SELECT * FROM categories", (err, result) => {
+  db.query("SELECT * FROM categories where available = 1", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -696,13 +696,34 @@ app.get('/categories', (req, res) => {
   });
 });
 
+app.delete('/categories', checkAdmin, async (req, res) => {
+  const { category_id } = req.body;
+  if (!category_id) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  //soft delete
+  const query = 'UPDATE categories SET available = 0 WHERE category_id = ?';
+
+  db.query(query, [category_id], (err, result) => {
+    if (err) {
+      console.error('Error deleting category:', err);
+      return res.status(500).json({ success: false, message: 'Internal Server Error' });
+    } else {
+      return res.status(200).json({ success: true, message: 'Category deleted successfully' });
+    }
+  })
+
+
+});
+
 app.post('/categories', checkAdmin, async (req, res) => {
   let { category_id = null, category_name, bgcolor } = req.body;
   if (!category_name || !bgcolor) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
   //check if category_name is exist
-  let queryCategory_name = 'SELECT * FROM categories WHERE category_name = ?';
+  let queryCategory_name = 'SELECT * FROM categories WHERE category_name = ? and available = 1';
   let category_nameResult = await new Promise((resolve, reject) => {
     db.query(queryCategory_name, [category_name], (err, result) => {
       if (err) {
@@ -714,7 +735,7 @@ app.post('/categories', checkAdmin, async (req, res) => {
   });
 
   if (category_nameResult.length > 0 && !category_id) {
-    return res.status(409).json({ success: false, message: 'Category already exists' });
+    return res.status(409).json({ success: false, message: 'หมวดหมู่ที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว' });
   }
 
   if (!category_id) {
@@ -978,7 +999,7 @@ app.post('/addproduct', checkFarmer, async (req, res) => {
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-   db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
+    db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
@@ -2011,15 +2032,15 @@ app.post('/editcomment/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Comment not found' });
     }
     const updateCommentQuery = 'UPDATE product_reviews SET rating = ?, comment = ? WHERE review_id = ?';
-const EDITC = await new Promise((resolve, reject) => {
-  db.query(updateCommentQuery, [rating, comment, commentId], (err, result) => {
-    if (err) {
-      reject(err);
-    } else {
-      resolve(result);
-    }
-  });
-});
+    const EDITC = await new Promise((resolve, reject) => {
+      db.query(updateCommentQuery, [rating, comment, commentId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
     console.log(EDITC);
     res.status(200).json({ success: true, message: 'Comment updated successfully' });
   } catch (error) {
