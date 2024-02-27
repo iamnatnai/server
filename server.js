@@ -992,10 +992,10 @@ app.get('/getimage/:image', (req, res) => {
   res.sendFile(path.join(__dirname, 'uploads', image));
 });
 
-app.get('/getproduct/:id', (req, res) => {
-  const id = req.params.id;
+app.get('/getproduct/:shopname/:productname', (req, res) => {
+  const { productname, shopname } = req.params;
   console.log(id);
-  db.query('SELECT * FROM products WHERE product_id = ? and available = 1', [id], (err, result) => {
+  db.query('SELECT * FROM products WHERE product_name = ? and farmerstorename = ? and available = 1', [productname, shopname], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
