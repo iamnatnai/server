@@ -799,10 +799,10 @@ app.get('/standardproducts', (req, res) => {
 });
 
 
-function checkIfEmailAndNameMatch(email, firstName, lastName) {
+function checkIfEmailAndNameMatch(email) {
   return new Promise((resolve, reject) => {
-    const query = 'SELECT * FROM members WHERE email = ? AND firstname = ? AND lastname = ?';
-    db.query(query, [email, firstName, lastName], (err, result) => {
+    const query = 'SELECT * FROM members WHERE email = ? ';
+    db.query(query, [email], (err, result) => {
       if (err) {
         console.error('Error checking email and name in database:', err);
         reject(err);
@@ -818,10 +818,10 @@ function checkIfEmailAndNameMatch(email, firstName, lastName) {
 }
 
 app.post('/forgot', async (req, res) => {
-  const { email, firstName, lastName } = req.body;
+  const { email } = req.body;
 
   try {
-    const isMatch = await checkIfEmailAndNameMatch(email, firstName, lastName);
+    const isMatch = await checkIfEmailAndNameMatch(email);
 
     if (isMatch) {
       const newPassword = generateRandomPassword();
@@ -831,13 +831,13 @@ app.post('/forgot', async (req, res) => {
 
       updatePasswordInDatabase(email, newPassword);
 
-      res.json({ name: 'true' });
+      res.json({ email: 'true' });
     } else {
-      res.json({ name: 'false' });
+      res.json({ email: 'false' });
     }
   } catch (error) {
     console.error('Error in forgot endpoint:', error);
-    res.status(500).json({ name: 'false' });
+    res.status(500).json({ email: 'false' });
   }
 });
 
@@ -1344,12 +1344,61 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       });
     });
     let idoffarmer
+    const getAddress = 'SELECT address FROM members WHERE id = ?';
+    const memberaddress = await new Promise((resolve, reject) => {
+      db.query(getAddress, [decoded.ID], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
+    const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
+    if (req.body.address) {
+      address = req.body.address;
+    } else {
+      address = memberaddress[0].address;
+    }
+    console.log(memberaddress);
+    console.log(address);
+    console.log("-+-+-+-+--++--+-+-+-+-+-+-+-+-+-+-+");
+    async function getNextORDID() {
+      return new Promise((resolve, reject) => {
+        db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            let ORDNXT = 'ORD00001';
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              console.log(currentId);
+              const numericPart = parseInt(currentId.substring(3), 10) + 1;
+              console.log(numericPart);
+              ORDNXT = 'ORD' + numericPart.toString().padStart(5, '0');
+            }
+            resolve(ORDNXT);
+          }
+        });
+      });
+    }
+    const ORDNXT = await getNextORDID();
+    const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,date_buys) VALUES (?,?,?,?,?,?,NOW())';
+    await new Promise((resolve, reject) => {
+      db.query(insertOrderVB, [ORDNXT, 'pending', SUMITNOW, decoded.ID,productSlipPath,address], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+        console.log("ORDNXT", ORDNXT);
+      });
+    });
     for (const item of cartList) {
       const { product_id, amount } = item;
       console.log(decoded);
       const getProductQuery = 'SELECT stock, farmer_id, selectedType FROM products WHERE product_id = ?';
-      const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
-      const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
       console.log(productSlipPath);
       const [product] = await new Promise((resolve, reject) => {
         db.query(getProductQuery, [product_id], (err, result) => {
@@ -1373,26 +1422,6 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       if (product.selectedType != "สินค้าจัดส่งพัสดุ") {
         return res.status(400).json({ success: false, message: 'Order Has Not avalable' })
       }
-      async function getNextORDID() {
-        return new Promise((resolve, reject) => {
-          db.query('SELECT MAX(id) as maxId FROM order_sumary', (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              let ORDNXT = 'ORD00001';
-              if (result[0].maxId) {
-                const currentId = result[0].maxId;
-                console.log(currentId);
-                const numericPart = parseInt(currentId.substring(3), 10) + 1;
-                console.log(numericPart);
-                ORDNXT = 'ORD' + numericPart.toString().padStart(5, '0');
-              }
-              resolve(ORDNXT);
-            }
-          });
-        });
-      }
-      const ORDNXT = await getNextORDID();
       const getProductPriceQuery = 'SELECT price FROM products WHERE product_id = ?';
       const [result] = await new Promise((resolve, reject) => {
         db.query(getProductPriceQuery, [product_id], (err, result) => {
@@ -1422,13 +1451,11 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
         console.error(`Insufficient stock for product ID ${product_id}`);
         return res.status(400).send({ error: `NOT TRUE` });
       }
-
       const currentStock = product.stock; // Corrected to access the stock property
       if (amount > currentStock) {
         console.error(`Insufficient stock for product ID ${product_id}`);
         return res.status(400).send({ error: `Insufficient stock for product ID ${product_id}` });
       }
-
       const newStock = currentStock - amount;
       const updateStockQuery = 'UPDATE products SET stock = ? WHERE product_id = ?';
       await new Promise((resolve, reject) => {
@@ -1462,17 +1489,6 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       console.log("++++++");
       console.log(decoded.ID);
       const nextitemId = await getNextItemId();
-      const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,date_buys) VALUES (?,?,?,?,?,NOW())';
-      await new Promise((resolve, reject) => {
-        db.query(insertOrderVB, [ORDNXT, 'pending', SUMITNOW, decoded.ID, productSlipPath], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-          console.log("ORDNXT", ORDNXT);
-        });
-      });
       const insertOrderItemQuery = 'INSERT INTO order_items (item_id,product_id,order_id,price, quantity) VALUES (?,?,?,?,?)';
       await new Promise((resolve, reject) => {
         db.query(insertOrderItemQuery, [nextitemId, product_id, ORDNXT, totalProductPrice, amount], (err, result) => {
@@ -1839,7 +1855,7 @@ app.post('/confirmorder', async (req, res) => {
 
 
 app.post('/comment', async (req, res) => {
-  const { rating, comment, product_id } = req.body;
+  const { rating, comment, product_id,order_id } = req.body;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   const decoded = jwt.verify(token, secretKey);
 
@@ -1908,7 +1924,7 @@ AND os.status = 'complete'
 
     const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ?';
     const duplicateOrders = await new Promise((resolve, reject) => {
-      db.query(checkDuplicateOrderQuery, [orderResult.order_id], (err, result) => {
+      db.query(checkDuplicateOrderQuery, [order_id], (err, result) => { // ใช้ order_id ในการตรวจสอบซ้ำ
         if (err) {
           reject(err);
         } else {
@@ -1917,20 +1933,24 @@ AND os.status = 'complete'
         }
       });
     });
+    
+    console.log("birdddddddddddddd");
+    console.log(duplicateOrders);
+    
     if (duplicateOrders.length > 0) {
       return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
     }
-    console.log(duplicateOrders);
+    
     if (!orderResult || orderResult.length === 0) {
       return res.status(400).json({ success: false, message: 'Member has not purchased this product' });
     }
 
     const nextReviewId = await getNextReviewId();
 
-    const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id) VALUES (?, ?, ?, ?, ?, ?)';
+    const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id,date_comment) VALUES (?, ?, ?, ?, ?, ?,NOW())';
     console.log(orderResult.order_id);
     await new Promise((resolve, reject) => {
-      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, orderResult.order_id], (err, result) => {
+      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, order_id], (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -1947,24 +1967,20 @@ AND os.status = 'complete'
 });
 app.get('/getcomment/:id', (req, res) => {
   const id = req.params.id;
-
-  // ตรวจสอบค่า ID ที่รับเข้ามา
-  if (!id || isNaN(id)) {
+  console.log(id);
+  if (!id) {
     return res.status(400).json({ success: false, error: 'Invalid product ID' });
   }
-
-  db.query('SELECT * FROM comment WHERE product_id = ? AND available = 1', [id], (err, result) => {
+  db.query('SELECT review_id, member_id, product_id,order_id, rating, comment, DATE_FORMAT(date_comment, "%Y-%m-%d %H:%i:%s") AS date_comment FROM product_reviews WHERE product_id = ?', [id], (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 
-    if (result.length === 0) {
-      return res.status(404).json({ success: false, error: 'Product not found' });
-    }
 
-    const product = result[0];
-    res.json({ success: true, product: product });
+
+    // ส่งข้อมูลความคิดเห็นกลับไปในรูปแบบ JSON
+    res.json({ success: true, reviews: result });
   });
 });
 
