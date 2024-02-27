@@ -2028,7 +2028,49 @@ const EDITC = await new Promise((resolve, reject) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+app.post('/deletecomment/:id', async (req, res) => {
+  const commentId = req.params.id;
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+  const decoded = jwt.verify(token, secretKey);
+  
+  // ตรวจสอบค่า ID ที่รับเข้ามา
+  if (!commentId) {
+    return res.status(400).json({ success: false, error: 'Invalid comment ID' });
+  }
+  try {
+    // เชื่อมต่อกับฐานข้อมูลเพื่อดึงข้อมูลความคิดเห็น
+    const getCommentQuery = 'SELECT * FROM product_reviews WHERE review_id = ?';
+    const [existingComment] = await new Promise((resolve, reject) => {
+      db.query(getCommentQuery, [commentId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    // ตรวจสอบว่าผู้ใช้เป็นเจ้าของความคิดเห็นหรือไม่
+    if (decoded.ID != existingComment.member_id) {
+      return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    }
+    // อัปเดตค่าความคิดเห็น (Soft Delete)
+    const softDeleteCommentQuery = 'UPDATE product_reviews SET available = 0 WHERE review_id = ?';
+    await new Promise((resolve, reject) => {
+      db.query(softDeleteCommentQuery, [commentId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
 
+    res.status(200).json({ success: true, message: 'Comment soft deleted successfully' });
+  } catch (error) {
+    console.error('Error soft deleting comment:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 app.post("/changepassword", async (req, res) => {
   const { oldpassword, newpassword, usernameBody, roleBody } = req.body;
