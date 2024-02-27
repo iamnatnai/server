@@ -440,12 +440,12 @@ async function getNextId() {
       if (err) {
         reject(err);
       } else {
-        let nextId = 'MEM00001';
+        let nextId = 'MEM000001';
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(3), 10) + 1;
 
-          nextId = 'MEM' + numericPart.toString().padStart(5, '0');
+          nextId = 'MEM' + numericPart.toString().padStart(6, '0');
         }
         resolve(nextId);
       }
@@ -477,12 +477,12 @@ async function getNextUserId(role) {
       if (err) {
         reject(err);
       } else {
-        let nextUserId = `${rolePrefix}00001`;
+        let nextUserId = `${rolePrefix}000001`;
         if (result[0].maxId) {
           const currentId = result[0].maxId;
           const numericPart = parseInt(currentId.substring(rolePrefix.length), 10) + 1;
           console.log(numericPart);
-          nextUserId = `${rolePrefix}${numericPart.toString().padStart(5, '0')}`;
+          nextUserId = `${rolePrefix}${numericPart.toString().padStart(6, '0')}`;
         }
         resolve(nextUserId);
       }
@@ -930,11 +930,11 @@ async function getNextProductId() {
       if (err) {
         reject(err);
       } else {
-        let nextId = 'PROD001';
+        let nextId = 'PROD000001';
         if (result[0].maxId) {
           const currentIdNumericPart = parseInt(result[0].maxId.substring(4), 10);
           const nextNumericPart = currentIdNumericPart + 1;
-          const paddedNextNumericPart = String(nextNumericPart).padStart(3, '0');
+          const paddedNextNumericPart = String(nextNumericPart).padStart(6, '0');
           nextId = 'PROD' + paddedNextNumericPart;
         }
         resolve(nextId);
@@ -1848,7 +1848,7 @@ app.post('/comment', async (req, res) => {
         if (err) {
           reject(err);
         } else {
-          let nextRev = 'REV0000001';
+          let nextRev = 'REV000001';
           if (result[0].maxId) {
             const currentId = result[0].maxId;
             const numericPart = parseInt(currentId.substring(3), 10) + 1;
