@@ -231,7 +231,7 @@ async function checkIfExistsInAllTables(column, value) {
   return results.some(result => result);
 }
 
-app.post('/addfarmer', checkAdmin, async (req, res) => {
+app.post('/addfarmer', checkTambon, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, lat, lng } = req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -267,7 +267,7 @@ app.post('/addfarmer', checkAdmin, async (req, res) => {
 
 })
 
-app.post('/adduser', checkTambon, async (req, res) => {
+app.post('/adduser', checkAdmin, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, role } = req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel || !role) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -1386,7 +1386,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
     const ORDNXT = await getNextORDID();
     const insertOrderVB = 'INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,date_buys) VALUES (?,?,?,?,?,?,NOW())';
     await new Promise((resolve, reject) => {
-      db.query(insertOrderVB, [ORDNXT, 'pending', SUMITNOW, decoded.ID,productSlipPath,address], (err, result) => {
+      db.query(insertOrderVB, [ORDNXT, 'pending', SUMITNOW, decoded.ID, productSlipPath, address], (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -1855,7 +1855,7 @@ app.post('/confirmorder', async (req, res) => {
 
 
 app.post('/comment', async (req, res) => {
-  const { rating, comment, product_id,order_id } = req.body;
+  const { rating, comment, product_id, order_id } = req.body;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   const decoded = jwt.verify(token, secretKey);
 
@@ -1933,14 +1933,14 @@ AND os.status = 'complete'
         }
       });
     });
-    
+
     console.log("birdddddddddddddd");
     console.log(duplicateOrders);
-    
+
     if (duplicateOrders.length > 0) {
       return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
     }
-    
+
     if (!orderResult || orderResult.length === 0) {
       return res.status(400).json({ success: false, message: 'Member has not purchased this product' });
     }
