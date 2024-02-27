@@ -1,6 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const mysql = require('mysql');
+const mysql = require('mysql2');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const passport = require("passport");
@@ -71,7 +71,7 @@ const checkAdmin = (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('Error decoding token:', error.message);
+    console.error('Error decoding token:1', error.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
@@ -89,7 +89,7 @@ const checkTambon = (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('Error decoding token:', error.message);
+    console.error('Error decoding token:2', error.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
@@ -108,7 +108,7 @@ const checkFarmer = (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('Error decoding token:', error.message);
+    console.error('Error decoding token:3', error.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
@@ -605,7 +605,7 @@ app.get('/login', async (req, res) => {
 
     return res.status(200).json({ isValid: true, newToken: newToken });
   } catch (error) {
-    console.error('Error decoding token:', error.message);
+    console.error('Error decoding token:4', error.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -713,7 +713,7 @@ app.post('/categories', checkAdmin, async (req, res) => {
     });
   });
 
-  if (category_nameResult.length > 0) {
+  if (category_nameResult.length > 0 && !category_id) {
     return res.status(409).json({ success: false, message: 'Category already exists' });
   }
 
@@ -1044,6 +1044,19 @@ app.get('/getproducts', async (req, res) => {
 
 });
 
+app.get('/getpayment/:id', (req, res) => {
+  const id = req.params.id;
+  db.query('SELECT payment FROM farmers WHERE id = (select farmer_id from products where product_id = ?)', [id], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ exist: false, error: 'Internal Server Error' });
+    } else {
+      res.json(result[0]);
+    }
+  });
+
+});
+
 app.delete('/deleteproduct/:id', checkFarmer, async (req, res) => {
   const { id } = req.params;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
@@ -1097,16 +1110,17 @@ app.get("/getinfo", (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const { username, role } = decoded
     var query
-    if (role !== "farmers") {
-      query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
+    if (role === "farmers") {
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
     }
     else if (role === "members") {
       query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`
     }
     else {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
+      query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
 
     }
+    console.log(query);
     db.query(query, (err, result) => {
       if (err) {
         console.log(err);
@@ -1119,7 +1133,7 @@ app.get("/getinfo", (req, res) => {
 
     return res.status(200);
   } catch (error) {
-    console.error('Error decoding token:', error.message);
+    console.error('Error decoding token:5', error.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 })
@@ -1141,22 +1155,23 @@ app.post('/updateinfo', async (req, res) => {
     lng = null,
     zipcode = null,
     farmerstorename = null,
+    payment = null,
     province = null,
     amphure = null,
     tambon = null,
   } = req.body;
   try {
-
-    var query
-    if (role !== "farmers") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+    console.log(req.body);
+    let decoded = jwt.verify(token, secretKey);
+    const { username, role } = decoded
+    if (role === "farmers") {
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = ${lat ? `${lat}` : null}, lng = ${lng ? `${lng}` : null}, zipcode = "${zipcode}", payment = "${payment}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     else if (role === "members") {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" , address = "${address}" WHERE username = "${username}"`
-
     }
     else {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
 
     }
     console.log(query);
@@ -1173,7 +1188,7 @@ app.post('/updateinfo', async (req, res) => {
     return res.status(200);
   }
   catch (error) {
-    console.error('Error decoding token:', error.message);
+    console.error('Error decoding token:6', error.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 })
@@ -1195,21 +1210,24 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
     amphure = null,
     tambon = null,
     username = null,
+    payment = null,
     role = null,
   } = req.body;
   if (!email || !firstname || !lastname || !phone || !role || !username) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
   try {
+
     var query
-    if (role !== "farmers") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+    if (role === "farmers") {
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", payment = "${payment}", lat = ${lat ? `${lat}` : null}, lng = ${lng ? `${lng}` : null}, zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
     else if (role === "members") {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}" WHERE username = "${username}"`
     }
     else {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
+
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -1306,7 +1324,7 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
 
 app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   let { cartList } = req.body;
-  console.log(req.body.cartList);
+  console.log(req.body);
   var SUMITNOW = 0
 
   try {
