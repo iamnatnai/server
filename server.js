@@ -686,7 +686,7 @@ async function getUserByUsername(username) {
 
 
 app.get('/categories', (req, res) => {
-  db.query("SELECT * FROM categories", (err, result) => {
+  db.query("SELECT * FROM categories where available = 1", (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -696,13 +696,34 @@ app.get('/categories', (req, res) => {
   });
 });
 
+app.delete('/categories', checkAdmin, async (req, res) => {
+  const { category_id } = req.body;
+  if (!category_id) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  //soft delete
+  const query = 'UPDATE categories SET available = 0 WHERE category_id = ?';
+
+  db.query(query, [category_id], (err, result) => {
+    if (err) {
+      console.error('Error deleting category:', err);
+      return res.status(500).json({ success: false, message: 'Internal Server Error' });
+    } else {
+      return res.status(200).json({ success: true, message: 'Category deleted successfully' });
+    }
+  })
+
+
+});
+
 app.post('/categories', checkAdmin, async (req, res) => {
   let { category_id = null, category_name, bgcolor } = req.body;
   if (!category_name || !bgcolor) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
   //check if category_name is exist
-  let queryCategory_name = 'SELECT * FROM categories WHERE category_name = ?';
+  let queryCategory_name = 'SELECT * FROM categories WHERE category_name = ? and available = 1';
   let category_nameResult = await new Promise((resolve, reject) => {
     db.query(queryCategory_name, [category_name], (err, result) => {
       if (err) {
@@ -714,7 +735,7 @@ app.post('/categories', checkAdmin, async (req, res) => {
   });
 
   if (category_nameResult.length > 0 && !category_id) {
-    return res.status(409).json({ success: false, message: 'Category already exists' });
+    return res.status(409).json({ success: false, message: 'หมวดหมู่ที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว' });
   }
 
   if (!category_id) {
@@ -978,7 +999,7 @@ app.post('/addproduct', checkFarmer, async (req, res) => {
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-   db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
+    db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
@@ -992,10 +1013,9 @@ app.get('/getimage/:image', (req, res) => {
   res.sendFile(path.join(__dirname, 'uploads', image));
 });
 
-app.get('/getproduct/:shopname/:productname', (req, res) => {
-  const { productname, shopname } = req.params;
-  console.log(id);
-  db.query('SELECT * FROM products WHERE product_name = ? and farmerstorename = ? and available = 1', [productname, shopname], (err, result) => {
+app.get('/getproduct/:shopname/:product_id', (req, res) => {
+  const { product_id, shopname } = req.params;
+  db.query('SELECT p.* FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;', [product_id, shopname], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -1090,7 +1110,7 @@ app.get('/updateview/:id', (req, res) => {
 
 app.get('/myproducts/:username', (req, res) => {
   const { username } = req.params;
-  db.query('SELECT product_id, product_image, product_description, product_name, selectedType, last_modified, price, view_count FROM products WHERE available = 1 and farmer_id COLLATE utf8mb4_general_ci = (select id from farmers where username = ?)', [username], (err, result) => {
+  db.query('SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType, p.last_modified, p.price, p.view_count, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;', [username], (err, result) => {
     if (err) {
       console.log(err);
       res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -2012,15 +2032,15 @@ app.post('/editcomment/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Comment not found' });
     }
     const updateCommentQuery = 'UPDATE product_reviews SET rating = ?, comment = ? WHERE review_id = ?';
-const EDITC = await new Promise((resolve, reject) => {
-  db.query(updateCommentQuery, [rating, comment, commentId], (err, result) => {
-    if (err) {
-      reject(err);
-    } else {
-      resolve(result);
-    }
-  });
-});
+    const EDITC = await new Promise((resolve, reject) => {
+      db.query(updateCommentQuery, [rating, comment, commentId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
     console.log(EDITC);
     res.status(200).json({ success: true, message: 'Comment updated successfully' });
   } catch (error) {
