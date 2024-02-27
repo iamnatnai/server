@@ -1837,7 +1837,7 @@ app.post('/confirmorder', async (req, res) => {
 
 
 app.post('/comment', async (req, res) => {
-  const { rating, comment, product_id } = req.body;
+  const { rating, comment, product_id,order_id } = req.body;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   const decoded = jwt.verify(token, secretKey);
 
@@ -1906,7 +1906,7 @@ AND os.status = 'complete'
 
     const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ?';
     const duplicateOrders = await new Promise((resolve, reject) => {
-      db.query(checkDuplicateOrderQuery, [orderResult.order_id], (err, result) => {
+      db.query(checkDuplicateOrderQuery, [order_id], (err, result) => { // ใช้ order_id ในการตรวจสอบซ้ำ
         if (err) {
           reject(err);
         } else {
@@ -1915,20 +1915,24 @@ AND os.status = 'complete'
         }
       });
     });
+    
+    console.log("birdddddddddddddd");
+    console.log(duplicateOrders);
+    
     if (duplicateOrders.length > 0) {
       return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
     }
-    console.log(duplicateOrders);
+    
     if (!orderResult || orderResult.length === 0) {
       return res.status(400).json({ success: false, message: 'Member has not purchased this product' });
     }
 
     const nextReviewId = await getNextReviewId();
 
-    const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id) VALUES (?, ?, ?, ?, ?, ?)';
+    const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id,date_comment) VALUES (?, ?, ?, ?, ?, ?,NOW())';
     console.log(orderResult.order_id);
     await new Promise((resolve, reject) => {
-      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, orderResult.order_id], (err, result) => {
+      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, order_id], (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -1945,24 +1949,20 @@ AND os.status = 'complete'
 });
 app.get('/getcomment/:id', (req, res) => {
   const id = req.params.id;
-
-  // ตรวจสอบค่า ID ที่รับเข้ามา
-  if (!id || isNaN(id)) {
+  console.log(id);
+  if (!id) {
     return res.status(400).json({ success: false, error: 'Invalid product ID' });
   }
-
-  db.query('SELECT * FROM comment WHERE product_id = ? AND available = 1', [id], (err, result) => {
+  db.query('SELECT review_id, member_id, product_id,order_id, rating, comment, DATE_FORMAT(date_comment, "%Y-%m-%d %H:%i:%s") AS date_comment FROM product_reviews WHERE product_id = ?', [id], (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 
-    if (result.length === 0) {
-      return res.status(404).json({ success: false, error: 'Product not found' });
-    }
 
-    const product = result[0];
-    res.json({ success: true, product: product });
+
+    // ส่งข้อมูลความคิดเห็นกลับไปในรูปแบบ JSON
+    res.json({ success: true, reviews: result });
   });
 });
 
