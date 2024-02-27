@@ -970,7 +970,7 @@ app.post('/addproduct', checkFarmer, async (req, res) => {
     let { ID: farmerId } = decoded
     if (product_id) {
       const query = `UPDATE products SET product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, shippingcost = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
-      await db.query(query, [product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost, product_id, farmerId]);
+      db.query(query, [product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost, product_id, farmerId]);
       return res.status(200).send({ success: true, message: 'Product updated successfully' });
     }
     const nextProductId = await getNextProductId();
@@ -978,7 +978,7 @@ app.post('/addproduct', checkFarmer, async (req, res) => {
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 `;
-    await db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
+   db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
 
     res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
@@ -1983,6 +1983,54 @@ app.get('/getcomment/:id', (req, res) => {
     res.json({ success: true, reviews: result });
   });
 });
+app.post('/editcomment/:id', async (req, res) => {
+  const commentId = req.params.id;
+  const { rating, comment } = req.body;
+
+  // ตรวจสอบค่า ID ที่รับเข้ามา
+  if (!commentId) {
+    return res.status(400).json({ success: false, error: 'Invalid comment ID' });
+  }
+
+  try {
+    // เชื่อมต่อกับฐานข้อมูลเพื่อดึงข้อมูลความคิดเห็น
+    const getCommentQuery = 'SELECT * FROM product_reviews WHERE review_id = ?';
+    const [existingComment] = await new Promise((resolve, reject) => {
+      db.query(getCommentQuery, [commentId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    if (!existingComment) {
+      return res.status(404).json({ success: false, error: 'Comment not found' });
+    }
+    const updateCommentQuery = 'UPDATE product_reviews SET rating = ?, comment = ? WHERE review_id = ?';
+    console.log(up);
+    console.log("commentId:", commentId);
+    console.log("rating:", rating);
+    console.log("comment:", comment);
+
+const EDITC = await new Promise((resolve, reject) => {
+  db.query(updateCommentQuery, [rating, comment, commentId], (err, result) => {
+    if (err) {
+      reject(err);
+    } else {
+      resolve(result);
+    }
+  });
+});
+    console.log(EDITC);
+    res.status(200).json({ success: true, message: 'Comment updated successfully' });
+  } catch (error) {
+    console.error('Error editing comment:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 
 app.post("/changepassword", async (req, res) => {
   const { oldpassword, newpassword, usernameBody, roleBody } = req.body;
