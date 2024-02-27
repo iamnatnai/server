@@ -76,6 +76,24 @@ const checkAdmin = (req, res, next) => {
   }
 }
 
+const checkTambon = (req, res, next) => {
+  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== 'tambons') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+
+  } catch (error) {
+    console.error('Error decoding token:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
 const checkFarmer = (req, res, next) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
   if (!token) {
@@ -213,7 +231,43 @@ async function checkIfExistsInAllTables(column, value) {
   return results.some(result => result);
 }
 
-app.post('/adduser', checkAdmin, async (req, res) => {
+app.post('/addfarmer', checkAdmin, async (req, res) => {
+  const { username, email, password, firstName, lastName, tel, lat, lng } = req.body;
+  if (!username || !email || !password || !firstName || !lastName || !tel) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const usernameExists = await checkIfExistsInAllTables('username', username);
+    const emailExists = await checkIfExistsInAllTables('email', email);
+    if (usernameExists) {
+      return res.status(409).json({ success: false, message: 'Username already exists' });
+    }
+    if (emailExists) {
+      return res.status(409).json({ success: false, message: 'Email already exists' });
+    }
+    const nextUserId = await getNextUserId('farmers');
+    await insertUser(nextUserId, username, email, hashedPassword, firstName, lastName, tel, 'farmers');
+    const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, lat, lng, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    await new Promise((resolve, reject) => {
+      db.query(query, [nextUserId, username, email, hashedPassword, firstName, lastName, tel, lat, lng, 'farmers'], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    res.status(201).json({ success: true, message: 'Farmer added successfully' });
+  } catch (error) {
+    console.error('Error adding farmer:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+
+})
+
+app.post('/adduser', checkTambon, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, role } = req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel || !role) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -644,9 +698,23 @@ app.get('/categories', (req, res) => {
 
 app.post('/categories', checkAdmin, async (req, res) => {
   let { category_id = null, category_name, bgcolor } = req.body;
-  console.log(category_id, category_name, bgcolor);
   if (!category_name || !bgcolor) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  //check if category_name is exist
+  let queryCategory_name = 'SELECT * FROM categories WHERE category_name = ?';
+  let category_nameResult = await new Promise((resolve, reject) => {
+    db.query(queryCategory_name, [category_name], (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+
+  if (category_nameResult.length > 0) {
+    return res.status(409).json({ success: false, message: 'Category already exists' });
   }
 
   if (!category_id) {
@@ -939,7 +1007,7 @@ app.get('/getproduct/:id', (req, res) => {
 });
 
 app.get('/getproducts', async (req, res) => {
-  let { search, category, page, sort, order, perPage } = req.query;
+  let { search, category, page, sort, order, perPage, groupby } = req.query;
   if (page < 1) {
     page = 1;
   }
@@ -948,11 +1016,12 @@ app.get('/getproducts', async (req, res) => {
     perPage = 40;
   }
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}'`;
-  let query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
+  let query = `SELECT p.*, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ''} category_id = '${category}' ${groupby ? "group by p.farmer_id" : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == '') {
-    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"product_name LIKE '%" + search + "%' AND"}`}` : ''}`;
-    query = `SELECT *, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
+    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${search !== "" ? `${`${"and product_name LIKE '%" + search + "%'"}`}` : ''}`;
+    query = `SELECT p.*, f.lat, f.lng FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ''} ${groupby ? "group by p.farmer_id" : ''} ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
+  console.log(query);
 
   let AllPage = await new Promise((resolve, reject) => {
     db.query(queryMaxPage, (err, result) => {
@@ -1031,6 +1100,9 @@ app.get("/getinfo", (req, res) => {
     if (role !== "farmers") {
       query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
     }
+    else if (role === "members") {
+      query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`
+    }
     else {
       query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
 
@@ -1079,8 +1151,13 @@ app.post('/updateinfo', async (req, res) => {
     if (role !== "farmers") {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
+    else if (role === "members") {
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" , address = "${address}" WHERE username = "${username}"`
+
+    }
     else {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
+
     }
     console.log(query);
     db.query(query, (err, result) => {
@@ -1128,6 +1205,9 @@ app.post("/updateinfoadmin", checkAdmin, (req, res) => {
     if (role !== "farmers") {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`
     }
+    else if (role === "members") {
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}" WHERE username = "${username}"`
+    }
     else {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", lat = "${lat}", lng = "${lng}", zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`
     }
@@ -1155,6 +1235,9 @@ app.get("/getuseradmin/:role/:username", checkAdmin, (req, res) => {
   var query
   if (role !== "farmers") {
     query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`
+  }
+  else if (role === "members") {
+    query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`
   }
   else {
     query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`
@@ -1227,6 +1310,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
   var SUMITNOW = 0
 
   try {
+    console.log(cartList);
     cartList = JSON.parse(cartList)
     if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
       return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
@@ -1552,7 +1636,6 @@ app.get('/orderlist', async (req, res) => {
 app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   try {
     const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
-
     const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
 
     const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
@@ -1662,7 +1745,7 @@ app.get('/farmerorder', async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
     SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, 
-    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, 
+    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number,
     m.id, m.firstname, m.lastname, m.phone, m.address,
     p.product_name, p.product_image
     FROM order_items oi
@@ -1689,6 +1772,7 @@ app.get('/farmerorder', async (req, res) => {
         farmerOrdersMap.set(order_id, {
           order_id: order_id,
           products: [],
+          tracking_number: orderItem.tracking_number,
           total_amount: orderItem.total_amount,
           transaction_confirm: orderItem.transaction_confirm,
           customer_info: {
@@ -1720,6 +1804,36 @@ app.get('/farmerorder', async (req, res) => {
   }
 });
 
+app.post('/confirmorder', async (req, res) => {
+  try {
+    const { order_id, status, comment, tracking_number } = req.body;
+    if (!order_id || !status) {
+      return res.status(400).json({ success: false, message: 'Incomplete request data' });
+    }
+
+    if (status !== "complete" && status !== "reject" && status !== "waiting") {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    console.log(req.body);
+
+    const updateOrderStatusQuery = `UPDATE order_sumary SET status = ? ${comment ? `,comment = "${comment}"` : ''} ${status == "complete" ? `${",tracking_number = " + tracking_number + ",date_complete = NOW()"}` : ''} WHERE id = ?`;
+    console.log(updateOrderStatusQuery);
+    const updatedOrders = await new Promise((resolve, reject) => {
+      db.query(updateOrderStatusQuery, [status, order_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    res.status(200).json({ success: true, message: 'Order status updated successfully', orders: updatedOrders });
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 
 app.post('/comment', async (req, res) => {
