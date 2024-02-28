@@ -15,6 +15,7 @@ const port = 3000;
 const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
+const { log } = require('console');
 const secretKey = 'pifOvrart4';
 require('dotenv').config();
 
@@ -1461,6 +1462,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       const price = result.price;
       const totalProductPrice = price * amount;
       SUMITNOW = SUMITNOW + totalProductPrice
+      console.log("total : ",totalProductPrice);
       console.log(product.farmer_id);
       console.log(cartList[0].farmer_id);
       if (!product || product.length === 0) {
@@ -1523,8 +1525,19 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
         });
       });
     }
-
-
+    const updateSUM = 'UPDATE order_sumary SET total_amount = ? WHERE id = ?';
+    await new Promise((resolve, reject) => {
+      db.query(updateSUM, [SUMITNOW,ORDNXT], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    if (SUMITNOW == 0 ) {
+      return res.status(400).send({ error: `ERROR of total amount = 0` });
+    }
 
     await new Promise((resolve, reject) => {
       db.commit(err => {
@@ -1942,17 +1955,18 @@ AND os.status = 'complete'
       });
     });
 
-    const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ?';
-    const duplicateOrders = await new Promise((resolve, reject) => {
-      db.query(checkDuplicateOrderQuery, [order_id], (err, result) => { // ใช้ order_id ในการตรวจสอบซ้ำ
-        if (err) {
-          reject(err);
-        } else {
-          console.log(result);
-          resolve(result);
-        }
-      });
-    });
+    const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ? AND product_id = ?';
+const duplicateOrders = await new Promise((resolve, reject) => {
+  db.query(checkDuplicateOrderQuery, [order_id, product_id], (err, result) => { // เพิ่มเงื่อนไขในการตรวจสอบซ้ำด้วย product_id
+    if (err) {
+      reject(err);
+    } else {
+      console.log(result);
+      console.log(product_id);
+      resolve(result);
+    }
+  });
+});
 
     console.log("birdddddddddddddd");
     console.log(duplicateOrders);
@@ -1991,7 +2005,7 @@ app.get('/getcomment/:id', (req, res) => {
   if (!id) {
     return res.status(400).json({ success: false, error: 'Invalid product ID' });
   }
-  db.query('SELECT review_id, member_id, product_id,order_id, rating, comment, DATE_FORMAT(date_comment, "%Y-%m-%d %H:%i:%s") AS date_comment FROM product_reviews WHERE product_id = ?', [id], (err, result) => {
+  db.query('SELECT pr.review_id, pr.member_id, m.username AS member_username, pr.product_id, pr.order_id, pr.rating, pr.comment, DATE_FORMAT(pr.date_comment, "%Y-%m-%d %H:%i:%s") AS date_comment FROM product_reviews pr LEFT JOIN members m ON pr.member_id = m.id WHERE pr.product_id = ? AND pr.available = 1', [id], (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Internal Server Error' });
@@ -2023,7 +2037,7 @@ app.post('/editcomment/:id', async (req, res) => {
       });
     });
     if (decoded.ID != existingComment.member_id) {
-      return res.status(404).json({ success: false, error: 'you are hacker' });
+      return res.status(403).json({ success: false, error: 'Unauthorized access' });
     }
     if (rating < 1 || rating > 5) {
       return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
@@ -2048,6 +2062,7 @@ app.post('/editcomment/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
 app.post('/deletecomment/:id', async (req, res) => {
   const commentId = req.params.id;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
