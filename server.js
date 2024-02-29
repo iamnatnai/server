@@ -19,7 +19,9 @@ const secretKey = 'pifOvrart4';
 const excel = require('exceljs');
 require('dotenv').config();
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+}));
 app.use(express.json());
 
 var db_config = {
@@ -37,27 +39,25 @@ var db_config = {
   },
 };
 
-var db
-function handleDisconnect() {
-  db = mysql.createConnection(db_config);
-  db.connect(function (err) {
-    if (err) {
-      console.error('เกิดข้อผิดพลาดในการเชื่อมต่อกับ MySQL:', err);
-    } else {
-      console.log('Connencted \n -----------------------------------------');
-    }
+pool = mysql.createPool(db_config);
+
+async function usePooledConnectionAsync(actionAsync) {
+  const connection = await new Promise((resolve, reject) => {
+    pool.getConnection((ex, connection) => {
+      if (ex) {
+        reject(ex);
+      } else {
+        resolve(connection);
+      }
+    });
   });
-  db.on('error', function (err) {
-    console.log('db error', err);
-    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      handleDisconnect();
-    } else {
-      throw err;
-    }
-  });
+  try {
+    return await actionAsync(connection);
+  } finally {
+    connection.release();
+  }
 }
 
-handleDisconnect();
 
 const checkAdmin = (req, res, next) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
@@ -119,66 +119,70 @@ const checkFarmer = (req, res, next) => {
 
 
 
-app.post('/checkinguser', (req, res) => {
+app.post('/checkinguser', async (req, res) => {
   const username = req.body.username;
-  console.log('username :', username);
-  db.query(
-    `
-    SELECT 'admins' AS role, username FROM admins WHERE username = ?
-    UNION
-    SELECT 'farmers' AS role, username FROM farmers WHERE username = ?
-    UNION
-    SELECT 'members' AS role, username FROM members WHERE username = ?
-    UNION
-    SELECT 'providers' AS role, username FROM providers WHERE username = ?
-    UNION
-    SELECT 'tambon' AS role, username FROM tambons WHERE username = ?
-    `,
-    [username, username, username, username, username],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).send({ exist: false, error: 'Internal Server Error' });
-      } else {
-        if (result.length > 0) {
-          res.send({ username: result[0].username, exist: true });
+  await usePooledConnectionAsync(async db => {
+    db.query(
+      `
+      SELECT 'admins' AS role, username FROM admins WHERE username = ?
+      UNION
+      SELECT 'farmers' AS role, username FROM farmers WHERE username = ?
+      UNION
+      SELECT 'members' AS role, username FROM members WHERE username = ?
+      UNION
+      SELECT 'providers' AS role, username FROM providers WHERE username = ?
+      UNION
+      SELECT 'tambon' AS role, username FROM tambons WHERE username = ?
+      `,
+      [username, username, username, username, username],
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          res.status(500).send({ exist: false, error: 'Internal Server Error' });
         } else {
-          res.send({ username: username, exist: false });
+          if (result.length > 0) {
+            res.send({ username: result[0].username, exist: true });
+          } else {
+            res.send({ username: username, exist: false });
+          }
         }
       }
-    }
-  );
+    );
+  })
+
+
 });
 
 app.post('/checkingemail', (req, res) => {
   const email = req.body.email;
-  console.log('email:', email);
-  db.query(
-    `
-    SELECT email FROM admins WHERE email = ?
-    UNION
-    SELECT email FROM farmers WHERE email = ?
-    UNION
-    SELECT email FROM members WHERE email = ?
-    UNION
-    SELECT email FROM providers WHERE email = ?
-    UNION
-    SELECT email FROM tambons WHERE email = ?
-    `,
-    [email, email, email, email, email],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).send({ exist: false, error: 'Internal Server Error' });
-      } else {
-        if (result.length > 0) {
-          res.send({ email: result[0].email, exist: true });
+  usePooledConnectionAsync(async db => {
+    db.query(
+      `
+      SELECT 'admins' AS role, email FROM admins WHERE email = ?
+      UNION
+      SELECT 'farmers' AS role, email FROM farmers WHERE email = ?
+      UNION
+      SELECT 'members' AS role, email FROM members WHERE email = ?
+      UNION
+      SELECT 'providers' AS role, email FROM providers WHERE email = ?
+      UNION
+      SELECT 'tambon' AS role, email FROM tambons WHERE email = ?
+      `,
+      [email, email, email, email, email],
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          res.status(500).send({ exist: false, error: 'Internal Server Error' });
         } else {
-          res.send({ email: email, exist: false });
+          if (result.length > 0) {
+            res.send({ email: result[0].email, exist: true });
+          } else {
+            res.send({ email: email, exist: false });
+          }
         }
       }
-    }
-  );
+    );
+  })
 });
 
 
@@ -508,19 +512,22 @@ async function insertMember(memberId, username, email, password, firstName, last
 }
 
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
-  return new Promise((resolve, reject) => {
-    db.query(
-      `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [memberId, username, email, password, firstName, lastName, tel, role],
-      (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
+  usePooledConnectionAsync(async db => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [memberId, username, email, password, firstName, lastName, tel, role],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
         }
-      }
-    );
-  });
+      );
+    });
+  })
+
 }
 const jwtOptions = {
   jwtFromRequest: ExtractJwt.fromHeader("authorization"),
@@ -549,7 +556,7 @@ passport.use(jwtAuth);
 
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-
+  console.log(123)
   if (!username || !password) {
     return res.status(400).send({ status: false, error: 'Missing required fields' });
   }
@@ -687,14 +694,17 @@ async function getUserByUsername(username) {
 
 
 app.get('/categories', (req, res) => {
-  db.query("SELECT * FROM categories where available = 1", (err, result) => {
-    if (err) {
-      console.log(err);
-      res.status(500).send({ exist: false, error: 'Internal Server Error' });
-    } else {
-      res.json(result);
-    }
-  });
+  usePooledConnectionAsync(async db => {
+    db.query("SELECT * FROM categories where available = 1", (err, result) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send({ exist: false, error: 'Internal Server Error' });
+      } else {
+        res.json(result);
+      }
+    });
+  })
+
 });
 
 app.delete('/categories', checkAdmin, async (req, res) => {
@@ -1462,7 +1472,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       const price = result.price;
       const totalProductPrice = price * amount;
       SUMITNOW = SUMITNOW + totalProductPrice
-      console.log("total : ",totalProductPrice);
+      console.log("total : ", totalProductPrice);
       console.log(product.farmer_id);
       console.log(cartList[0].farmer_id);
       if (!product || product.length === 0) {
@@ -1527,7 +1537,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
     }
     const updateSUM = 'UPDATE order_sumary SET total_amount = ? WHERE id = ?';
     await new Promise((resolve, reject) => {
-      db.query(updateSUM, [SUMITNOW,ORDNXT], (err, result) => {
+      db.query(updateSUM, [SUMITNOW, ORDNXT], (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -1535,7 +1545,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
         }
       });
     });
-    if (SUMITNOW == 0 ) {
+    if (SUMITNOW == 0) {
       return res.status(400).send({ error: `ERROR of total amount = 0` });
     }
 
@@ -1956,17 +1966,17 @@ AND os.status = 'complete'
     });
 
     const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ? AND product_id = ?';
-const duplicateOrders = await new Promise((resolve, reject) => {
-  db.query(checkDuplicateOrderQuery, [order_id, product_id], (err, result) => { // เพิ่มเงื่อนไขในการตรวจสอบซ้ำด้วย product_id
-    if (err) {
-      reject(err);
-    } else {
-      console.log(result);
-      console.log(product_id);
-      resolve(result);
-    }
-  });
-});
+    const duplicateOrders = await new Promise((resolve, reject) => {
+      db.query(checkDuplicateOrderQuery, [order_id, product_id], (err, result) => { // เพิ่มเงื่อนไขในการตรวจสอบซ้ำด้วย product_id
+        if (err) {
+          reject(err);
+        } else {
+          console.log(result);
+          console.log(product_id);
+          resolve(result);
+        }
+      });
+    });
 
     console.log("birdddddddddddddd");
     console.log(duplicateOrders);
@@ -2067,7 +2077,7 @@ app.post('/deletecomment/:id', async (req, res) => {
   const commentId = req.params.id;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   const decoded = jwt.verify(token, secretKey);
-  
+
   // ตรวจสอบค่า ID ที่รับเข้ามา
   if (!commentId) {
     return res.status(400).json({ success: false, error: 'Invalid comment ID' });
