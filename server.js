@@ -2158,9 +2158,6 @@ app.get('/excel', async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log('Server is running on port 3000');
-});
 
 app.post("/changepassword", async (req, res) => {
   const { oldpassword, newpassword, usernameBody, roleBody } = req.body;
