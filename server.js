@@ -512,19 +512,22 @@ async function insertMember(memberId, username, email, password, firstName, last
 }
 
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
-  return new Promise((resolve, reject) => {
-    db.query(
-      `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [memberId, username, email, password, firstName, lastName, tel, role],
-      (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
+  usePooledConnectionAsync(async db => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [memberId, username, email, password, firstName, lastName, tel, role],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
         }
-      }
-    );
-  });
+      );
+    });
+  })
+
 }
 const jwtOptions = {
   jwtFromRequest: ExtractJwt.fromHeader("authorization"),
@@ -1469,7 +1472,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       const price = result.price;
       const totalProductPrice = price * amount;
       SUMITNOW = SUMITNOW + totalProductPrice
-      console.log("total : ",totalProductPrice);
+      console.log("total : ", totalProductPrice);
       console.log(product.farmer_id);
       console.log(cartList[0].farmer_id);
       if (!product || product.length === 0) {
@@ -1534,7 +1537,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
     }
     const updateSUM = 'UPDATE order_sumary SET total_amount = ? WHERE id = ?';
     await new Promise((resolve, reject) => {
-      db.query(updateSUM, [SUMITNOW,ORDNXT], (err, result) => {
+      db.query(updateSUM, [SUMITNOW, ORDNXT], (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -1542,7 +1545,7 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
         }
       });
     });
-    if (SUMITNOW == 0 ) {
+    if (SUMITNOW == 0) {
       return res.status(400).send({ error: `ERROR of total amount = 0` });
     }
 
@@ -1963,17 +1966,17 @@ AND os.status = 'complete'
     });
 
     const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ? AND product_id = ?';
-const duplicateOrders = await new Promise((resolve, reject) => {
-  db.query(checkDuplicateOrderQuery, [order_id, product_id], (err, result) => { // เพิ่มเงื่อนไขในการตรวจสอบซ้ำด้วย product_id
-    if (err) {
-      reject(err);
-    } else {
-      console.log(result);
-      console.log(product_id);
-      resolve(result);
-    }
-  });
-});
+    const duplicateOrders = await new Promise((resolve, reject) => {
+      db.query(checkDuplicateOrderQuery, [order_id, product_id], (err, result) => { // เพิ่มเงื่อนไขในการตรวจสอบซ้ำด้วย product_id
+        if (err) {
+          reject(err);
+        } else {
+          console.log(result);
+          console.log(product_id);
+          resolve(result);
+        }
+      });
+    });
 
     console.log("birdddddddddddddd");
     console.log(duplicateOrders);
@@ -2074,7 +2077,7 @@ app.post('/deletecomment/:id', async (req, res) => {
   const commentId = req.params.id;
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
   const decoded = jwt.verify(token, secretKey);
-  
+
   // ตรวจสอบค่า ID ที่รับเข้ามา
   if (!commentId) {
     return res.status(400).json({ success: false, error: 'Invalid comment ID' });
