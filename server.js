@@ -5,7 +5,6 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const passport = require("passport");
 const util = require('util');
-
 const app = express();
 const nodemailer = require('nodemailer');
 const multer = require('multer');
@@ -17,6 +16,7 @@ const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
 const { log } = require('console');
 const secretKey = 'pifOvrart4';
+const excel = require('exceljs');
 require('dotenv').config();
 
 app.use(cors());
@@ -2105,6 +2105,44 @@ app.post('/deletecomment/:id', async (req, res) => {
     console.error('Error soft deleting comment:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
+});
+app.get('/excel', async (req, res) => {
+  try {
+    const sqlQuery = 'SELECT f.firstname,f.lastname,f.email,f.address,f.phone,p.product_name,p.stock,p.price FROM farmers f JOIN products p ON f.id = p.farmer_id;';
+    const data = await new Promise((resolve, reject) => {
+      db.query(sqlQuery, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet('Data');
+
+    const headers = Object.keys(data[0]);
+    worksheet.addRow(headers);
+
+    data.forEach(row => {
+      const rowData = headers.map(header => row[header]);
+      worksheet.addRow(rowData);
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="datafarmer.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error('Error generating Excel:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Server is running on port 3000');
 });
 
 app.post("/changepassword", async (req, res) => {
