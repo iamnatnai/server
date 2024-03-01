@@ -912,9 +912,9 @@ app.post('/forgot', async (req, res) => {
 
       updatePasswordInDatabase(email, newPassword);
 
-      res.json({ email: 'true' });
+      res.json({ email: true });
     } else {
-      res.json({ email: 'false' });
+      res.json({ email: false });
     }
   } catch (error) {
     console.error('Error in forgot endpoint:', error);
