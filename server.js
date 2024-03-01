@@ -869,23 +869,33 @@ app.get('/standardproducts', async(req, res) => {
 
 
 function checkIfEmailAndNameMatch(email) {
-  return new Promise(async(resolve, reject) => {
-    await usePooledConnectionAsync(async db => {
-    const query = 'SELECT * FROM members WHERE email = ? ';
-    db.query(query, [email], (err, result) => {
-      if (err) {
-        console.error('Error checking email and name in database:', err);
-        reject(err);
-      } else {
-        if (result.length > 0) {
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      }
-    });
+  return new Promise(async (resolve, reject) => {
+    try {
+      await usePooledConnectionAsync(async db => {
+        const query = `
+        SELECT email FROM members
+        UNION
+        SELECT email FROM admins
+        UNION
+        SELECT email FROM farmers
+        UNION
+        SELECT email FROM providers
+        UNION
+        SELECT email FROM tambons;
+        `;
+        db.query(query, [email], (err, result) => {
+          if (err) {
+            console.error('Error checking email and name in database:', err);
+            reject(err);
+          } else {
+            resolve(result.length > 0);
+          }
+        });
+      });
+    } catch (error) {
+      reject(error);
+    }
   });
-})
 }
 
 app.post('/forgot', async (req, res) => {
