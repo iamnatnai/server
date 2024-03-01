@@ -1072,8 +1072,8 @@ app.get('/getimage/:image', (req, res) => {
 });
 
 app.get('/getproduct/:shopname/:product_id', async(req, res) => {
-  await usePooledConnectionAsync(async db => {
   const { product_id, shopname } = req.params;
+  await usePooledConnectionAsync(async db => {
   db.query('SELECT p.* FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;', [product_id, shopname], (err, result) => {
     if (err) {
       console.log(err);
