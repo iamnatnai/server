@@ -194,8 +194,8 @@ app.post('/checkingemail', (req, res) => {
 
 
 app.post('/register', async (req, res) => {
+  await usePooledConnectionAsync(async db => {
   const { username, email, password, firstName, lastName, tel } = req.body;
-
   if (!username || !email || !password || !firstName || !lastName || !tel) {
     return res.status(400).send({ exist: false, error: 'Missing required fields' });
   }
@@ -223,8 +223,8 @@ app.post('/register', async (req, res) => {
     res.status(500).send({ exist: false, error: 'Internal Server Error' });
   }
 });
+
 async function checkIfExists(role, column, value) {
-  await usePooledConnectionAsync(async db => {
   return new Promise((resolve, reject) => {
     db.query(`SELECT * FROM ${role} WHERE ${column} = ?`, [value], (err, result) => {
       if (err) {
@@ -234,7 +234,6 @@ async function checkIfExists(role, column, value) {
       }
     });
   });
-})
 }
 
 async function checkIfExistsInAllTables(column, value) {
@@ -243,7 +242,7 @@ async function checkIfExistsInAllTables(column, value) {
   const results = await Promise.all(promises);
   return results.some(result => result);
 }
-
+})
 app.post('/addfarmer', checkTambon, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, lat, lng } = req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel) {
