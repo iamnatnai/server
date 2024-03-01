@@ -213,6 +213,7 @@ app.post('/register', async (req, res) => {
     }
 
     const nextId = await getNextId();
+console.log(nextId);
 
     await insertMember(nextId, username, email, hashedPassword, firstName, lastName, tel);
 
@@ -224,7 +225,8 @@ app.post('/register', async (req, res) => {
 });
 
 async function checkIfExists(role, column, value) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async(resolve, reject) => {
+    await usePooledConnectionAsync(async db => {
     db.query(`SELECT * FROM ${role} WHERE ${column} = ?`, [value], (err, result) => {
       if (err) {
         reject(err);
@@ -232,6 +234,7 @@ async function checkIfExists(role, column, value) {
         resolve(result.length > 0);
       }
     });
+  })
   });
 }
 
@@ -452,8 +455,8 @@ app.delete('/deleteuser/:role/:username', async (req, res) => {
 
 
 async function getNextId() {
-  await usePooledConnectionAsync(async db => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async(resolve, reject) => {
+    await usePooledConnectionAsync(async db => {
     db.query('SELECT MAX(id) as maxId FROM members', (err, result) => {
       if (err) {
         reject(err);
@@ -468,8 +471,8 @@ async function getNextId() {
         resolve(nextId);
       }
     });
+  })
   });
-})
 }
 async function getNextUserId(role) {
   let rolePrefix = '';
@@ -513,8 +516,9 @@ async function getNextUserId(role) {
 }
 
 async function insertMember(memberId, username, email, password, firstName, lastName, tel) {
-  await usePooledConnectionAsync(async db => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async(resolve, reject) => {
+    await usePooledConnectionAsync(async db => {
+      console.log(memberId);
     db.query(
       'INSERT INTO members (id, username, email, password, firstname, lastname, phone, member_follows, role) VALUES (?, ?, ?, ?, ?, ?, ?,?,?)',
       [memberId, username, email, password, firstName, lastName, tel, null, 'members'],
@@ -526,8 +530,8 @@ async function insertMember(memberId, username, email, password, firstName, last
         }
       }
     );
+  })
   });
-})
 }
 
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
