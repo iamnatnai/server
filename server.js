@@ -853,7 +853,7 @@ app.get('/producttypes', async (req, res) => {
 });
 app.get('/standardproducts', async (req, res) => {
   await usePooledConnectionAsync(async db => {
-    db.query("SELECT * FROM standard_products", (err, result) => {
+    db.query("SELECT * FROM standard_products where available = 1", (err, result) => {
       if (err) {
         console.log(err);
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -863,7 +863,6 @@ app.get('/standardproducts', async (req, res) => {
     });
   })
 });
-
 
 async function checkIfEmailAndNameMatch(email) {
   return await usePooledConnectionAsync(async db => {
