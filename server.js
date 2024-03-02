@@ -2331,8 +2331,8 @@ app.post('/certificate', checkAdmin, async (req, res) => {
           }
         });
       });
-      if (existingName) {
-        return res.status(400).json({ success: false, message: 'Certificate name already exists' });
+      if (existingName && !id) {
+        return res.status(400).json({ success: false, message: 'มาตรฐานสินค้าที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว' });
       }
 
       let query
@@ -2364,7 +2364,7 @@ app.post('/certificate', checkAdmin, async (req, res) => {
           console.error('Error adding certificate:', err);
           return res.status(500).json({ success: false, message: 'Internal Server Error' });
         } else {
-          return res.status(200).json({ success: true, message: 'Certificate added successfully' });
+          return res.status(200).json({ success: true, message: 'Certificate added successfully', id });
         }
       });
 
