@@ -1807,23 +1807,40 @@ app.get('/imagestore', async (req, res) => {
   if (!token) {
     return res.status(400).json({ error: 'Token not provided' });
   }
-  const decoded = jwt.verify(token, secretKey);
+  try {
+    const decoded = jwt.verify(token, secretKey);
 
-  const imageQuery = 'SELECT imagepath FROM image WHERE farmer_id = ?';
-  const images = await usePooledConnectionAsync(async db => {
-    return await new Promise(async (resolve, reject) => {
-      db.query(imageQuery, [decoded.ID], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      })
+    const imageQuery = 'SELECT imagepath FROM image WHERE farmer_id = ?';
+    const images = await usePooledConnectionAsync(async db => {
+      return await new Promise(async (resolve, reject) => {
+        db.query(imageQuery, [decoded.ID], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
+      });
     });
-  });
-  res.status(200).json({ images });
-
-
+    let allimage = {
+      images: [],
+      videos: []
+    }
+    images.forEach(image => {
+      if (image.imagepath.match(
+        /\.(mp4|webm|ogg|ogv|avi|mov|wmv|flv|3gp)$/i
+      )) {
+        allimage.videos.push(image.imagepath)
+      }
+      else {
+        allimage.images.push(image.imagepath)
+      }
+    });
+    res.status(200).json({ ...allimage });
+  } catch (error) {
+    console.error('Error fetching images:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
 })
 app.post('/imageupload', upload.fields([{ name: 'image', maxCount: 10 }]), async (req, res) => {
   try {
