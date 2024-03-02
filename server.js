@@ -1426,20 +1426,16 @@ app.get("/getuseradmin/:role/:username", checkAdmin, async (req, res) => {
 
 app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), async (req, res) => {
   let { cartList } = req.body;
-  console.log(req.body);
   var SUMITNOW = 0
 
   try {
     await usePooledConnectionAsync(async db => {
-      console.log(cartList);
       cartList = JSON.parse(cartList)
       if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
         return res.status(400).json({ success: false, message: 'Empty or invalid cart data' });
       }
       const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;;
       const decoded = jwt.verify(token, secretKey);
-
-      console.log();
       await new Promise((resolve, reject) => {
         db.beginTransaction(err => {
           if (err) reject(err);
@@ -1459,13 +1455,12 @@ app.post('/checkout', upload.fields([{ name: 'productSlip', maxCount: 1 }]), asy
       });
       const productSlipFile = req.files['productSlip'] ? req.files['productSlip'][0] : null;
       const productSlipPath = productSlipFile ? `./uploads/${productSlipFile.filename}` : null;
+      let address
       if (req.body.address) {
         address = req.body.address;
       } else {
         address = memberaddress[0].address;
       }
-      console.log(memberaddress);
-      console.log(address);
       console.log("-+-+-+-+--++--+-+-+-+-+-+-+-+-+-+-+");
       async function getNextORDID() {
         return new Promise((resolve, reject) => {
@@ -1890,8 +1885,8 @@ app.get('/farmerorder', async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
     SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, 
-    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number,
-    m.id, m.firstname, m.lastname, m.phone, m.address,
+    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number, os.address,
+    m.id, m.firstname, m.lastname, m.phone,
     p.product_name, p.product_image
     FROM order_items oi
     INNER JOIN order_sumary os ON oi.order_id = os.id
