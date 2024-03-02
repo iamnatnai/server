@@ -1738,13 +1738,28 @@ app.get('/orderlist', async (req, res) => {
                   if (err) {
                     reject(err);
                   } else {
-                    const formattedProducts = result.map(product => ({
-                      product_id: product.product_id,
-                      product_name: product.product_name,
-                      product_image: product.product_image,
-                      quantity: product.quantity,
-                      price: product.price
-                    }));
+                    const formattedProducts = result.map(async (product) => {
+                      // comment = await new Promise((resolve, reject) => {
+                      //   const getCommentQuery = 'SELECT rating, date_comment, comment FROM product_reviews WHERE product_id = ? and order_id = ? and available = 1';
+                      //   db.query(getCommentQuery, [product.product_id, order.id], (err, result) => {
+                      //     if (err) {
+                      //       reject(err);
+                      //     } else {
+                      //       resolve(result[0]);
+                      //     }
+                      //   });
+                      // })
+
+
+                      return {
+                        product_id: product.product_id,
+                        product_name: product.product_name,
+                        product_image: product.product_image,
+                        quantity: product.quantity,
+                        price: product.price,
+                        // comment: comment ? comment : null
+                      }
+                    });
                     resolve(formattedProducts);
                   }
                 });
@@ -2312,12 +2327,14 @@ app.post("/changepassword", async (req, res) => {
 
     const newHashedPassword = await bcrypt.hash(newpassword, 10);
     await usePooledConnectionAsync(async db => {
-      db.query(`UPDATE ${roleDecoded !== "admins" ? roleDecoded : roleBody} SET password = "${newHashedPassword}" WHERE username = "${roleDecoded !== "admins" ? usernameDecoded : usernameBody}"`, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+      return await new Promise((resolve, reject) => {
+        db.query(`UPDATE ${roleDecoded !== "admins" ? roleDecoded : roleBody} SET password = "${newHashedPassword}" WHERE username = "${roleDecoded !== "admins" ? usernameDecoded : usernameBody}"`, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        })
       })
     });
 
