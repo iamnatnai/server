@@ -2316,18 +2316,12 @@ app.post("/changepassword", async (req, res) => {
   }
 });
 
-app.post('/addcertificate', async (req, res) => {
-  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+app.post('/addcertificate', checkAdmin, async (req, res) => {
   try {
-    await usePooledConnectionAsync(async db => {
-      const decoded = jwt.verify(token, secretKey);
-      if (decoded.role !== "admins") {
-        return res.status(403).json({ success: false, message: 'Unauthorized access' });
-      }
-
+    return await usePooledConnectionAsync(async db => {
       let { id, name } = req.body;
       //check if name exist
-      const checkNameQuery = 'SELECT standard_name FROM standard_products WHERE standard_name = ?';
+      const checkNameQuery = 'SELECT standard_name FROM standard_products WHERE standard_name = ? and available = 1';
       const [existingName] = await new Promise((resolve, reject) => {
         db.query(checkNameQuery, [name], (err, result) => {
           if (err) {
@@ -2381,6 +2375,25 @@ app.post('/addcertificate', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 
+})
+app.delete('/deletecertificate/:id', checkAdmin, async (req, res) => {
+  try {
+    return await usePooledConnectionAsync(async db => {
+      const { id } = req.params;
+      const query = `UPDATE standard_products SET available = 0 WHERE standard_id = "${id}"`;
+      db.query(query, (err, result) => {
+        if (err) {
+          console.error('Error deleting certificate:', err);
+          return res.status(500).json({ success: false, message: 'Internal Server Error' });
+        } else {
+          return res.status(200).json({ success: true, message: 'Certificate deleted successfully' });
+        }
+      });
+    })
+  } catch (error) {
+    console.error('Error deleting certificate:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
 })
 
 app.listen(3001, () => console.log('Avalable 3001'));
