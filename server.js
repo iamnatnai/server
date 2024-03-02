@@ -225,8 +225,8 @@ app.post('/register', async (req, res) => {
 });
 
 async function checkIfExists(role, column, value) {
-  return new Promise(async (resolve, reject) => {
-    await usePooledConnectionAsync(async db => {
+  return await usePooledConnectionAsync(async db => {
+    new Promise(async (resolve, reject) => {
       db.query(`SELECT * FROM ${role} WHERE ${column} = ?`, [value], (err, result) => {
         if (err) {
           reject(err);
@@ -234,8 +234,9 @@ async function checkIfExists(role, column, value) {
           resolve(result.length > 0);
         }
       });
-    })
-  });
+    });
+  })
+
 }
 
 async function checkIfExistsInAllTables(column, value) {
@@ -455,8 +456,8 @@ app.delete('/deleteuser/:role/:username', async (req, res) => {
 
 
 async function getNextId() {
-  return new Promise(async (resolve, reject) => {
-    await usePooledConnectionAsync(async db => {
+  return await usePooledConnectionAsync(async db => {
+    new Promise(async (resolve, reject) => {
       db.query('SELECT MAX(id) as maxId FROM members', (err, result) => {
         if (err) {
           reject(err);
@@ -471,8 +472,9 @@ async function getNextId() {
           resolve(nextId);
         }
       });
-    })
-  });
+    });
+  })
+
 }
 async function getNextUserId(role) {
   let rolePrefix = '';
@@ -493,8 +495,9 @@ async function getNextUserId(role) {
       rolePrefix = 'TB';
       break;
   }
-  return new Promise(async (resolve, reject) => {
-    await usePooledConnectionAsync(async db => {
+
+  return await usePooledConnectionAsync(async db => {
+    new Promise(async (resolve, reject) => {
       db.query(`SELECT MAX(id) as maxId FROM ${role}`, (err, result) => {
         if (err) {
           reject(err);
@@ -509,14 +512,15 @@ async function getNextUserId(role) {
           resolve(nextUserId);
         }
       });
-    })
-  });
+    });
+  })
+
 }
 
 async function insertMember(memberId, username, email, password, firstName, lastName, tel) {
-  return new Promise(async (resolve, reject) => {
-    await usePooledConnectionAsync(async db => {
-      console.log(memberId);
+
+  return await usePooledConnectionAsync(async db => {
+    new Promise(async (resolve, reject) => {
       db.query(
         'INSERT INTO members (id, username, email, password, firstname, lastname, phone, member_follows, role) VALUES (?, ?, ?, ?, ?, ?, ?,?,?)',
         [memberId, username, email, password, firstName, lastName, tel, null, 'members'],
@@ -528,12 +532,13 @@ async function insertMember(memberId, username, email, password, firstName, last
           }
         }
       );
-    })
-  });
+    });
+  })
+
 }
 
 async function insertUser(memberId, username, email, password, firstName, lastName, tel, role) {
-  usePooledConnectionAsync(async db => {
+  return await usePooledConnectionAsync(async db => {
     return new Promise((resolve, reject) => {
       db.query(
         `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -765,16 +770,15 @@ app.post('/categories', checkAdmin, async (req, res) => {
           resolve(result);
         }
       });
+    })
 
-    });
-  })
 
-  if (category_nameResult.length > 0 && !category_id) {
-    return res.status(409).json({ success: false, message: 'หมวดหมู่ที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว' });
-  }
+    if (category_nameResult.length > 0 && !category_id) {
+      return res.status(409).json({ success: false, message: 'หมวดหมู่ที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว' });
+    }
 
-  if (!category_id) {
-    await usePooledConnectionAsync(async db => {
+    if (!category_id) {
+
       category_id = await new Promise((resolve, reject) => {
         db.query('SELECT MAX(category_id) as maxId FROM categories', (err, result) => {
           if (err) {
@@ -792,12 +796,12 @@ app.post('/categories', checkAdmin, async (req, res) => {
           }
         });
       })
-    });
-    console.log(category_id);
-  }
 
-  // find if category_id is exist on database
-  await usePooledConnectionAsync(async db => {
+      console.log(category_id);
+    }
+
+    // find if category_id is exist on database
+
     const query = 'SELECT * FROM categories WHERE category_id = ?';
     let result = await new Promise((resolve, reject) => {
       db.query(query, [category_id], (err, result) => {
@@ -807,11 +811,10 @@ app.post('/categories', checkAdmin, async (req, res) => {
           resolve(result);
         }
       });
-    });
-  })
 
-  if (result.length > 0) {
-    await usePooledConnectionAsync(async db => {
+    })
+
+    if (result.length > 0) {
       db.query('UPDATE categories SET category_name = ?, bgcolor = ? WHERE category_id = ?', [category_name, bgcolor, category_id], (err, result) => {
         if (err) {
           console.error('Error updating category:', err);
@@ -820,10 +823,9 @@ app.post('/categories', checkAdmin, async (req, res) => {
           return res.status(200).json({ success: true, message: 'Category updated successfully' });
         }
       });
-    })
-  }
-  else {
-    await usePooledConnectionAsync(async db => {
+
+    }
+    else {
       db.query('INSERT INTO categories (category_id, category_name, bgcolor) VALUES (?, ?, ?)', [category_id, category_name, bgcolor], (err, result) => {
         if (err) {
           console.error('Error adding category:', err);
@@ -832,12 +834,8 @@ app.post('/categories', checkAdmin, async (req, res) => {
           return res.status(201).json({ success: true, message: 'Category added successfully' });
         }
       });
-    })
-  }
-
-
-
-
+    }
+  });
 });
 
 app.get('/producttypes', async (req, res) => {
@@ -866,21 +864,21 @@ app.get('/standardproducts', async (req, res) => {
 });
 
 
-function checkIfEmailAndNameMatch(email) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      await usePooledConnectionAsync(async db => {
+async function checkIfEmailAndNameMatch(email) {
+  return await usePooledConnectionAsync(async db => {
+    return new Promise(async (resolve, reject) => {
+      try {
         const query = `
-        SELECT email FROM members
-        UNION
-        SELECT email FROM admins
-        UNION
-        SELECT email FROM farmers
-        UNION
-        SELECT email FROM providers
-        UNION
-        SELECT email FROM tambons;
-        `;
+    SELECT email FROM members
+    UNION
+    SELECT email FROM admins
+    UNION
+    SELECT email FROM farmers
+    UNION
+    SELECT email FROM providers
+    UNION
+    SELECT email FROM tambons;
+    `;
         db.query(query, [email], (err, result) => {
           if (err) {
             console.error('Error checking email and name in database:', err);
@@ -889,11 +887,13 @@ function checkIfEmailAndNameMatch(email) {
             resolve(result.length > 0);
           }
         });
-      });
-    } catch (error) {
-      reject(error);
-    }
+      } catch (error) {
+        reject(error);
+      }
+    });
+
   });
+
 }
 
 app.post('/forgot', async (req, res) => {
@@ -1007,7 +1007,7 @@ const storage = multer.diskStorage({
   },
 });
 async function getNextProductId() {
-  await usePooledConnectionAsync(async db => {
+  return await usePooledConnectionAsync(async db => {
     return new Promise((resolve, reject) => {
       db.query('SELECT MAX(product_id) as maxId FROM products', (err, result) => {
         if (err) {
@@ -1052,15 +1052,15 @@ app.post('/addproduct', checkFarmer, async (req, res) => {
   const decoded = jwt.verify(token, secretKey);
   try {
     let { ID: farmerId } = decoded
-    if (product_id) {
-      await usePooledConnectionAsync(async db => {
+    await usePooledConnectionAsync(async db => {
+
+      if (product_id) {
         const query = `UPDATE products SET product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, shippingcost = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
         db.query(query, [product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost, product_id, farmerId]);
         return res.status(200).send({ success: true, message: 'Product updated successfully' });
-      })
-    }
-    const nextProductId = await getNextProductId();
-    await usePooledConnectionAsync(async db => {
+      }
+      const nextProductId = await getNextProductId();
+
       const query = `
   INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -1786,8 +1786,8 @@ app.post('/confirmtrancsaction', upload.fields([{ name: 'productSlip', maxCount:
     const { order_id } = req.body;
     const orderQuery = 'UPDATE order_sumary SET transaction_confirm = ? ,status = ? WHERE id = ? AND member_id = ?';
 
-    const updatedOrders = await new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
+    const updatedOrders = await usePooledConnectionAsync(async db => {
+      return await new Promise(async (resolve, reject) => {
         db.query(orderQuery, [productSlipPath, 'pending', order_id, decoded.ID], (err, result) => {
           if (err) {
             reject(err);
@@ -1815,8 +1815,8 @@ app.get('/imagestore', async (req, res) => {
   const decoded = jwt.verify(token, secretKey);
 
   const imageQuery = 'SELECT imagepath FROM image WHERE farmer_id = ?';
-  const images = await new Promise(async (resolve, reject) => {
-    await usePooledConnectionAsync(async db => {
+  const images = await usePooledConnectionAsync(async db => {
+    return await new Promise(async (resolve, reject) => {
       db.query(imageQuery, [decoded.ID], (err, result) => {
         if (err) {
           reject(err);
@@ -1840,8 +1840,8 @@ app.post('/imageupload', upload.fields([{ name: 'image', maxCount: 10 }]), async
     const imagePaths = req.files['image'] ? req.files['image'].map(file => `./uploads/${file.filename}`) : null;
     imagePaths.map(async (imagePath, index) => {
       async function getNextImageId(index) {
-        return new Promise(async (resolve, reject) => {
-          await usePooledConnectionAsync(async db => {
+        return await usePooledConnectionAsync(async db => {
+          return await new Promise(async (resolve, reject) => {
             db.query('SELECT MAX(id) as maxId FROM image', (err, result) => {
               if (err) {
                 reject(err);
@@ -1862,8 +1862,9 @@ app.post('/imageupload', upload.fields([{ name: 'image', maxCount: 10 }]), async
       }
       const nextimageId = await getNextImageId(index);
       const insertImageQuery = 'INSERT INTO image (id, imagepath, farmer_id) VALUES (?,?, ?)';
-      await new Promise(async (resolve, reject) => {
-        await usePooledConnectionAsync(async db => {
+      await usePooledConnectionAsync(async db => {
+
+        await new Promise(async (resolve, reject) => {
           db.query(insertImageQuery, [nextimageId, imagePath, decoded.ID], (err, result) => {
             if (err) {
               reject(err);
@@ -1899,8 +1900,8 @@ app.get('/farmerorder', async (req, res) => {
     INNER JOIN farmers f ON p.farmer_id = f.id
     WHERE f.id = ?
     `;
-    const orderItemsResult = await new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
+    const orderItemsResult = await usePooledConnectionAsync(async db => {
+      return await new Promise(async (resolve, reject) => {
         db.query(orderItemsQuery, [decoded.ID], (err, result) => {
           if (err) {
             reject(err);
@@ -1964,17 +1965,19 @@ app.post('/confirmorder', async (req, res) => {
 
     const updateOrderStatusQuery = `UPDATE order_sumary SET status = ? ${comment ? `,comment = "${comment}"` : ''} ${status == "complete" ? `${",tracking_number = " + tracking_number + ",date_complete = NOW()"}` : ''} WHERE id = ?`;
     console.log(updateOrderStatusQuery);
-    const updatedOrders = await new Promise(async (resolve, reject) => {
+    const updatedOrders =
       await usePooledConnectionAsync(async db => {
-        db.query(updateOrderStatusQuery, [status, order_id], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      })
-    });
+        return await new Promise(async (resolve, reject) => {
+
+          db.query(updateOrderStatusQuery, [status, order_id], (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        })
+      });
 
     res.status(200).json({ success: true, message: 'Order status updated successfully', orders: updatedOrders });
   } catch (error) {
@@ -1991,8 +1994,8 @@ app.post('/comment', async (req, res) => {
 
   // Function to get the next review ID
   async function getNextReviewId() {
-    return new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
+    return await usePooledConnectionAsync(async db => {
+      return new Promise(async (resolve, reject) => {
         db.query('SELECT MAX(review_id) as maxId  FROM product_reviews', (err, result) => {
           if (err) {
             reject(err);
@@ -2017,17 +2020,18 @@ WHERE os.member_id = ?
 AND oi.product_id = ? 
 AND os.status = 'complete'
 `;
-  const orderResult = await new Promise(async (resolve, reject) => {
+  const orderResult =
     await usePooledConnectionAsync(async db => {
-      db.query(checkOrderStatusQuery, [decoded.ID, product_id], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    })
-  });
+      return await new Promise(async (resolve, reject) => {
+        db.query(checkOrderStatusQuery, [decoded.ID, product_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      })
+    });
 
   if (!orderResult || orderResult.length === 0) {
     return res.status(400).json({ success: false, message: 'Member has not purchased this product or order is not complete' });
@@ -2045,9 +2049,11 @@ AND os.status = 'complete'
 
   try {
     // Check if the member has purchased the product
-    const checkOrderQuery = 'SELECT os.id AS order_id FROM order_sumary os INNER JOIN order_items oi ON os.id = oi.order_id WHERE os.member_id = ? AND oi.product_id = ?';
-    const [orderResult] = await new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
+
+    await usePooledConnectionAsync(async db => {
+
+      const checkOrderQuery = 'SELECT os.id AS order_id FROM order_sumary os INNER JOIN order_items oi ON os.id = oi.order_id WHERE os.member_id = ? AND oi.product_id = ?';
+      const [orderResult] = await new Promise(async (resolve, reject) => {
         db.query(checkOrderQuery, [decoded.ID, product_id], (err, result) => {
           if (err) {
             reject(err);
@@ -2056,11 +2062,9 @@ AND os.status = 'complete'
           }
         });
       })
-    });
 
-    const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ? AND product_id = ?';
-    const duplicateOrders = await new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
+      const checkDuplicateOrderQuery = 'SELECT * FROM product_reviews WHERE order_id = ? AND product_id = ?';
+      const duplicateOrders = await new Promise(async (resolve, reject) => {
         db.query(checkDuplicateOrderQuery, [order_id, product_id], (err, result) => { // เพิ่มเงื่อนไขในการตรวจสอบซ้ำด้วย product_id
           if (err) {
             reject(err);
@@ -2070,34 +2074,32 @@ AND os.status = 'complete'
             resolve(result);
           }
         });
-      })
-    });
+      });
 
-    console.log("birdddddddddddddd");
-    console.log(duplicateOrders);
+      console.log("birdddddddddddddd");
+      console.log(duplicateOrders);
 
-    if (duplicateOrders.length > 0) {
-      return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
-    }
+      if (duplicateOrders.length > 0) {
+        return res.status(400).json({ success: false, message: 'Order ID already exists in product reviews' });
+      }
 
-    if (!orderResult || orderResult.length === 0) {
-      return res.status(400).json({ success: false, message: 'Member has not purchased this product' });
-    }
+      if (!orderResult || orderResult.length === 0) {
+        return res.status(400).json({ success: false, message: 'Member has not purchased this product' });
+      }
 
-    const nextReviewId = await getNextReviewId();
+      const nextReviewId = await getNextReviewId();
 
-    const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id,date_comment) VALUES (?, ?, ?, ?, ?, ?,NOW())';
-    console.log(orderResult.order_id);
-    await new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
-        db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, order_id], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      })
+      const insertCommentQuery = 'INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id,date_comment) VALUES (?, ?, ?, ?, ?, ?,NOW())';
+      console.log(orderResult.order_id);
+
+      db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, order_id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+
+      });
     });
 
     return res.status(200).json({ success: true, message: 'Comment added successfully' });
@@ -2213,8 +2215,9 @@ app.post('/deletecomment/:id', async (req, res) => {
         });
       });
 
-      res.status(200).json({ success: true, message: 'Comment soft deleted successfully' });
     })
+    res.status(200).json({ success: true, message: 'Comment soft deleted successfully' });
+
   } catch (error) {
     console.error('Error soft deleting comment:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
@@ -2233,22 +2236,23 @@ app.get('/excel', async (req, res) => {
           }
         });
       });
+      const workbook = new excel.Workbook();
+      const worksheet = workbook.addWorksheet('Data');
+
+      const headers = Object.keys(data[0]);
+      worksheet.addRow(headers);
+
+      data.forEach(row => {
+        const rowData = headers.map(header => row[header]);
+        worksheet.addRow(rowData);
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="datafarmer.xlsx"');
+      await workbook.xlsx.write(res);
+      res.end();
     })
-    const workbook = new excel.Workbook();
-    const worksheet = workbook.addWorksheet('Data');
 
-    const headers = Object.keys(data[0]);
-    worksheet.addRow(headers);
-
-    data.forEach(row => {
-      const rowData = headers.map(header => row[header]);
-      worksheet.addRow(rowData);
-    });
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="datafarmer.xlsx"');
-    await workbook.xlsx.write(res);
-    res.end();
 
   } catch (error) {
     console.error('Error generating Excel:', error);
@@ -2262,8 +2266,8 @@ app.post("/changepassword", async (req, res) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
 
   const checkMatchPssword = async (role, username, password) => {
-    const hashedPassword = await new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
+    return await usePooledConnectionAsync(async db => {
+      const hashedPassword = await new Promise(async (resolve, reject) => {
         db.query(`SELECT password FROM ${role} WHERE username = "${username}"`, (err, result) => {
           if (err) {
             reject(err);
@@ -2271,11 +2275,11 @@ app.post("/changepassword", async (req, res) => {
             resolve(result[0].password);
           }
         });
-      })
-    });
+      });
 
-    const passwordMatch = await bcrypt.compare(password, hashedPassword);
-    return passwordMatch;
+      const passwordMatch = await bcrypt.compare(password, hashedPassword);
+      return passwordMatch;
+    })
   }
   if (!token) {
     return res.status(400).json({ success: false, message: 'Token not provided' });
@@ -2295,16 +2299,13 @@ app.post("/changepassword", async (req, res) => {
     }
 
     const newHashedPassword = await bcrypt.hash(newpassword, 10);
-
-    await new Promise(async (resolve, reject) => {
-      await usePooledConnectionAsync(async db => {
-        db.query(`UPDATE ${roleDecoded !== "admins" ? roleDecoded : roleBody} SET password = "${newHashedPassword}" WHERE username = "${roleDecoded !== "admins" ? usernameDecoded : usernameBody}"`, (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
+    await usePooledConnectionAsync(async db => {
+      db.query(`UPDATE ${roleDecoded !== "admins" ? roleDecoded : roleBody} SET password = "${newHashedPassword}" WHERE username = "${roleDecoded !== "admins" ? usernameDecoded : usernameBody}"`, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
       })
     });
 
