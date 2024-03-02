@@ -16,6 +16,7 @@ const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require('jsonwebtoken');
 const { log } = require('console');
 const secretKey = 'pifOvrart4';
+//const excel = require('excel4node');
 const excel = require('exceljs');
 require('dotenv').config();
 
@@ -2235,10 +2236,30 @@ app.post('/deletecomment/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
 app.get('/excel', async (req, res) => {
   try {
     await usePooledConnectionAsync(async db => {
-      const sqlQuery = 'SELECT f.firstname,f.lastname,f.email,f.address,f.phone,p.product_name,p.stock,p.price FROM farmers f JOIN products p ON f.id = p.farmer_id;';
+      const sqlQuery = `
+        SELECT 
+          f.id AS farmer_id, 
+          f.email, 
+          f.username, 
+          f.firstname, 
+          f.lastname, 
+          f.farmerstorename, 
+          f.phone,
+          p.product_id, 
+          p.product_name, 
+          p.stock, 
+          p.price
+        FROM 
+          farmers f
+        LEFT JOIN 
+          products p ON f.id = p.farmer_id
+      `;
+      
+
       const data = await new Promise((resolve, reject) => {
         db.query(sqlQuery, (err, result) => {
           if (err) {
@@ -2248,29 +2269,73 @@ app.get('/excel', async (req, res) => {
           }
         });
       });
+      console.log(data);
       const workbook = new excel.Workbook();
-      const worksheet = workbook.addWorksheet('Data');
 
-      const headers = Object.keys(data[0]);
-      worksheet.addRow(headers);
+      const farmerWorksheet = workbook.addWorksheet('Farmers');
+      const farmerHeaders = ['ID', 'Email', 'Username', 'Firstname', 'Lastname', 'Farmerstore', 'Phone','TOTAL Product'];
+      farmerWorksheet.addRow(farmerHeaders); // Add header row
 
+      const farmerProductSheets = {}; // Store farmer product worksheets
+      
+      const addedFarmerIds = {}; // Store added farmer ids
+      const productCounts = {};
       data.forEach(row => {
-        const rowData = headers.map(header => row[header]);
-        worksheet.addRow(rowData);
+        // Check if farmer ID is already added
+        if (!productCounts[row.farmer_id]) {
+          productCounts[row.farmer_id] = 1;
+        } else {
+          productCounts[row.farmer_id]++;
+        }
+        if (!addedFarmerIds[row.farmer_id]) {
+          const rowData = [row.farmer_id, row.email, row.username, row.firstname, row.lastname, row.farmerstorename,row.phone,productCounts];
+          farmerWorksheet.addRow(rowData); // Add farmer data row
+          addedFarmerIds[row.farmer_id] = true; // Mark farmer ID as added
+        }
+    
+        
+        // Create product sheet for each farmer if not already exists
+        if (!farmerProductSheets[row.farmer_id]) {
+          farmerProductSheets[row.farmer_id] = workbook.addWorksheet(`Products_${row.farmer_id}`);
+          const productHeaders = ['Product ID', 'Product Name', 'Stock', 'Price',];
+          farmerProductSheets[row.farmer_id].addRow(productHeaders); // Add header row
+          farmerProductSheets[row.farmer_id].getCell('E1').value = {
+            text: 'Back to Farmers',
+            hyperlink: `#Farmers!A1`,
+            tooltip: 'Go back to Farmers'
+          };
+        }
+        // Add product data to corresponding farmer's product sheet
+        const productData = [row.product_id, row.product_name, row.stock, row.price];
+        farmerProductSheets[row.farmer_id].addRow(productData); // Add product data row
+        
+        // Add hyperlink in farmer worksheet to link to product sheet
+        farmerWorksheet.getCell(`A${farmerWorksheet.lastRow.number}`).value = {
+          text: row.farmer_id,
+          hyperlink: `#Products_${row.farmer_id}!A1`,
+          tooltip: `Go to Products for ${row.farmer_id}`
+        };
       });
 
+      // Send Excel file back
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename="datafarmer.xlsx"');
+      res.setHeader('Content-Disposition', 'attachment; filename="farmers_and_products.xlsx"');
       await workbook.xlsx.write(res);
       res.end();
-    })
-
+    });
 
   } catch (error) {
     console.error('Error generating Excel:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
+
+
+
+
+
+
 
 
 app.post("/changepassword", async (req, res) => {
