@@ -324,14 +324,15 @@ app.get('/role', async (req, res) => {
 
 app.get('/users', async (req, res) => {
   const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
-  const decoded = jwt.verify(token, secretKey);
-  const role = decoded.role;
 
-  if (role !== 'admins' && role !== 'tambons') {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
 
   try {
+    const decoded = jwt.verify(token, secretKey);
+    const role = decoded.role;
+
+    if (role !== 'admins' && role !== 'tambons') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     await usePooledConnectionAsync(async db => {
       if (role === 'admins') {
         const adminsQuery = "SELECT email, username, firstname, lastname, phone, role FROM admins WHERE available = 1";
@@ -2316,7 +2317,7 @@ app.post("/changepassword", async (req, res) => {
   }
 });
 
-app.post('/addcertificate', checkAdmin, async (req, res) => {
+app.post('/certificate', checkAdmin, async (req, res) => {
   try {
     return await usePooledConnectionAsync(async db => {
       let { id, name } = req.body;
@@ -2376,10 +2377,13 @@ app.post('/addcertificate', checkAdmin, async (req, res) => {
   }
 
 })
-app.delete('/deletecertificate/:id', checkAdmin, async (req, res) => {
+app.delete('/certificate/', checkAdmin, async (req, res) => {
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ success: false, message: 'Certificate ID is required' });
+  }
   try {
     return await usePooledConnectionAsync(async db => {
-      const { id } = req.params;
       const query = `UPDATE standard_products SET available = 0 WHERE standard_id = "${id}"`;
       db.query(query, (err, result) => {
         if (err) {
