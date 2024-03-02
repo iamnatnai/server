@@ -1183,7 +1183,7 @@ app.get('/updateview/:id', async (req, res) => {
 app.get('/myproducts/:username', async (req, res) => {
   await usePooledConnectionAsync(async db => {
     const { username } = req.params;
-    db.query('SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType, p.last_modified, p.price, p.view_count, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;', [username], (err, result) => {
+    db.query('SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id LEFT JOIN categories c on p.category_id = c.category_id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;', [username], (err, result) => {
       if (err) {
         console.log(err);
         res.status(500).send({ exist: false, error: 'Internal Server Error' });
@@ -1734,33 +1734,35 @@ app.get('/orderlist', async (req, res) => {
               }
               const products = await new Promise((resolve, reject) => {
                 const orderItemsQuery = 'SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, oi.price FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?';
-                db.query(orderItemsQuery, [order.id], (err, result) => {
+                db.query(orderItemsQuery, [order.id], async (err, result) => {
                   if (err) {
                     reject(err);
                   } else {
-                    const formattedProducts = result.map(async (product) => {
-                      // comment = await new Promise((resolve, reject) => {
-                      //   const getCommentQuery = 'SELECT rating, date_comment, comment FROM product_reviews WHERE product_id = ? and order_id = ? and available = 1';
-                      //   db.query(getCommentQuery, [product.product_id, order.id], (err, result) => {
-                      //     if (err) {
-                      //       reject(err);
-                      //     } else {
-                      //       resolve(result[0]);
-                      //     }
-                      //   });
-                      // })
+                    Promise.all(result.map(async (product) => {
+                      return await new Promise((resolve, reject) => {
+                        const getCommentQuery = 'SELECT rating, date_comment, comment FROM product_reviews WHERE product_id = ? and order_id = ? and available = 1';
+                        db.query(getCommentQuery, [product.product_id, order.id], (err, result) => {
+                          if (err) {
+                            reject(err);
+                          } else {
+                            resolve({
+                              product_id: product.product_id,
+                              product_name: product.product_name,
+                              product_image: product.product_image,
+                              quantity: product.quantity,
+                              price: product.price,
+                              comment: result[0] ? result[0] : null
+                            });
+                          }
+                        });
+                      })
 
 
-                      return {
-                        product_id: product.product_id,
-                        product_name: product.product_name,
-                        product_image: product.product_image,
-                        quantity: product.quantity,
-                        price: product.price,
-                        // comment: comment ? comment : null
-                      }
-                    });
-                    resolve(formattedProducts);
+                    })).then((formattedProducts) => {
+                      resolve(formattedProducts);
+
+                    })
+
                   }
                 });
               });
