@@ -2377,7 +2377,7 @@ app.get("/farmerorder", async (req, res) => {
             address: orderItem.address,
           },
           date_buys: new Date(orderItem.date_buys).toLocaleString(),
-          date_complete: orderItem.date_complete,
+          date_complete: new Date(orderItem.date_complete).toLocaleString(),
           status: orderItem.status,
         });
       }
