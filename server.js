@@ -18,6 +18,7 @@ const { log } = require("console");
 const secretKey = "pifOvrart4";
 const excel = require("exceljs");
 const moment = require("moment");
+const momentz = require("moment-timezone");
 require("dotenv").config();
 
 app.use(
@@ -2860,8 +2861,13 @@ app.get("/excel", async (req, res) => {
     },
     middleRow: {
       font: { bold: true, size: 11, color: { argb: "0000FF" } }, // ตัวอักษรหนา ขนาด 11 สีน้ำเงิน
-      alignment: { horizontal: "left" },
+      alignment: { horizontal: "right" },
       fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFF00" } }, // สีเหลือง
+    },
+    THEBEST: {
+      font: { bold: true, size: 50, color: { argb: "0000FF" } },
+      alignment: { horizontal: "center", vertical: "middle" },
+      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "a4ffa4" } }, // สีเหลือง
     },
   };
   try {
@@ -2901,15 +2907,54 @@ app.get("/excel", async (req, res) => {
         properties: { tabColor: { argb: "FF00BFFF" } },
         pageSetup: { paperSize: 9, orientation: "landscape" },
       });
+      farmerWorksheet.mergeCells("A1:H1");
+      farmerWorksheet.getCell("A1").value = "THE BEST KASET NONT";
+
+      farmerWorksheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.font = farmerStyles.THEBEST.font;
+          cell.alignment = farmerStyles.THEBEST.alignment;
+          cell.fill = farmerStyles.THEBEST.fill;
+        });
+      });
+      momentz.locale("th"); // กำหนดภาษาเป็นไทย
+      const downloadDate = momentz
+        .tz("Asia/Bangkok")
+        .format("DD-MM-YYYY HH:mm:ss");
+      const totalFarmers = farmersData.length;
+
+      const downloadRow = farmerWorksheet.addRow([
+        "ข้อมูลออกณวันที่ :",
+        downloadDate,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
+      const totalRow = farmerWorksheet.addRow([
+        "จำนวนเกษตรกรทั้งหมด :",
+        totalFarmers,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
+      farmerWorksheet.columns.forEach((column) => {
+        column.width = 25;
+      });
       const farmerHeaders = [
-        "ID",
-        "Email",
-        "Username",
-        "Firstname",
-        "Lastname",
-        "Farmerstore",
-        "Phone",
-        "TOTAL Product",
+        "รหัสเกษตรกร",
+        "อีเมล",
+        "ชื่อผู้ใช้เกษตรกร",
+        "ชื่อจริง",
+        "นามสกุล",
+        "ชื่อร้านค้า",
+        "หมายเลขโทรศัพท์",
+        "สินค้าที่ขายทั้งหมด",
       ];
 
       const headerRow = farmerWorksheet.addRow(farmerHeaders);
@@ -2954,7 +2999,12 @@ app.get("/excel", async (req, res) => {
             properties: { tabColor: { argb: "FF00FF00" } },
           }
         );
-        const productHeaders = ["Product ID", "Product Name", "Stock", "Price"];
+        const productHeaders = [
+          "รหัสสินค้า",
+          "ชื่อสินค้า",
+          "คงเหลือในคลัง",
+          "ราคา",
+        ];
         const productHead = productSheet.addRow(productHeaders);
         productHead.eachCell((cell) => {
           cell.font = farmerStyles.header.font;
@@ -3010,7 +3060,7 @@ app.get("/excel", async (req, res) => {
 
         // เพิ่มลิงก์ที่ชี้กลับไปยังหน้ารายการเกษตรกร
         productSheet.getCell(`E${productSheet.lastRow.number}`).value = {
-          text: "Go back to Farmers",
+          text: "กลับไปหน้าหลัก",
           hyperlink: "#Farmers!A1",
           tooltip: "Go back to Farmers",
           font: { color: { argb: "0000FF" }, underline: true },
@@ -3031,37 +3081,6 @@ app.get("/excel", async (req, res) => {
           }, // กระทำเมื่อคลิกที่ปุ่ม
         };
       }
-
-      const downloadDate = moment().format("YYYY-MM-DD");
-      const totalFarmers = farmersData.length;
-
-      const downloadRow = farmerWorksheet.addRow([
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "Download Date:",
-        downloadDate,
-      ]);
-      const totalRow = farmerWorksheet.addRow([
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "Total Farmers:",
-        totalFarmers,
-      ]);
-      farmerWorksheet.columns.forEach((column) => {
-        column.width = 25;
-      });
 
       downloadRow.eachCell((cell) => {
         cell.font = farmerStyles.downloadRow.font;
