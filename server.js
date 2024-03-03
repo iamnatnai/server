@@ -38,14 +38,6 @@ var db_config = {
     return next();
   },
 };
-db = mysql.createConnection(db_config, (err) => {
-  if (err) {
-    console.log('Error connecting to database:', err)
-  }
-  else {
-    console.log('Connected to database')
-  }
-});
 pool = mysql.createPool(db_config);
 
 async function usePooledConnectionAsync(actionAsync) {
@@ -674,8 +666,9 @@ app.get('/login', async (req, res) => {
 // });'SELECT * FROM members WHERE member_username = 
 
 async function getUserByUsername(username) {
-  return new Promise((resolve, reject) => {
-    db.query(`
+  return usePooledConnectionAsync(async db => {
+    return await new Promise((resolve, reject) => {
+      db.query(`
     SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins WHERE username = ? and available = 1
     UNION
     SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers WHERE username = ? and available = 1
@@ -686,13 +679,14 @@ async function getUserByUsername(username) {
     UNION
     SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons WHERE username = ? and available = 1
     `, [username, username, username, username, username], (err, result) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result.length > 0 ? result[0] : null);
-      }
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result.length > 0 ? result[0] : null);
+        }
+      });
     });
-  });
+  })
 }
 
 // const dbQuery = util.promisify(db.query).bind(db);
@@ -1062,15 +1056,15 @@ app.post('/addproduct', checkFarmer, async (req, res) => {
       const nextProductId = await getNextProductId();
 
       const query = `
-  INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-`;
+        INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      `;
       db.query(query, [nextProductId, farmerId, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_images, selectedType, certificate, shippingcost]);
+      return res.status(200).send({ success: true, message: 'Product added successfully' });
     })
-    res.status(200).send({ success: true, message: 'Product added successfully' });
   } catch (error) {
     console.error('Error adding product:', error);
-    res.status(500).send({ success: false, message: 'Internal Server Error' });
+    return res.status(500).send({ success: false, message: 'Internal Server Error' });
   }
 });
 
@@ -2018,30 +2012,32 @@ app.post('/confirmorder', async (req, res) => {
 
 app.post('/comment', async (req, res) => {
   const { rating, comment, product_id, order_id } = req.body;
-  const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
-  const decoded = jwt.verify(token, secretKey);
+  try {
 
-  // Function to get the next review ID
-  async function getNextReviewId() {
-    return await usePooledConnectionAsync(async db => {
-      return new Promise(async (resolve, reject) => {
-        db.query('SELECT MAX(review_id) as maxId  FROM product_reviews', (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            let nextRev = 'REV000001';
-            if (result[0].maxId) {
-              const currentId = result[0].maxId;
-              const numericPart = parseInt(currentId.substring(3), 10) + 1;
-              nextRev = 'REV' + numericPart.toString().padStart(7, '0');
+    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    // Function to get the next review ID
+    async function getNextReviewId() {
+      return await usePooledConnectionAsync(async db => {
+        return new Promise(async (resolve, reject) => {
+          db.query('SELECT MAX(review_id) as maxId  FROM product_reviews', (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let nextRev = 'REV000001';
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                const numericPart = parseInt(currentId.substring(3), 10) + 1;
+                nextRev = 'REV' + numericPart.toString().padStart(7, '0');
+              }
+              resolve(nextRev);
             }
-            resolve(nextRev);
-          }
-        });
-      })
-    });
-  }
-  const checkOrderStatusQuery = `
+          });
+        })
+      });
+    }
+    const checkOrderStatusQuery = `
 SELECT os.id AS order_id 
 FROM order_sumary os 
 INNER JOIN order_items oi ON os.id = oi.order_id 
@@ -2049,34 +2045,33 @@ WHERE os.member_id = ?
 AND oi.product_id = ? 
 AND os.status = 'complete'
 `;
-  const orderResult =
-    await usePooledConnectionAsync(async db => {
-      return await new Promise(async (resolve, reject) => {
-        db.query(checkOrderStatusQuery, [decoded.ID, product_id], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      })
-    });
+    const orderResult =
+      await usePooledConnectionAsync(async db => {
+        return await new Promise(async (resolve, reject) => {
+          db.query(checkOrderStatusQuery, [decoded.ID, product_id], (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        })
+      });
 
-  if (!orderResult || orderResult.length === 0) {
-    return res.status(400).json({ success: false, message: 'Member has not purchased this product or order is not complete' });
-  }
+    if (!orderResult || orderResult.length === 0) {
+      return res.status(400).json({ success: false, message: 'Member has not purchased this product or order is not complete' });
+    }
 
-  // Check if all necessary data is provided
-  if (!decoded.ID || !comment || !product_id || !rating) {
-    return res.status(400).json({ success: false, message: 'Incomplete comment data' });
-  }
+    // Check if all necessary data is provided
+    if (!decoded.ID || !product_id || !rating) {
+      return res.status(400).json({ success: false, message: 'Incomplete comment data' });
+    }
 
-  // Check if rating is valid
-  if (rating < 1 || rating > 5) {
-    return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
-  }
+    // Check if rating is valid
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
 
-  try {
     // Check if the member has purchased the product
 
     await usePooledConnectionAsync(async db => {
@@ -2123,15 +2118,15 @@ AND os.status = 'complete'
 
       db.query(insertCommentQuery, [nextReviewId, decoded.ID, rating, comment, product_id, order_id], (err, result) => {
         if (err) {
-          reject(err);
+          console.error('Error adding comment:', err);
         } else {
-          resolve(result);
+          return res.status(200).json({ success: true, message: 'Comment added successfully' });
+
         }
 
       });
     });
 
-    return res.status(200).json({ success: true, message: 'Comment added successfully' });
   } catch (error) {
     console.error('Error adding comment:', error);
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
