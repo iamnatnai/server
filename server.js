@@ -18,6 +18,7 @@ const { log } = require('console');
 const secretKey = 'pifOvrart4';
 const excel = require('exceljs');
 const moment = require('moment');
+const momentz = require('moment-timezone');
 require('dotenv').config();
 
 app.use(cors({
@@ -2275,7 +2276,7 @@ app.post('/deletecomment/:id', async (req, res) => {
 //         LEFT JOIN 
 //           products p ON f.id = p.farmer_id
 //       `;
-      
+
 
 //       const data = await new Promise((resolve, reject) => {
 //         db.query(sqlQuery, (err, result) => {
@@ -2294,7 +2295,7 @@ app.post('/deletecomment/:id', async (req, res) => {
 //       farmerWorksheet.addRow(farmerHeaders); // Add header row
 
 //       const farmerProductSheets = {}; // Store farmer product worksheets
-      
+
 //       const addedFarmerIds = {}; // Store added farmer ids
 //       const productCounts = {};
 //       data.forEach(row => {
@@ -2309,8 +2310,8 @@ app.post('/deletecomment/:id', async (req, res) => {
 //           farmerWorksheet.addRow(rowData); // Add farmer data row
 //           addedFarmerIds[row.farmer_id] = true; // Mark farmer ID as added
 //         }
-    
-        
+
+
 //         // Create product sheet for each farmer if not already exists
 //         if (!farmerProductSheets[row.farmer_id]) {
 //           farmerProductSheets[row.farmer_id] = workbook.addWorksheet(`Products_${row.farmer_id}`);
@@ -2325,7 +2326,7 @@ app.post('/deletecomment/:id', async (req, res) => {
 //         // Add product data to corresponding farmer's product sheet
 //         const productData = [row.product_id, row.product_name, row.stock, row.price];
 //         farmerProductSheets[row.farmer_id].addRow(productData); // Add product data row
-        
+
 //         // Add hyperlink in farmer worksheet to link to product sheet
 //         farmerWorksheet.getCell(`A${farmerWorksheet.lastRow.number}`).value = {
 //           text: row.farmer_id,
@@ -2367,9 +2368,14 @@ app.get('/excel', async (req, res) => {
     },
     middleRow: {
       font: { bold: true, size: 11, color: { argb: '0000FF' } }, // ตัวอักษรหนา ขนาด 11 สีน้ำเงิน
-      alignment: { horizontal: 'left' },
+      alignment: { horizontal: 'right' },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } } // สีเหลือง
-  }
+    },
+    THEBEST: {
+      font: { bold: true, size: 50, color: { argb: '0000FF' } }, 
+      alignment: { horizontal: 'center', vertical: 'middle' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'a4ffa4' } } // สีเหลือง
+    }
   };
   try {
     await usePooledConnectionAsync(async db => {
@@ -2391,7 +2397,7 @@ app.get('/excel', async (req, res) => {
         GROUP BY
           f.id, f.email, f.username, f.firstname, f.lastname, f.farmerstorename, f.phone
       `;
-      
+
       const farmersData = await new Promise((resolve, reject) => {
         db.query(farmerSqlQuery, (err, result) => {
           if (err) {
@@ -2408,7 +2414,26 @@ app.get('/excel', async (req, res) => {
         properties: { tabColor: { argb: 'FF00BFFF' } },
         pageSetup: { paperSize: 9, orientation: 'landscape' }
       });
-      const farmerHeaders = ['ID', 'Email', 'Username', 'Firstname', 'Lastname', 'Farmerstore', 'Phone','TOTAL Product'];
+        farmerWorksheet.mergeCells('A1:H1');
+        farmerWorksheet.getCell('A1').value = 'THE BEST KASET NONT';
+        
+        farmerWorksheet.eachRow(row => {
+          row.eachCell(cell => {
+            cell.font = farmerStyles.THEBEST.font;
+            cell.alignment = farmerStyles.THEBEST.alignment;
+            cell.fill = farmerStyles.THEBEST.fill;
+          });
+        });
+      momentz.locale('th'); // กำหนดภาษาเป็นไทย
+      const downloadDate = momentz.tz('Asia/Bangkok').format('DD-MM-YYYY HH:mm:ss');
+      const totalFarmers = farmersData.length;
+
+      const downloadRow = farmerWorksheet.addRow(['ข้อมูลออกณวันที่ :', downloadDate, '', '', '', '', '', '']);
+      const totalRow = farmerWorksheet.addRow(['จำนวนเกษตรกรทั้งหมด :', totalFarmers, '', '', '', '', '', '']);
+      farmerWorksheet.columns.forEach(column => {
+        column.width = 25;
+      });
+      const farmerHeaders = ['รหัสเกษตรกร', 'อีเมล', 'ชื่อผู้ใช้เกษตรกร', 'ชื่อจริง', 'นามสกุล', 'ชื่อร้านค้า', 'หมายเลขโทรศัพท์', 'สินค้าที่ขายทั้งหมด'];
 
       const headerRow = farmerWorksheet.addRow(farmerHeaders);
       headerRow.eachCell(cell => {
@@ -2416,8 +2441,8 @@ app.get('/excel', async (req, res) => {
         cell.alignment = farmerStyles.header.alignment;
         cell.fill = farmerStyles.header.fill;
       });
-      
-      
+
+
 
       farmerWorksheet.columns.forEach(column => {
         column.width = 25;
@@ -2442,17 +2467,17 @@ app.get('/excel', async (req, res) => {
         const productSheet = workbook.addWorksheet(`Products_${row.farmer_id}`, {
           properties: { tabColor: { argb: 'FF00FF00' } }
         });
-        const productHeaders = ['Product ID', 'Product Name', 'Stock', 'Price'];
+        const productHeaders = ['รหัสสินค้า', 'ชื่อสินค้า', 'คงเหลือในคลัง', 'ราคา'];
         const productHead = productSheet.addRow(productHeaders);
-productHead.eachCell(cell => {
-    cell.font = farmerStyles.header.font;
-    cell.alignment = farmerStyles.header.alignment;
-    cell.fill = farmerStyles.header.fill;
-});
+        productHead.eachCell(cell => {
+          cell.font = farmerStyles.header.font;
+          cell.alignment = farmerStyles.header.alignment;
+          cell.fill = farmerStyles.header.fill;
+        });
 
-productSheet.columns.forEach(column => {
-    column.width = 20;
-});
+        productSheet.columns.forEach(column => {
+          column.width = 20;
+        });
         farmerProductSheets[row.farmer_id] = productSheet;
       });
 
@@ -2478,11 +2503,11 @@ productSheet.columns.forEach(column => {
             }
           });
         });
-        
+
         productsData.forEach(product => {
           const productData = [product.product_id, product.product_name, product.stock, product.price];
           const productRow = productSheet.addRow(productData);
-        
+
           // แต่งสไตล์ของแถวข้อมูลในตาราง Product
           productRow.eachCell(cell => {
             cell.font = farmerStyles.middleRow.font;
@@ -2490,48 +2515,41 @@ productSheet.columns.forEach(column => {
             cell.fill = farmerStyles.middleRow.fill;
           });
         });
-        
+
         // เพิ่มลิงก์ที่ชี้กลับไปยังหน้ารายการเกษตรกร
         productSheet.getCell(`E${productSheet.lastRow.number}`).value = {
-          text: 'Go back to Farmers',
+          text: 'กลับไปหน้าหลัก',
           hyperlink: '#Farmers!A1',
           tooltip: 'Go back to Farmers',
           font: { color: { argb: '0000FF' }, underline: true },
           alignment: { vertical: 'middle', horizontal: 'center' },
           border: {
-              top: { style: 'thin', color: { argb: '000000' } },
-              left: { style: 'thin', color: { argb: '000000' } },
-              bottom: { style: 'thin', color: { argb: '000000' } },
-              right: { style: 'thin', color: { argb: '000000' } },
+            top: { style: 'thin', color: { argb: '000000' } },
+            left: { style: 'thin', color: { argb: '000000' } },
+            bottom: { style: 'thin', color: { argb: '000000' } },
+            right: { style: 'thin', color: { argb: '000000' } },
           },
           fill: {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: 'FFFF00' } // สีเหลือง
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFF00' } // สีเหลือง
           },
           onClick: () => { window.location.href = '#Farmers!A1'; } // กระทำเมื่อคลิกที่ปุ่ม
-      };
+        };
       }
 
-      const downloadDate = moment().format('YYYY-MM-DD');
-      const totalFarmers = farmersData.length;
 
-      const downloadRow = farmerWorksheet.addRow(['', '', '', '', '', '', '', '', 'Download Date:', downloadDate]);
-      const totalRow = farmerWorksheet.addRow(['', '', '', '', '', '', '', '', 'Total Farmers:', totalFarmers]);
-      farmerWorksheet.columns.forEach(column => {
-        column.width = 25;
+
+      downloadRow.eachCell(cell => {
+        cell.font = farmerStyles.downloadRow.font;
+        cell.alignment = farmerStyles.downloadRow.alignment;
+        cell.fill = farmerStyles.downloadRow.fill;
       });
-
-downloadRow.eachCell(cell => {
-  cell.font = farmerStyles.downloadRow.font;
-  cell.alignment = farmerStyles.downloadRow.alignment;
-  cell.fill = farmerStyles.downloadRow.fill;
-});
-totalRow.eachCell(cell => {
-  cell.font = farmerStyles.totalRow.font;
-  cell.alignment = farmerStyles.totalRow.alignment;
-  cell.fill = farmerStyles.totalRow.fill;
-});
+      totalRow.eachCell(cell => {
+        cell.font = farmerStyles.totalRow.font;
+        cell.alignment = farmerStyles.totalRow.alignment;
+        cell.fill = farmerStyles.totalRow.fill;
+      });
 
       const currentDate = moment().format('YYYY-MM-DD_HH-mm-ss');
       const filename = `farmers_and_products_${currentDate}.xlsx`;
@@ -2541,7 +2559,7 @@ totalRow.eachCell(cell => {
       await workbook.xlsx.write(res);
       res.end();
     });
-  }  catch (error) {
+  } catch (error) {
     console.error('Error generating excel:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
