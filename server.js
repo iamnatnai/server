@@ -2138,6 +2138,10 @@ app.get("/orderlist", async (req, res) => {
                 });
               });
               order.products = products;
+              order.date_buys = new Date(order.date_buys).toLocaleString();
+              order.date_complete = order.date_complete
+                ? new Date(order.date_complete).toLocaleString()
+                : null;
               delete order.member_id;
             }
             resolve(result);
