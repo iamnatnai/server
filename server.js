@@ -2418,9 +2418,7 @@ app.post("/confirmorder", async (req, res) => {
       comment ? `,comment = "${comment}"` : ""
     } ${
       status == "complete"
-        ? `${
-            ",tracking_number = " + tracking_number + ",date_complete = NOW()"
-          }`
+        ? `${`,tracking_number = "${tracking_number}",date_complete = NOW()`}`
         : ""
     } WHERE id = ?`;
     console.log(updateOrderStatusQuery);
