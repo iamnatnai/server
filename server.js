@@ -17,6 +17,7 @@ const jwt = require('jsonwebtoken');
 const { log } = require('console');
 const secretKey = 'pifOvrart4';
 const excel = require('exceljs');
+const moment = require('moment');
 require('dotenv').config();
 
 app.use(cors({
@@ -2247,12 +2248,147 @@ app.post('/deletecomment/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
+// app.get('/excel', async (req, res) => {
+//   try {
+//     await usePooledConnectionAsync(async db => {
+//       const sqlQuery = `
+//         SELECT 
+//           f.id AS farmer_id, 
+//           f.email, 
+//           f.username, 
+//           f.firstname, 
+//           f.lastname, 
+//           f.farmerstorename, 
+//           f.phone,
+//           p.product_id, 
+//           p.product_name, 
+//           p.stock, 
+//           p.price
+//         FROM 
+//           farmers f
+//         LEFT JOIN 
+//           products p ON f.id = p.farmer_id
+//       `;
+      
+
+//       const data = await new Promise((resolve, reject) => {
+//         db.query(sqlQuery, (err, result) => {
+//           if (err) {
+//             reject(err);
+//           } else {
+//             resolve(result);
+//           }
+//         });
+//       });
+//       console.log(data);
+//       const workbook = new excel.Workbook();
+
+//       const farmerWorksheet = workbook.addWorksheet('Farmers');
+//       const farmerHeaders = ['ID', 'Email', 'Username', 'Firstname', 'Lastname', 'Farmerstore', 'Phone','TOTAL Product'];
+//       farmerWorksheet.addRow(farmerHeaders); // Add header row
+
+//       const farmerProductSheets = {}; // Store farmer product worksheets
+      
+//       const addedFarmerIds = {}; // Store added farmer ids
+//       const productCounts = {};
+//       data.forEach(row => {
+//         // Check if farmer ID is already added
+//         if (!productCounts[row.farmer_id]) {
+//           productCounts[row.farmer_id] = 1;
+//         } else {
+//           productCounts[row.farmer_id]++;
+//         }
+//         if (!addedFarmerIds[row.farmer_id]) {
+//           const rowData = [row.farmer_id, row.email, row.username, row.firstname, row.lastname, row.farmerstorename,row.phone,productCounts];
+//           farmerWorksheet.addRow(rowData); // Add farmer data row
+//           addedFarmerIds[row.farmer_id] = true; // Mark farmer ID as added
+//         }
+    
+        
+//         // Create product sheet for each farmer if not already exists
+//         if (!farmerProductSheets[row.farmer_id]) {
+//           farmerProductSheets[row.farmer_id] = workbook.addWorksheet(`Products_${row.farmer_id}`);
+//           const productHeaders = ['Product ID', 'Product Name', 'Stock', 'Price',];
+//           farmerProductSheets[row.farmer_id].addRow(productHeaders); // Add header row
+//           farmerProductSheets[row.farmer_id].getCell('E1').value = {
+//             text: 'Back to Farmers',
+//             hyperlink: `#Farmers!A1`,
+//             tooltip: 'Go back to Farmers'
+//           };
+//         }
+//         // Add product data to corresponding farmer's product sheet
+//         const productData = [row.product_id, row.product_name, row.stock, row.price];
+//         farmerProductSheets[row.farmer_id].addRow(productData); // Add product data row
+        
+//         // Add hyperlink in farmer worksheet to link to product sheet
+//         farmerWorksheet.getCell(`A${farmerWorksheet.lastRow.number}`).value = {
+//           text: row.farmer_id,
+//           hyperlink: `#Products_${row.farmer_id}!A1`,
+//           tooltip: `Go to Products for ${row.farmer_id}`
+//         };
+//       });
+
+//       // Send excel file back
+//       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+//       res.setHeader('Content-Disposition', 'attachment; filename="farmers_and_products.xlsx"');
+//       await workbook.xlsx.write(res);
+//       res.end();
+//     });
+
+//   } catch (error) {
+//     console.error('Error generating excel:', error);
+//     res.status(500).json({ success: false, message: 'Internal Server Error' });
+//   }
+// });
+
+
 app.get('/excel', async (req, res) => {
+  const farmerStyles = {
+    header: {
+      font: { bold: true, size: 12, color: { argb: 'FFFFFF' } }, // ตัวอักษรหนา ขนาด 12 สีขาว
+      alignment: { horizontal: 'center' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: '2E74B5' } } // สีเขียว
+    },
+    downloadRow: {
+      font: { bold: true, size: 10, color: { argb: '000000' } }, // ตัวอักษรหนา ขนาด 10 สีดำ
+      alignment: { horizontal: 'right' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD966' } } // สีเหลือง
+    },
+    totalRow: {
+      font: { bold: true, size: 10, color: { argb: '000000' } }, // ตัวอักษรหนา ขนาด 10 สีดำ
+      alignment: { horizontal: 'right' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'CCFFCC' } } // สีเขียวอ่อน
+    },
+    middleRow: {
+      font: { bold: true, size: 11, color: { argb: '0000FF' } }, // ตัวอักษรหนา ขนาด 11 สีน้ำเงิน
+      alignment: { horizontal: 'left' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } } // สีเหลือง
+  }
+  };
   try {
     await usePooledConnectionAsync(async db => {
-      const sqlQuery = 'SELECT f.firstname,f.lastname,f.email,f.address,f.phone,p.product_name,p.stock,p.price FROM farmers f JOIN products p ON f.id = p.farmer_id;';
-      const data = await new Promise((resolve, reject) => {
-        db.query(sqlQuery, (err, result) => {
+      // Query data of farmers
+      const farmerSqlQuery = `
+        SELECT 
+          f.id AS farmer_id, 
+          f.email, 
+          f.username, 
+          f.firstname, 
+          f.lastname, 
+          f.farmerstorename, 
+          f.phone,
+          COUNT(p.product_id) AS product_count
+        FROM 
+          farmers f
+        LEFT JOIN 
+          products p ON f.id = p.farmer_id
+        GROUP BY
+          f.id, f.email, f.username, f.firstname, f.lastname, f.farmerstorename, f.phone
+      `;
+      
+      const farmersData = await new Promise((resolve, reject) => {
+        db.query(farmerSqlQuery, (err, result) => {
           if (err) {
             reject(err);
           } else {
@@ -2260,29 +2396,165 @@ app.get('/excel', async (req, res) => {
           }
         });
       });
+
       const workbook = new excel.Workbook();
-      const worksheet = workbook.addWorksheet('Data');
 
-      const headers = Object.keys(data[0]);
-      worksheet.addRow(headers);
+      const farmerWorksheet = workbook.addWorksheet('Farmers', {
+        properties: { tabColor: { argb: 'FF00BFFF' } },
+        pageSetup: { paperSize: 9, orientation: 'landscape' }
+      });
+      const farmerHeaders = ['ID', 'Email', 'Username', 'Firstname', 'Lastname', 'Farmerstore', 'Phone','TOTAL Product'];
 
-      data.forEach(row => {
-        const rowData = headers.map(header => row[header]);
-        worksheet.addRow(rowData);
+      const headerRow = farmerWorksheet.addRow(farmerHeaders);
+      headerRow.eachCell(cell => {
+        cell.font = farmerStyles.header.font;
+        cell.alignment = farmerStyles.header.alignment;
+        cell.fill = farmerStyles.header.fill;
+      });
+      
+      
+
+      farmerWorksheet.columns.forEach(column => {
+        column.width = 25;
       });
 
+      farmerWorksheet.views = [
+        { state: 'frozen', xSplit: 0, ySplit: 1, activeCell: 'B2' }
+      ];
+
+      const farmerProductSheets = {};
+
+      farmersData.forEach(row => {
+        const rowData = [row.farmer_id, row.email, row.username, row.firstname, row.lastname, row.farmerstorename, row.phone, row.product_count];
+        const farmerRow = farmerWorksheet.addRow(rowData);
+
+        farmerWorksheet.getCell(`A${farmerRow.number}`).value = {
+          text: row.farmer_id,
+          hyperlink: `#Products_${row.farmer_id}!A1`,
+          tooltip: `Go to Products for ${row.farmer_id}`
+        };
+
+        const productSheet = workbook.addWorksheet(`Products_${row.farmer_id}`, {
+          properties: { tabColor: { argb: 'FF00FF00' } }
+        });
+        const productHeaders = ['Product ID', 'Product Name', 'Stock', 'Price'];
+        const productHead = productSheet.addRow(productHeaders);
+productHead.eachCell(cell => {
+    cell.font = farmerStyles.header.font;
+    cell.alignment = farmerStyles.header.alignment;
+    cell.fill = farmerStyles.header.fill;
+});
+
+productSheet.columns.forEach(column => {
+    column.width = 20;
+});
+        farmerProductSheets[row.farmer_id] = productSheet;
+      });
+
+      for (const farmerId in farmerProductSheets) {
+        const productSheet = farmerProductSheets[farmerId];
+        const productsSqlQuery = `
+          SELECT 
+            product_id, 
+            product_name, 
+            stock, 
+            price
+          FROM 
+            products
+          WHERE 
+            farmer_id = ?
+        `;
+        const productsData = await new Promise((resolve, reject) => {
+          db.query(productsSqlQuery, [farmerId], (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        
+        productsData.forEach(product => {
+          const productData = [product.product_id, product.product_name, product.stock, product.price];
+          const productRow = productSheet.addRow(productData);
+        
+          // แต่งสไตล์ของแถวข้อมูลในตาราง Product
+          productRow.eachCell(cell => {
+            cell.font = farmerStyles.middleRow.font;
+            cell.alignment = farmerStyles.middleRow.alignment;
+            cell.fill = farmerStyles.middleRow.fill;
+          });
+        });
+        
+        // เพิ่มลิงก์ที่ชี้กลับไปยังหน้ารายการเกษตรกร
+        productSheet.getCell(`E${productSheet.lastRow.number}`).value = {
+          text: 'Go back to Farmers',
+          hyperlink: '#Farmers!A1',
+          tooltip: 'Go back to Farmers',
+          font: { color: { argb: '0000FF' }, underline: true },
+          alignment: { vertical: 'middle', horizontal: 'center' },
+          border: {
+              top: { style: 'thin', color: { argb: '000000' } },
+              left: { style: 'thin', color: { argb: '000000' } },
+              bottom: { style: 'thin', color: { argb: '000000' } },
+              right: { style: 'thin', color: { argb: '000000' } },
+          },
+          fill: {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFF00' } // สีเหลือง
+          },
+          onClick: () => { window.location.href = '#Farmers!A1'; } // กระทำเมื่อคลิกที่ปุ่ม
+      };
+      }
+
+      const downloadDate = moment().format('YYYY-MM-DD');
+      const totalFarmers = farmersData.length;
+
+      const downloadRow = farmerWorksheet.addRow(['', '', '', '', '', '', '', '', 'Download Date:', downloadDate]);
+      const totalRow = farmerWorksheet.addRow(['', '', '', '', '', '', '', '', 'Total Farmers:', totalFarmers]);
+      farmerWorksheet.columns.forEach(column => {
+        column.width = 25;
+      });
+
+downloadRow.eachCell(cell => {
+  cell.font = farmerStyles.downloadRow.font;
+  cell.alignment = farmerStyles.downloadRow.alignment;
+  cell.fill = farmerStyles.downloadRow.fill;
+});
+totalRow.eachCell(cell => {
+  cell.font = farmerStyles.totalRow.font;
+  cell.alignment = farmerStyles.totalRow.alignment;
+  cell.fill = farmerStyles.totalRow.fill;
+});
+
+      const currentDate = moment().format('YYYY-MM-DD_HH-mm-ss');
+      const filename = `farmers_and_products_${currentDate}.xlsx`;
+
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename="datafarmer.xlsx"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       await workbook.xlsx.write(res);
       res.end();
-    })
-
-
-  } catch (error) {
-    console.error('Error generating Excel:', error);
+    });
+  }  catch (error) {
+    console.error('Error generating excel:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 app.post("/changepassword", async (req, res) => {
