@@ -3497,39 +3497,70 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
 
 app.get("/farmerregister", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
-    db.query(
-      `SELECT count(*) as register_count, createAt FROM farmers group by createAt order by createAt desc limit 30`,
-      (err, result) => {
-        if (err) {
-          console.error(err);
-          return res
-            .status(500)
-            .json({ success: false, error: "Internal Server Error" });
-        }
-        let j = 0;
-        let days30 = Array.from({ length: 30 }, (_, i) => {
-          let dayago = moment()
-            .subtract(i, "days")
-            .toDate()
-            .toLocaleDateString();
-          if (
-            result[j] &&
-            new Date(result[j].createAt).toLocaleDateString() === dayago
-          ) {
-            j++;
+    try {
+      db.query(
+        `SELECT count(*) as register_count, createAt FROM farmers group by createAt order by createAt desc limit 30`,
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res
+              .status(500)
+              .json({ success: false, error: "Internal Server Error" });
+          }
+          let j = 0;
+          let days30 = Array.from({ length: 30 }, (_, i) => {
+            let dayago = moment()
+              .subtract(i, "days")
+              .toDate()
+              .toLocaleDateString();
+            if (
+              result[j] &&
+              new Date(result[j].createAt).toLocaleDateString() === dayago
+            ) {
+              j++;
+              return {
+                createAt: dayago,
+                register_count: result[j - 1].register_count,
+              };
+            }
             return {
               createAt: dayago,
-              register_count: result[j - 1].register_count,
+              register_count: 0,
             };
+          });
+          res.json({ success: true, farmers: days30.reverse() });
+        }
+      );
+    } catch (error) {
+      console.error("Error getting farmers:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  });
+});
+
+app.get("/allcategories", async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      db.query(
+        `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor from products p LEFT JOIN categories c on p.category_id = c.category_id GROUP BY c.category_name;`,
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res
+              .status(500)
+              .json({ success: false, error: "Internal Server Error" });
           }
-          return {
-            createAt: dayago,
-            register_count: 0,
-          };
-        });
-        res.json({ success: true, farmers: days30.reverse() });
-      }
-    );
+          res.json({ success: true, categories: result });
+        }
+      );
+    } catch (error) {
+      console.error("Error getting categories:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
   });
 });
 
