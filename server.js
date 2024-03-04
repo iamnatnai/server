@@ -2142,6 +2142,10 @@ app.get("/orderlist", async (req, res) => {
               order.date_complete = order.date_complete
                 ? new Date(order.date_complete).toLocaleString()
                 : null;
+              console.log(
+                "++++++++++++++++++++++++++++++++++++++++++++++",
+                order.date_complete
+              );
               delete order.member_id;
             }
             resolve(result);
@@ -2381,7 +2385,9 @@ app.get("/farmerorder", async (req, res) => {
             address: orderItem.address,
           },
           date_buys: new Date(orderItem.date_buys).toLocaleString(),
-          date_complete: new Date(orderItem.date_complete).toLocaleString(),
+          date_complete: orderItem.date_complete
+            ? new Date(orderItem.date_complete).toLocaleString()
+            : null,
           status: orderItem.status,
         });
       }
@@ -3295,6 +3301,44 @@ app.delete("/certificate/", checkAdmin, async (req, res) => {
       .status(500)
       .json({ success: false, message: "Internal Server Error" });
   }
+});
+
+app.get("/farmerregister", async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
+    db.query(
+      `SELECT count(*) as register_count, createAt FROM farmers group by createAt order by createAt desc limit 30`,
+      (err, result) => {
+        if (err) {
+          console.error(err);
+          return res
+            .status(500)
+            .json({ success: false, error: "Internal Server Error" });
+        }
+        let j = 0;
+        let days30 = Array.from({ length: 30 }, (_, i) => {
+          let dayago = moment()
+            .subtract(i, "days")
+            .toDate()
+            .toLocaleDateString();
+          if (
+            result[j] &&
+            new Date(result[j].createAt).toLocaleDateString() === dayago
+          ) {
+            j++;
+            return {
+              createAt: dayago,
+              register_count: result[j - 1].register_count,
+            };
+          }
+          return {
+            createAt: dayago,
+            register_count: 0,
+          };
+        });
+        res.json({ success: true, farmers: days30.reverse() });
+      }
+    );
+  });
 });
 
 app.listen(3001, () => console.log("Avalable 3001"));
