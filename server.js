@@ -3320,7 +3320,9 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
           peroid == "date"
             ? "date(os.date_buys)"
             : "CONCAT(MONTH(os.date_buys),'/', YEAR(os.date_buys))"
-        } as date FROM order_sumary os LEFT JOIN order_items oi on oi.order_id = os.id LEFT JOIN products p on p.product_id = oi.product_id where p.farmer_id = ? group by ${peroid}(os.date_buys) order by os.date_buys desc limit 30;`,
+        } as date 
+        , c.category_name
+        FROM order_sumary os LEFT JOIN order_items oi on oi.order_id = os.id LEFT JOIN products p on p.product_id = oi.product_id LEFT JOIN categories c on c.category_id = p.category_id where p.farmer_id = ? group by ${peroid}(os.date_buys), c.category_name order by os.date_buys desc limit 30;`,
         [ID],
         (err, result) => {
           if (err) {
@@ -3338,16 +3340,24 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
                 .toDate()
                 .toLocaleDateString();
               monthago = monthago.split("/")[0] + "/" + monthago.split("/")[2];
-              if (result[j] && result[j].date === monthago) {
-                j++;
-                return {
-                  date: monthago,
-                  order_sale: result[j - 1].order_sale,
-                };
+              let categories = [];
+              for (k = j; k < result.length; k++) {
+                if (result[j].date == monthago) {
+                  categories.push({
+                    category_name: result[k].category_name,
+                    order_sale: result[k].order_sale,
+                  });
+                } else {
+                  j = k;
+                  break;
+                }
               }
               return {
                 date: monthago,
-                order_sale: 0,
+                categories: categories,
+                order_sale: categories
+                  .map((category) => category.order_sale)
+                  .reduce((a, b) => a + b, 0),
               };
             });
             let todaysale = months[0].order_sale;
@@ -3363,22 +3373,26 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
               .subtract(i, "days")
               .toDate()
               .toLocaleDateString();
-            console.log(
-              result[j] && new Date(result[j].date).toLocaleDateString()
-            );
-            if (
-              result[j] &&
-              new Date(result[j].date).toLocaleDateString() === dayago
-            ) {
-              j++;
-              return {
-                date: dayago,
-                order_sale: result[j - 1].order_sale,
-              };
+
+            let categories = [];
+            for (k = j; k < result.length; k++) {
+              if (new Date(result[k].date).toLocaleDateString() == dayago) {
+                categories.push({
+                  category_name: result[k].category_name,
+                  order_sale: result[k].order_sale,
+                });
+              } else {
+                j = k;
+                break;
+              }
             }
+
             return {
               date: dayago,
-              order_sale: 0,
+              categories: categories,
+              order_sale: categories
+                .map((category) => category.order_sale)
+                .reduce((a, b) => a + b, 0),
             };
           });
           let todaysale = days30[0].order_sale;
