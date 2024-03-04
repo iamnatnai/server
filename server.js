@@ -1244,8 +1244,9 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     additional_images,
     certificate,
     shippingcost,
+    weight,
   } = req.body;
-
+  console.log(req.body);
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
@@ -1276,31 +1277,47 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         });
       }
       if (product_id) {
-        const query = `UPDATE products SET product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, shippingcost = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
-        db.query(query, [
-          product_name,
-          product_description,
-          category_id,
-          stock,
-          price,
-          unit,
-          product_image,
-          product_video,
-          additional_images,
-          selectedType,
-          certificate,
-          shippingcost,
-          product_id,
-          farmerId,
-        ]);
-        return res
-          .status(200)
-          .send({ success: true, message: "Product updated successfully" });
+        const query = `UPDATE products SET product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
+        let result = await new Promise((resolve, reject) => {
+          db.query(
+            query,
+            [
+              product_name,
+              product_description,
+              category_id,
+              stock,
+              price,
+              weight,
+              unit,
+              product_image,
+              product_video,
+              additional_images,
+              selectedType,
+              certificate,
+              product_id,
+              farmerId,
+            ],
+            (err, result) => {
+              if (err) {
+                console.error("Error updating product:", err);
+                reject(err);
+              } else {
+                console.log("Product updated successfully");
+                resolve(result);
+              }
+            }
+          );
+        });
+        if (result.affectedRows > 0) {
+          return res
+            .status(200)
+            .send({ success: true, message: "Product updated successfully" });
+        }
       }
       const nextProductId = await getNextProductId();
 
       const query = `
-        INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, unit, product_image, product_video, additional_image,selectedType,certificate, shippingcost, last_modified)
+        INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, weight, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
       `;
       db.query(
@@ -1313,13 +1330,13 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           category_id,
           stock,
           price,
+          weight,
           unit,
           product_image,
           product_video,
           additional_images,
           selectedType,
           certificate,
-          shippingcost,
         ],
         (err, result) => {
           if (err) {
@@ -1530,7 +1547,7 @@ app.get("/getinfo", async (req, res) => {
     const { username, role } = decoded;
     var query;
     if (role === "farmers") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`;
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
     } else if (role === "members") {
       query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
     } else {
@@ -1581,13 +1598,16 @@ app.post("/updateinfo", async (req, res) => {
     province = null,
     amphure = null,
     tambon = null,
+    shippingcost = null,
   } = req.body;
   try {
     console.log(req.body);
     let decoded = jwt.verify(token, secretKey);
     const { username, role } = decoded;
     if (role === "farmers") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = ${
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", shippingcost='${JSON.stringify(
+        shippingcost
+      )}', address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = ${
         lat ? `${lat}` : null
       }, lng = ${
         lng ? `${lng}` : null
