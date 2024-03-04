@@ -3404,7 +3404,7 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
             ? "date(os.date_buys)"
             : "CONCAT(MONTH(os.date_buys),'/', YEAR(os.date_buys))"
         } as date 
-        , c.category_name
+        , c.category_name, c.bgcolor
         FROM order_sumary os LEFT JOIN order_items oi on oi.order_id = os.id LEFT JOIN products p on p.product_id = oi.product_id LEFT JOIN categories c on c.category_id = p.category_id where p.farmer_id = ? group by ${peroid}(os.date_buys), c.category_name order by os.date_buys desc limit 30;`,
         [ID],
         (err, result) => {
@@ -3429,6 +3429,7 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
                   categories.push({
                     category_name: result[k].category_name,
                     order_sale: result[k].order_sale,
+                    bgcolor: result[k].bgcolor,
                   });
                 } else {
                   j = k;
@@ -3557,6 +3558,30 @@ app.get("/allcategories", async (req, res) => {
       );
     } catch (error) {
       console.error("Error getting categories:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  });
+});
+
+app.get("/farmerinfo", async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      db.query(
+        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id GROUP BY f.id;`,
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res
+              .status(500)
+              .json({ success: false, error: "Internal Server Error" });
+          }
+          res.json({ success: true, farmers: result });
+        }
+      );
+    } catch (error) {
+      console.error("Error getting farmer info:", error);
       return res
         .status(500)
         .json({ success: false, message: "Internal Server Error" });
