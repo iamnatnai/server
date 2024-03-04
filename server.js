@@ -587,8 +587,8 @@ async function getNextUserId(role) {
       rolePrefix = "TB";
       break;
   }
-console.log("role = ",role);
-  return await usePooledConnectionAsync(async db => {
+  console.log("role = ", role);
+  return await usePooledConnectionAsync(async (db) => {
     return new Promise(async (resolve, reject) => {
       db.query(`SELECT MAX(id) as maxId FROM ${role}`, (err, result) => {
         if (err) {
@@ -3303,45 +3303,49 @@ app.delete("/certificate/", checkAdmin, async (req, res) => {
   }
 });
 
-  async function insertFollow(memberId, farmerId) {
-    const followDate = new Date(); 
-    return await usePooledConnectionAsync(async db => {
-      return new Promise((resolve, reject) => {
-        db.query(
-          `INSERT INTO followedbymember (member_id, farmer_id, follow_date) VALUES (?, ?, ?)`,
-          [memberId, farmerId, followDate],
-          (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
+async function insertFollow(memberId, farmerId) {
+  const followDate = new Date();
+  return await usePooledConnectionAsync(async (db) => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `INSERT INTO followedbymember (member_id, farmer_id, follow_date) VALUES (?, ?, ?)`,
+        [memberId, farmerId, followDate],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
           }
-        );
-      });
-    })
-  
-  }
+        }
+      );
+    });
+  });
+}
 
-
-app.post('/followfarmer', async (req, res) => {
+app.post("/followfarmer", async (req, res) => {
   try {
     const { farmer_id } = req.body; // รับค่า farmer_id จาก request body
-    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
     const decoded = jwt.verify(token, secretKey);
-    if (decoded.role !="members") {
-      return res.status(401).json({ success: false, message: 'You are not allow for do this !!' });
+    if (decoded.role != "members") {
+      return res
+        .status(401)
+        .json({ success: false, message: "You are not allow for do this !!" });
     }
     await insertFollow(decoded.ID, farmer_id);
-    res.status(200).send({ followed : true, message: 'Successfully followed farmer' });
+    res
+      .status(200)
+      .send({ followed: true, message: "Successfully followed farmer" });
   } catch (error) {
     console.error(error);
-    res.status(500).send({ followed : false, error: 'Internal Server Error' });
+    res.status(500).send({ followed: false, error: "Internal Server Error" });
   }
 });
 
 async function unfollowFarmer(memberId, farmerId) {
-  return await usePooledConnectionAsync(async db => {
+  return await usePooledConnectionAsync(async (db) => {
     return new Promise((resolve, reject) => {
       db.query(
         `DELETE FROM followedbymember WHERE member_id = ? AND farmer_id = ?`,
@@ -3358,24 +3362,30 @@ async function unfollowFarmer(memberId, farmerId) {
   });
 }
 
-app.post('/unfollowfarmer', async (req, res) => {
+app.post("/unfollowfarmer", async (req, res) => {
   try {
-    const { farmer_id } = req.body; 
-    const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+    const { farmer_id } = req.body;
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
     const decoded = jwt.verify(token, secretKey);
-    if (decoded.role !== 'members') {
-      return res.status(401).json({ success: false, message: 'You are not allowed to perform this action' });
+    if (decoded.role !== "members") {
+      return res.status(401).json({
+        success: false,
+        message: "You are not allowed to perform this action",
+      });
     }
     await unfollowFarmer(decoded.ID, farmer_id);
 
-    res.status(200).send({ followed : true, message: 'Successfully unfollowed farmer' });
+    res
+      .status(200)
+      .send({ followed: true, message: "Successfully unfollowed farmer" });
   } catch (error) {
     console.error(error);
-    res.status(500).send({ followed : false, message: 'Internal Server Error' });
+    res.status(500).send({ followed: false, message: "Internal Server Error" });
   }
 });
 
-app.listen(3001, () => console.log('Avalable 3001'));
 app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
   let { peroid } = req.params;
   if (!peroid || (peroid !== "date" && peroid !== "month")) {
@@ -3469,7 +3479,7 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
             };
           });
           let todaysale = days30[0].order_sale;
-          res.json({
+          return res.json({
             success: true,
             orders: days30.reverse(),
             today: todaysale,
@@ -3478,7 +3488,7 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
       );
     } catch (error) {
       console.error("Error getting orders:", error);
-      res
+      return res
         .status(500)
         .json({ success: false, message: "Internal Server Error" });
     }
