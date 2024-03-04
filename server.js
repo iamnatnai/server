@@ -102,6 +102,24 @@ const checkTambon = (req, res, next) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
+const checkTambonProvider = (req, res, next) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  if (!token) {
+    return res.status(400).json({ error: "Token not provided" });
+  }
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== "tambons" && decoded.role !== "providers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
+  } catch (error) {
+    console.error("Error decoding token:2", error.message);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 const checkFarmer = (req, res, next) => {
   const token = req.headers.authorization
@@ -3497,7 +3515,7 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
   });
 });
 
-app.get("/farmerregister", async (req, res) => {
+app.get("/farmerregister", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
@@ -3542,7 +3560,7 @@ app.get("/farmerregister", async (req, res) => {
   });
 });
 
-app.get("/allcategories", async (req, res) => {
+app.get("/allcategories", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
@@ -3566,7 +3584,7 @@ app.get("/allcategories", async (req, res) => {
   });
 });
 
-app.get("/farmerinfo", async (req, res) => {
+app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
