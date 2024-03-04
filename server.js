@@ -3464,6 +3464,7 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
                 categories.push({
                   category_name: result[k].category_name,
                   order_sale: result[k].order_sale,
+                  bgcolor: result[k].bgcolor,
                 });
               } else {
                 j = k;
