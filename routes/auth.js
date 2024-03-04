@@ -1,16 +1,22 @@
 const express = require("express");
+const { Forgot } = require("../controller/mailController");
 const {
   postLogin,
   getLogin,
-  hello,
-  hello2,
+  postCheckingemail,
+  postCheckinguser,
 } = require("../controller/authController");
-const { checkAdmin, checkFarmer } = require("../middleware");
+const { Register } = require("../controller/addingalluser");
+const {
+  checkAdmin,
+  checkFarmer,
+  checkIfExistsInAllTables,
+} = require("../middleware");
 const router = express.Router();
-
 router.post("/login", postLogin);
 router.get("/login", getLogin);
-router.get("/hello", checkAdmin, hello);
-router.get("/hello2", checkFarmer, hello2);
-
+router.post("/forgot", checkIfExistsInAllTables, Forgot);
+router.post("/checkinguser", postCheckinguser);
+router.post("/checkingemail", postCheckingemail);
+router.post("/register", Register);
 module.exports = router;
