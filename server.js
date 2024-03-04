@@ -3303,6 +3303,101 @@ app.delete("/certificate/", checkAdmin, async (req, res) => {
   }
 });
 
+app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
+  let { peroid } = req.params;
+  if (!peroid || (peroid !== "date" && peroid !== "month")) {
+    return res.status(400).json({ success: false, message: "Invalid peroid" });
+  }
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      let token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      let decoded = jwt.verify(token, secretKey);
+      let { ID } = decoded;
+      db.query(
+        `SELECT count(*) as order_sale, ${
+          peroid == "date"
+            ? "date(os.date_buys)"
+            : "CONCAT(MONTH(os.date_buys),'/', YEAR(os.date_buys))"
+        } as date FROM order_sumary os LEFT JOIN order_items oi on oi.order_id = os.id LEFT JOIN products p on p.product_id = oi.product_id where p.farmer_id = ? group by ${peroid}(os.date_buys) order by os.date_buys desc limit 30;`,
+        [ID],
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res
+              .status(500)
+              .json({ success: false, error: "Internal Server Error" });
+          }
+          console.log(result);
+          if (peroid === "month") {
+            let j = 0;
+            let months = Array.from({ length: 12 }, (_, i) => {
+              let monthago = moment()
+                .subtract(i, "months")
+                .toDate()
+                .toLocaleDateString();
+              monthago = monthago.split("/")[0] + "/" + monthago.split("/")[2];
+              if (result[j] && result[j].date === monthago) {
+                j++;
+                return {
+                  date: monthago,
+                  order_sale: result[j - 1].order_sale,
+                };
+              }
+              return {
+                date: monthago,
+                order_sale: 0,
+              };
+            });
+            let todaysale = months[0].order_sale;
+            return res.json({
+              success: true,
+              orders: months.reverse(),
+              today: todaysale,
+            });
+          }
+          let j = 0;
+          let days30 = Array.from({ length: 30 }, (_, i) => {
+            let dayago = moment()
+              .subtract(i, "days")
+              .toDate()
+              .toLocaleDateString();
+            console.log(
+              result[j] && new Date(result[j].date).toLocaleDateString()
+            );
+            if (
+              result[j] &&
+              new Date(result[j].date).toLocaleDateString() === dayago
+            ) {
+              j++;
+              return {
+                date: dayago,
+                order_sale: result[j - 1].order_sale,
+              };
+            }
+            return {
+              date: dayago,
+              order_sale: 0,
+            };
+          });
+          let todaysale = days30[0].order_sale;
+          res.json({
+            success: true,
+            orders: days30.reverse(),
+            today: todaysale,
+          });
+        }
+      );
+    } catch (error) {
+      console.error("Error getting orders:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  });
+});
+
 app.get("/farmerregister", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     db.query(
