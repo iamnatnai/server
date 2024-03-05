@@ -282,6 +282,43 @@ async function checkIfExistsInAllTables(column, value) {
   const results = await Promise.all(promises);
   return results.some((result) => result);
 }
+
+async function insertFarmer(
+  nextUserId,
+  username,
+  email,
+  hashedPassword,
+  firstName,
+  lastName,
+  tel
+) {
+  return await usePooledConnectionAsync(async (db) => {
+    return await new Promise((resolve, reject) => {
+      const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, role, farmerstorename, createAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      db.query(
+        query,
+        [
+          nextUserId,
+          username,
+          email,
+          hashedPassword,
+          firstName,
+          lastName,
+          tel,
+          "farmers",
+          username,
+        ],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        }
+      );
+    });
+  });
+}
 app.post("/addfarmer", checkTambon, async (req, res) => {
   const { username, email, password, firstName, lastName, tel, lat, lng } =
     req.body;
@@ -306,7 +343,7 @@ app.post("/addfarmer", checkTambon, async (req, res) => {
         .json({ success: false, message: "Email already exists" });
     }
     const nextUserId = await getNextUserId("farmers");
-    await insertUser(
+    await insertFarmer(
       nextUserId,
       username,
       email,
@@ -314,35 +351,9 @@ app.post("/addfarmer", checkTambon, async (req, res) => {
       firstName,
       lastName,
       tel,
-      "farmers"
+      lat,
+      lng
     );
-    const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, lat, lng, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    await usePooledConnectionAsync(async (db) => {
-      await new Promise((resolve, reject) => {
-        db.query(
-          query,
-          [
-            nextUserId,
-            username,
-            email,
-            hashedPassword,
-            firstName,
-            lastName,
-            tel,
-            lat,
-            lng,
-            "farmers",
-          ],
-          (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          }
-        );
-      });
-    });
     res
       .status(201)
       .json({ success: true, message: "Farmer added successfully" });
@@ -384,16 +395,29 @@ app.post("/adduser", checkAdmin, async (req, res) => {
         .json({ success: false, message: "Email already exists" });
     }
     const nextUserId = await getNextUserId(role);
-    await insertUser(
-      nextUserId,
-      username,
-      email,
-      hashedPassword,
-      firstName,
-      lastName,
-      tel,
-      role
-    );
+    if (role === "farmers") {
+      await insertFarmer(
+        nextUserId,
+        username,
+        email,
+        hashedPassword,
+        firstName,
+        lastName,
+        tel
+      );
+    } else {
+      await insertUser(
+        nextUserId,
+        username,
+        email,
+        hashedPassword,
+        firstName,
+        lastName,
+        tel,
+        role
+      );
+    }
+
     res.status(201).json({ success: true, message: "User added successfully" });
   } catch (error) {
     console.error("Error adding user:", error);
@@ -1388,7 +1412,17 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
 });
 
 app.get("/getproducts", async (req, res) => {
-  let { search, category, page, sort, order, perPage, groupby } = req.query;
+  let {
+    search,
+    category,
+    page,
+    sort,
+    order,
+    perPage,
+    groupby,
+    farmerstorename: shopname,
+  } = req.query;
+  console.log(shopname);
   if (page < 1) {
     page = 1;
   }
@@ -1398,21 +1432,37 @@ app.get("/getproducts", async (req, res) => {
   }
   let queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 and ${
     search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
+  } ${
+    shopname
+      ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}') and`
+      : ""
   } category_id = '${category}'`;
   let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${
     search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
+  } 
+  ${
+    shopname
+      ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}') and`
+      : ""
   } category_id = '${category}' ${
     groupby ? "group by p.farmer_id" : ""
   } ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == "") {
     queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${
-      search !== "" ? `${`${"and product_name LIKE '%" + search + "%'"}`}` : ""
+      search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
+    } ${
+      shopname
+        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}') `
+        : ""
     }`;
     query = `SELECT p.*, f.lat, f.lng, f.farmerstorename FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${
       search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
-    } ${
-      groupby ? "group by p.farmer_id" : ""
-    } ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
+    } ${groupby ? "group by p.farmer_id" : ""} ${
+      shopname
+        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}')`
+        : ""
+    }  
+    ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
   console.log(query);
   await usePooledConnectionAsync(async (db) => {
