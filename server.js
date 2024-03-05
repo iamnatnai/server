@@ -65,6 +65,46 @@ async function usePooledConnectionAsync(actionAsync) {
   }
 }
 
+const createNotification = async (
+  sender_id,
+  recipient_id,
+  message,
+  link,
+  type
+) => {
+  return await usePooledConnectionAsync(async (db) => {
+    let id = await new Promise(async (resolve, reject) => {
+      db.query("SELECT MAX(id) as maxId FROM notification", (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          let nextId = "NOTI00000001";
+          if (result[0].maxId) {
+            const currentId = result[0].maxId;
+            const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+            nextId = "NOTI" + numericPart.toString().padStart(8, "0");
+          }
+          resolve(nextId);
+        }
+      });
+    });
+    return new Promise((resolve, reject) => {
+      db.query(
+        `INSERT INTO notification (id, sender_id, recipient_id, message, link,type, timesent) VALUES (?,?, ?, ?, ?, ?, NOW())`,
+        [id, sender_id, recipient_id, message, link, type],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        }
+      );
+    });
+  });
+};
+
 const checkAdmin = (req, res, next) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
@@ -592,7 +632,7 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
 
 async function getNextId() {
   return await usePooledConnectionAsync(async (db) => {
-    new Promise(async (resolve, reject) => {
+    return await new Promise(async (resolve, reject) => {
       db.query("SELECT MAX(id) as maxId FROM members", (err, result) => {
         if (err) {
           reject(err);
@@ -1250,6 +1290,99 @@ async function getNextProductId() {
 }
 const upload = multer({ storage: storage });
 
+const notifyFollowersAddproduct = async (
+  productId,
+  product_name,
+  farmerId,
+  farmerstorename
+) => {
+  return await usePooledConnectionAsync(async (db) => {
+    console.log(farmerId);
+    const followers = await new Promise((resolve, reject) => {
+      db.query(
+        "SELECT member_id FROM followedbymember WHERE farmer_id = ?",
+        [farmerId],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            console.log(result);
+            resolve(result);
+          }
+        }
+      );
+    });
+    console.log(followers);
+    followers.forEach(({ member_id }) => {
+      createNotification(
+        farmerId,
+        member_id,
+        `เกษตรกรร้านค้า ${farmerstorename} ได้เพิ่มสินค้าใหม่ ${product_name}`,
+        `/shop/${farmerstorename}/${productId}`,
+        "เพิ่มสินค้า"
+      );
+    });
+  });
+};
+
+app.get("/notification", async (req, res) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    const userId = decoded.ID;
+    const notifications = await usePooledConnectionAsync(async (db) => {
+      return await new Promise((resolve, reject) => {
+        db.query(
+          "SELECT * FROM notification WHERE recipient_id = ? and is_unread = 1",
+          [userId],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+    return res.status(200).json(notifications);
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.post("/notification", async (req, res) => {
+  const { id } = req.body;
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  try {
+    let decoded = jwt.verify(token, secretKey);
+    const userId = decoded.ID;
+    await usePooledConnectionAsync(async (db) => {
+      await new Promise((resolve, reject) => {
+        db.query(
+          "UPDATE notification SET is_unread = 0 WHERE recipient_id = ? and id = ?",
+          [userId, id],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.post("/addproduct", checkFarmer, async (req, res) => {
   let {
     product_id,
@@ -1361,14 +1494,33 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           selectedType,
           certificate,
         ],
-        (err, result) => {
+        async (err, result) => {
           if (err) {
             console.error("Error adding product:", err);
             return res
               .status(500)
               .send({ success: false, message: "Internal Server Error" });
           }
-          console.log("Product added successfully");
+          // find farmerstorename by farmer_id
+          let farmerstorename = await new Promise((resolve, reject) => {
+            db.query(
+              "SELECT farmerstorename FROM farmers WHERE id = ?",
+              [farmerId],
+              (err, result) => {
+                if (err) {
+                  console.error("Error finding farmerstorename:", err);
+                  reject(err);
+                }
+                resolve(result[0].farmerstorename);
+              }
+            );
+          });
+          notifyFollowersAddproduct(
+            nextProductId,
+            product_name,
+            farmerId,
+            farmerstorename
+          );
           return res
             .status(200)
             .send({ success: true, message: "Product added successfully" });
@@ -3819,21 +3971,4 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   });
 });
 
-// const createNotification = async (sender_id, recipient_id, message, link) => {
-//   await usePooledConnectionAsync(async (db) => {
-//     return new Promise((resolve, reject) => {
-//       db.query(
-//         `INSERT INTO notifications (sender_id, recipient_id, type, link) VALUES (?, ?, ?, ?)`,
-//         [memberId, message, type, link],
-//         (err, result) => {
-//           if (err) {
-//             reject(err);
-//           } else {
-//             resolve(result);
-//           }
-//         }
-//       );
-//     });
-//   });
-// };
 app.listen(3001, () => console.log("Avalable 3001"));
