@@ -3637,18 +3637,21 @@ app.get("/followfarmer", async (req, res) => {
       ? req.headers.authorization.split(" ")[1]
       : null;
     const decoded = jwt.verify(token, secretKey);
+
     if (decoded.role !== "members") {
       return res.status(401).json({
         success: false,
         message: "You are not allowed to perform this action",
       });
     }
+
     const results = await usePooledConnectionAsync(async (db) => {
       return new Promise((resolve, reject) => {
         db.query(
-          `SELECT farmer_id
-          FROM followedbymember
-          WHERE member_id = ?`,
+          `SELECT f.id, f.farmerstorename
+          FROM farmers f
+          INNER JOIN followedbymember fbm ON f.id = fbm.farmer_id
+          WHERE fbm.member_id = ?`,
           [decoded.ID],
           (err, result) => {
             if (err) {
@@ -3660,6 +3663,7 @@ app.get("/followfarmer", async (req, res) => {
         );
       });
     });
+
     res.status(200).json({ followed: true, data: results });
   } catch (error) {
     console.error(error);
@@ -3898,7 +3902,7 @@ async function checkReservestatus(product_id) {
       db.query(
         `SELECT COUNT(*) AS count
         FROM products
-        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND status != 'pending'`,
+        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์'`,
         [product_id],
         (err, result) => {
           if (err) {
@@ -3911,6 +3915,26 @@ async function checkReservestatus(product_id) {
     });
   });
 }
+async function checkPendingStatus(product_id) {
+  return await usePooledConnectionAsync(async (db) => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `SELECT COUNT(*) AS count
+        FROM reserve_products
+        WHERE product_id = ? AND status != 'pending'`,
+        [product_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].count > 0);
+          }
+        }
+      );
+    });
+  });
+}
+
 app.post("/reserve", async (req, res) => {
   try {
     const { product_id, lineid, quantity } = req.body;
@@ -3920,11 +3944,17 @@ app.post("/reserve", async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const nextId = await getNextResId();
     const isProductReservable = await checkReservestatus(product_id);
-
+    const pendingplswait = await checkPendingStatus(product_id);
     if (!isProductReservable) {
       return res.status(400).json({
         success: false,
         message: "This product cannot be reserved via website",
+      });
+    }
+    if (!pendingplswait) {
+      return res.status(400).json({
+        success: false,
+        message: "ํYour Another Reserve Is Pending",
       });
     }
 
@@ -3947,6 +3977,76 @@ app.post("/reserve", async (req, res) => {
           });
         }
       );
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+async function CheckFarmerwithproduct(reserve_id) {
+  return await usePooledConnectionAsync(async (db) => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `SELECT rp.product_id, p.farmer_id
+        FROM reserve_products rp
+        JOIN products p ON rp.product_id = p.product_id
+        WHERE rp.id = ?`,
+        [reserve_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        }
+      );
+    });
+  });
+}
+
+app.patch("/reserve", async (req, res) => {
+  try {
+    const { reserve_id, status } = req.body;
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    const farmerByProId = await CheckFarmerwithproduct(reserve_id); // ใช้ reserve_id แทน product_id
+
+    // ตรวจสอบว่า farmer ของ product ตรงกับ farmer ที่ลงทะเบียน
+    if (
+      farmerByProId.length === 0 ||
+      farmerByProId[0].farmer_id !== decoded.ID
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to update this reservation",
+      });
+    }
+
+    await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `UPDATE reserve_products
+          SET status = ?
+          WHERE id = ?`,
+          [status, reserve_id],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Reservation status updated successfully",
     });
   } catch (error) {
     console.error(error);
