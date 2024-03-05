@@ -3400,7 +3400,7 @@ async function unfollowFarmer(memberId, farmerId) {
   });
 }
 
-app.post("/unfollowfarmer", async (req, res) => {
+app.delete("/followfarmer", async (req, res) => {
   try {
     const { farmer_id } = req.body;
     const token = req.headers.authorization
