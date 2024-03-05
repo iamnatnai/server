@@ -3890,7 +3890,7 @@ async function checkReservestatus(product_id) {
       db.query(
         `SELECT COUNT(*) AS count
         FROM products
-        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์'`,
+        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND status != 'pending'`,
         [product_id],
         (err, result) => {
           if (err) {
