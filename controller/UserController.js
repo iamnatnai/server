@@ -1,4 +1,5 @@
 const secretKey = require("../middleware");
+const { usePooledConnectionAsync } = require("../database");
 app.get("/getuseradmin/:role/:username", checkAdmin, async (req, res) => {
   const { role, username } = req.params;
   var query;

@@ -1,12 +1,39 @@
 const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require("jsonwebtoken");
+const passport = require("passport");
 const secretKey = "pifOvrart4";
-const { getUserByUsername } = require("../controller/authController");
 const jwtOptions = {
   jwtFromRequest: ExtractJwt.fromHeader("authorization"),
   secretOrKey: secretKey,
 };
+async function getUserByUsername(username) {
+  return usePooledConnectionAsync(async (db) => {
+    return await new Promise((resolve, reject) => {
+      db.query(
+        `
+    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins WHERE username = ? and available = 1
+    UNION
+    SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers WHERE username = ? and available = 1
+    UNION
+    SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members WHERE username = ? and available = 1
+    UNION
+    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers WHERE username = ? and available = 1
+    UNION
+    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons WHERE username = ? and available = 1
+    `,
+        [username, username, username, username, username],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result.length > 0 ? result[0] : null);
+          }
+        }
+      );
+    });
+  });
+}
 
 const jwtAuth = new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
@@ -121,5 +148,6 @@ module.exports = {
   checkTambon,
   checkFarmer,
   checkIfExistsInAllTables,
+  getUserByUsername,
   secretKey,
 };

@@ -1,39 +1,14 @@
 const bcrypt = require("bcrypt");
+const { usePooledConnectionAsync } = require("../database");
 const { insertMember } = require("../controller/addingalluser");
+const { getUserByUsername } = require("../middleware");
+const jwt = require("jsonwebtoken");
 const {
   secretKey,
   checkAdmin,
   checkFarmer,
   checkIfExistsInAllTables,
 } = require("../middleware");
-
-async function getUserByUsername(username) {
-  return usePooledConnectionAsync(async (db) => {
-    return await new Promise((resolve, reject) => {
-      db.query(
-        `
-    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins WHERE username = ? and available = 1
-    UNION
-    SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers WHERE username = ? and available = 1
-    UNION
-    SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members WHERE username = ? and available = 1
-    UNION
-    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers WHERE username = ? and available = 1
-    UNION
-    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons WHERE username = ? and available = 1
-    `,
-        [username, username, username, username, username],
-        (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result.length > 0 ? result[0] : null);
-          }
-        }
-      );
-    });
-  });
-}
 
 const postLogin = async (req, res) => {
   const { username, password } = req.body;
@@ -181,7 +156,7 @@ const postCheckingemail = (req, res) => {
     );
   });
 };
-app.post("/changepassword", async (req, res) => {
+const ChangePass = async (req, res) => {
   const { oldpassword, newpassword, usernameBody, roleBody } = req.body;
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
@@ -257,7 +232,7 @@ app.post("/changepassword", async (req, res) => {
       .status(500)
       .json({ success: false, message: "Internal Server Error" });
   }
-});
+};
 
 module.exports = {
   getUserByUsername,
@@ -265,4 +240,5 @@ module.exports = {
   getLogin,
   postCheckingemail,
   postCheckinguser,
+  ChangePass,
 };

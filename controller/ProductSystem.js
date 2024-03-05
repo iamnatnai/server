@@ -1,4 +1,5 @@
 const secretKey = require("../middleware");
+const { usePooledConnectionAsync } = require("../database");
 async function getNextProductId() {
   return await usePooledConnectionAsync(async (db) => {
     return new Promise((resolve, reject) => {
@@ -232,7 +233,7 @@ const Getproducts = async (req, res) => {
   });
 };
 
-app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
+const Deleteproduct = async (req, res) => {
   const { id } = req.params;
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
@@ -260,9 +261,9 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
       }
     );
   });
-});
+};
 
-app.get("/updateview/:id", async (req, res) => {
+const Getupdatereview = async (req, res) => {
   const { id } = req.params;
   // update view_count + 1
   console.log(id);
@@ -282,9 +283,9 @@ app.get("/updateview/:id", async (req, res) => {
       }
     );
   });
-});
+};
 
-app.get("/myproducts/:username", async (req, res) => {
+const Getmyproduct = async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     const { username } = req.params;
     db.query(
@@ -302,4 +303,13 @@ app.get("/myproducts/:username", async (req, res) => {
       }
     );
   });
-});
+};
+module.exports = {
+  AddProduct,
+  StandardProduct,
+  Getproducts,
+  GetProduct,
+  Deleteproduct,
+  Getupdatereview,
+  Getmyproduct,
+};
