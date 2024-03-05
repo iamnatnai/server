@@ -3473,6 +3473,41 @@ app.delete("/followfarmer", async (req, res) => {
     res.status(500).send({ followed: false, message: "Internal Server Error" });
   }
 });
+app.get("/followfarmer", async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== "members") {
+      return res.status(401).json({
+        success: false,
+        message: "You are not allowed to perform this action",
+      });
+    }
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT farmer_id
+          FROM followedbymember
+          WHERE member_id = ?`,
+          [decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+    res.status(200).json({ followed: true, data: results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ followed: false, message: "Internal Server Error" });
+  }
+});
 
 app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
   let { peroid } = req.params;
