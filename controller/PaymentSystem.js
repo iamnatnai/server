@@ -1,4 +1,5 @@
-app.get("/getpayment/:id", async (req, res) => {
+const { usePooledConnectionAsync } = require("../database");
+const Getpayment = async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     const id = req.params.id;
     db.query(
@@ -16,36 +17,100 @@ app.get("/getpayment/:id", async (req, res) => {
       }
     );
   });
-});
-app.post(
-  "/checkout",
-  upload.fields([{ name: "productSlip", maxCount: 1 }]),
-  async (req, res) => {
-    let { cartList } = req.body;
-    var SUMITNOW = 0;
+};
+const PostCheckout = async (req, res) => {
+  let { cartList } = req.body;
+  var SUMITNOW = 0;
 
-    try {
-      await usePooledConnectionAsync(async (db) => {
-        cartList = JSON.parse(cartList);
-        if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
-          return res
-            .status(400)
-            .json({ success: false, message: "Empty or invalid cart data" });
-        }
-        const token = req.headers.authorization
-          ? req.headers.authorization.split(" ")[1]
-          : null;
-        const decoded = jwt.verify(token, secretKey);
-        await new Promise((resolve, reject) => {
-          db.beginTransaction((err) => {
-            if (err) reject(err);
-            else resolve();
-          });
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      cartList = JSON.parse(cartList);
+      if (!cartList || !Array.isArray(cartList) || cartList.length === 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Empty or invalid cart data" });
+      }
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      await new Promise((resolve, reject) => {
+        db.beginTransaction((err) => {
+          if (err) reject(err);
+          else resolve();
         });
-        let idoffarmer;
-        const getAddress = "SELECT address FROM members WHERE id = ?";
-        const memberaddress = await new Promise((resolve, reject) => {
-          db.query(getAddress, [decoded.ID], (err, result) => {
+      });
+      let idoffarmer;
+      const getAddress = "SELECT address FROM members WHERE id = ?";
+      const memberaddress = await new Promise((resolve, reject) => {
+        db.query(getAddress, [decoded.ID], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+      const productSlipFile = req.files["productSlip"]
+        ? req.files["productSlip"][0]
+        : null;
+      const productSlipPath = productSlipFile
+        ? `./uploads/${productSlipFile.filename}`
+        : null;
+      let address;
+      if (req.body.address) {
+        address = req.body.address;
+      } else {
+        address = memberaddress[0].address;
+      }
+      console.log("-+-+-+-+--++--+-+-+-+-+-+-+-+-+-+-+");
+      async function getNextORDID() {
+        return new Promise((resolve, reject) => {
+          db.query(
+            "SELECT MAX(id) as maxId FROM order_sumary",
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                let ORDNXT = "ORD00001";
+                if (result[0].maxId) {
+                  const currentId = result[0].maxId;
+                  console.log(currentId);
+                  const numericPart = parseInt(currentId.substring(3), 10) + 1;
+                  console.log(numericPart);
+                  ORDNXT = "ORD" + numericPart.toString().padStart(5, "0");
+                }
+                resolve(ORDNXT);
+              }
+            }
+          );
+        });
+      }
+      const ORDNXT = await getNextORDID();
+      const insertOrderVB =
+        "INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,date_buys) VALUES (?,?,?,?,?,?,NOW())";
+      await new Promise((resolve, reject) => {
+        db.query(
+          insertOrderVB,
+          [ORDNXT, "pending", SUMITNOW, decoded.ID, productSlipPath, address],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+            console.log("ORDNXT", ORDNXT);
+          }
+        );
+      });
+      for (const item of cartList) {
+        const { product_id, amount } = item;
+        console.log(decoded);
+        const getProductQuery =
+          "SELECT stock, farmer_id, selectedType FROM products WHERE product_id = ?";
+        console.log(productSlipPath);
+        const [product] = await new Promise((resolve, reject) => {
+          db.query(getProductQuery, [product_id], (err, result) => {
             if (err) {
               reject(err);
             } else {
@@ -53,242 +118,168 @@ app.post(
             }
           });
         });
-        const productSlipFile = req.files["productSlip"]
-          ? req.files["productSlip"][0]
-          : null;
-        const productSlipPath = productSlipFile
-          ? `./uploads/${productSlipFile.filename}`
-          : null;
-        let address;
-        if (req.body.address) {
-          address = req.body.address;
-        } else {
-          address = memberaddress[0].address;
+        console.log("idoffarmer");
+        console.log(idoffarmer);
+        console.log(product.farmer_id);
+        console.log(product.selectedType);
+        if (!idoffarmer) {
+          idoffarmer = product.farmer_id;
+        } else if (idoffarmer != product.farmer_id) {
+          return res.status(400).json({
+            success: false,
+            message: "Cart items must be from the same farmer",
+          });
         }
-        console.log("-+-+-+-+--++--+-+-+-+-+-+-+-+-+-+-+");
-        async function getNextORDID() {
+        if (product.selectedType != "สินค้าจัดส่งพัสดุ") {
+          return res
+            .status(400)
+            .json({ success: false, message: "Order Has Not avalable" });
+        }
+        const getProductPriceQuery =
+          "SELECT price FROM products WHERE product_id = ?";
+        const [result] = await new Promise((resolve, reject) => {
+          db.query(getProductPriceQuery, [product_id], (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              if (result.length === 0) {
+                reject(new Error(`Product ID ${product_id} not found`));
+              } else {
+                resolve(result);
+              }
+            }
+          });
+        });
+        console.log("this");
+        console.log(result.price);
+        const price = result.price;
+        const totalProductPrice = price * amount;
+        SUMITNOW = SUMITNOW + totalProductPrice;
+        console.log("total : ", totalProductPrice);
+        console.log(product.farmer_id);
+        console.log(cartList[0].farmer_id);
+        if (!product || product.length === 0) {
+          console.error(`Product ID ${product_id} not found`);
+          return res
+            .status(400)
+            .send({ error: `Product ID ${product_id} not found` });
+        }
+        if (amount <= 0) {
+          console.error(`Insufficient stock for product ID ${product_id}`);
+          return res.status(400).send({ error: `NOT TRUE` });
+        }
+        const currentStock = product.stock; // Corrected to access the stock property
+        if (amount > currentStock) {
+          console.error(`Insufficient stock for product ID ${product_id}`);
+          return res.status(400).send({
+            error: `Insufficient stock for product ID ${product_id}`,
+          });
+        }
+        const newStock = currentStock - amount;
+        const updateStockQuery =
+          "UPDATE products SET stock = ? WHERE product_id = ?";
+        await new Promise((resolve, reject) => {
+          db.query(updateStockQuery, [newStock, product_id], (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        async function getNextItemId() {
           return new Promise((resolve, reject) => {
             db.query(
-              "SELECT MAX(id) as maxId FROM order_sumary",
+              "SELECT MAX(item_id) as maxId FROM order_items",
               (err, result) => {
                 if (err) {
                   reject(err);
                 } else {
-                  let ORDNXT = "ORD00001";
+                  let nextId = "ITEM00001";
                   if (result[0].maxId) {
                     const currentId = result[0].maxId;
                     console.log(currentId);
                     const numericPart =
-                      parseInt(currentId.substring(3), 10) + 1;
+                      parseInt(currentId.substring(4), 10) + 1;
                     console.log(numericPart);
-                    ORDNXT = "ORD" + numericPart.toString().padStart(5, "0");
+                    nextId = "ITEM" + numericPart.toString().padStart(5, "0");
                   }
-                  resolve(ORDNXT);
+                  resolve(nextId);
                 }
               }
             );
           });
         }
-        const ORDNXT = await getNextORDID();
-        const insertOrderVB =
-          "INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,date_buys) VALUES (?,?,?,?,?,?,NOW())";
+        console.log("++++++");
+        console.log(decoded.ID);
+        const nextitemId = await getNextItemId();
+        const insertOrderItemQuery =
+          "INSERT INTO order_items (item_id,product_id,order_id,price, quantity) VALUES (?,?,?,?,?)";
         await new Promise((resolve, reject) => {
           db.query(
-            insertOrderVB,
-            [ORDNXT, "pending", SUMITNOW, decoded.ID, productSlipPath, address],
+            insertOrderItemQuery,
+            [nextitemId, product_id, ORDNXT, totalProductPrice, amount],
             (err, result) => {
               if (err) {
                 reject(err);
               } else {
                 resolve(result);
               }
-              console.log("ORDNXT", ORDNXT);
+              console.log("nextitemId");
+              console.log(nextitemId);
             }
           );
         });
-        for (const item of cartList) {
-          const { product_id, amount } = item;
-          console.log(decoded);
-          const getProductQuery =
-            "SELECT stock, farmer_id, selectedType FROM products WHERE product_id = ?";
-          console.log(productSlipPath);
-          const [product] = await new Promise((resolve, reject) => {
-            db.query(getProductQuery, [product_id], (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(result);
-              }
-            });
-          });
-          console.log("idoffarmer");
-          console.log(idoffarmer);
-          console.log(product.farmer_id);
-          console.log(product.selectedType);
-          if (!idoffarmer) {
-            idoffarmer = product.farmer_id;
-          } else if (idoffarmer != product.farmer_id) {
-            return res.status(400).json({
-              success: false,
-              message: "Cart items must be from the same farmer",
-            });
-          }
-          if (product.selectedType != "สินค้าจัดส่งพัสดุ") {
-            return res
-              .status(400)
-              .json({ success: false, message: "Order Has Not avalable" });
-          }
-          const getProductPriceQuery =
-            "SELECT price FROM products WHERE product_id = ?";
-          const [result] = await new Promise((resolve, reject) => {
-            db.query(getProductPriceQuery, [product_id], (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                if (result.length === 0) {
-                  reject(new Error(`Product ID ${product_id} not found`));
-                } else {
-                  resolve(result);
-                }
-              }
-            });
-          });
-          console.log("this");
-          console.log(result.price);
-          const price = result.price;
-          const totalProductPrice = price * amount;
-          SUMITNOW = SUMITNOW + totalProductPrice;
-          console.log("total : ", totalProductPrice);
-          console.log(product.farmer_id);
-          console.log(cartList[0].farmer_id);
-          if (!product || product.length === 0) {
-            console.error(`Product ID ${product_id} not found`);
-            return res
-              .status(400)
-              .send({ error: `Product ID ${product_id} not found` });
-          }
-          if (amount <= 0) {
-            console.error(`Insufficient stock for product ID ${product_id}`);
-            return res.status(400).send({ error: `NOT TRUE` });
-          }
-          const currentStock = product.stock; // Corrected to access the stock property
-          if (amount > currentStock) {
-            console.error(`Insufficient stock for product ID ${product_id}`);
-            return res.status(400).send({
-              error: `Insufficient stock for product ID ${product_id}`,
-            });
-          }
-          const newStock = currentStock - amount;
-          const updateStockQuery =
-            "UPDATE products SET stock = ? WHERE product_id = ?";
-          await new Promise((resolve, reject) => {
-            db.query(
-              updateStockQuery,
-              [newStock, product_id],
-              (err, result) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  resolve(result);
-                }
-              }
-            );
-          });
-          async function getNextItemId() {
-            return new Promise((resolve, reject) => {
-              db.query(
-                "SELECT MAX(item_id) as maxId FROM order_items",
-                (err, result) => {
-                  if (err) {
-                    reject(err);
-                  } else {
-                    let nextId = "ITEM00001";
-                    if (result[0].maxId) {
-                      const currentId = result[0].maxId;
-                      console.log(currentId);
-                      const numericPart =
-                        parseInt(currentId.substring(4), 10) + 1;
-                      console.log(numericPart);
-                      nextId = "ITEM" + numericPart.toString().padStart(5, "0");
-                    }
-                    resolve(nextId);
-                  }
-                }
-              );
-            });
-          }
-          console.log("++++++");
-          console.log(decoded.ID);
-          const nextitemId = await getNextItemId();
-          const insertOrderItemQuery =
-            "INSERT INTO order_items (item_id,product_id,order_id,price, quantity) VALUES (?,?,?,?,?)";
-          await new Promise((resolve, reject) => {
-            db.query(
-              insertOrderItemQuery,
-              [nextitemId, product_id, ORDNXT, totalProductPrice, amount],
-              (err, result) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  resolve(result);
-                }
-                console.log("nextitemId");
-                console.log(nextitemId);
-              }
-            );
-          });
-        }
-        const updateSUM =
-          "UPDATE order_sumary SET total_amount = ? WHERE id = ?";
-        await new Promise((resolve, reject) => {
-          db.query(updateSUM, [SUMITNOW, ORDNXT], (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
-        });
-        if (SUMITNOW == 0) {
-          return res.status(400).send({ error: `ERROR of total amount = 0` });
-        }
-
-        await new Promise((resolve, reject) => {
-          db.commit((err) => {
-            if (err) {
-              db.rollback(() => {
-                reject(err);
-              });
-            } else {
-              resolve();
-            }
-          });
-        });
-
-        res.status(200).json({ success: true, message: "Checkout completed" });
-      });
-    } catch (error) {
-      console.error("Error during checkout:", error);
-
-      // Rollback transaction
+      }
+      const updateSUM = "UPDATE order_sumary SET total_amount = ? WHERE id = ?";
       await new Promise((resolve, reject) => {
-        db.rollback((err) => {
+        db.query(updateSUM, [SUMITNOW, ORDNXT], (err, result) => {
           if (err) {
             reject(err);
           } else {
-            console.log("Transaction rolled back.");
+            resolve(result);
+          }
+        });
+      });
+      if (SUMITNOW == 0) {
+        return res.status(400).send({ error: `ERROR of total amount = 0` });
+      }
+
+      await new Promise((resolve, reject) => {
+        db.commit((err) => {
+          if (err) {
+            db.rollback(() => {
+              reject(err);
+            });
+          } else {
             resolve();
           }
         });
       });
 
-      return res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
-    }
+      res.status(200).json({ success: true, message: "Checkout completed" });
+    });
+  } catch (error) {
+    console.error("Error during checkout:", error);
+
+    // Rollback transaction
+    await new Promise((resolve, reject) => {
+      db.rollback((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          console.log("Transaction rolled back.");
+          resolve();
+        }
+      });
+    });
+
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
   }
-);
-app.post("/farmerorder", async (req, res) => {
+};
+const Postfarmerorder = async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
       const { order_id, status } = req.body;
@@ -366,9 +357,9 @@ app.post("/farmerorder", async (req, res) => {
       .status(500)
       .json({ success: false, message: "Internal Server Error" });
   }
-});
+};
 
-app.get("/orderlist", async (req, res) => {
+const GetOrderlist = async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
       const token = req.headers.authorization
@@ -444,70 +435,8 @@ app.get("/orderlist", async (req, res) => {
     console.error("Error fetching orders:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
-});
-
-app.post(
-  "/confirmtrancsaction",
-  upload.fields([{ name: "productSlip", maxCount: 1 }]),
-  async (req, res) => {
-    try {
-      const productSlipFile = req.files["productSlip"]
-        ? req.files["productSlip"][0]
-        : null;
-      const productSlipPath = productSlipFile
-        ? `./uploads/${productSlipFile.filename}`
-        : null;
-
-      const token = req.headers.authorization
-        ? req.headers.authorization.split(" ")[1]
-        : null;
-      const decoded = jwt.verify(token, secretKey);
-
-      // Check if product slip file exists in the request
-      if (!productSlipFile) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Product slip file is required" });
-      }
-
-      // Extract order_id from the request
-      const { order_id } = req.body;
-      const orderQuery =
-        "UPDATE order_sumary SET transaction_confirm = ? ,status = ? WHERE id = ? AND member_id = ?";
-
-      const updatedOrders = await usePooledConnectionAsync(async (db) => {
-        return await new Promise(async (resolve, reject) => {
-          db.query(
-            orderQuery,
-            [productSlipPath, "pending", order_id, decoded.ID],
-            (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(result);
-              }
-            }
-          );
-        });
-      });
-
-      // Return success response with the updated orders
-      res.status(200).json({
-        success: true,
-        message: "Order transaction confirmation updated successfully",
-        orders: updatedOrders,
-      });
-    } catch (error) {
-      // Handle errors
-      console.error("Error updating order transaction confirmation:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
-    }
-  }
-);
-
-app.get("/farmerorder", async (req, res) => {
+};
+const Getfarmerorder = async (req, res) => {
   try {
     const token = req.headers.authorization
       ? req.headers.authorization.split(" ")[1]
@@ -576,9 +505,9 @@ app.get("/farmerorder", async (req, res) => {
     console.error("Error fetching farmer orders:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
-});
+};
 
-app.post("/confirmorder", async (req, res) => {
+const Postconfirmorder = async (req, res) => {
   try {
     const { order_id, status, comment, tracking_number } = req.body;
     if (!order_id || !status) {
@@ -623,4 +552,67 @@ app.post("/confirmorder", async (req, res) => {
     console.error("Error updating order status:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
-});
+};
+const Postconfirmtransection = async (req, res) => {
+  try {
+    const productSlipFile = req.files["productSlip"]
+      ? req.files["productSlip"][0]
+      : null;
+    const productSlipPath = productSlipFile
+      ? `./uploads/${productSlipFile.filename}`
+      : null;
+
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    // Check if product slip file exists in the request
+    if (!productSlipFile) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Product slip file is required" });
+    }
+
+    // Extract order_id from the request
+    const { order_id } = req.body;
+    const orderQuery =
+      "UPDATE order_sumary SET transaction_confirm = ? ,status = ? WHERE id = ? AND member_id = ?";
+
+    const updatedOrders = await usePooledConnectionAsync(async (db) => {
+      return await new Promise(async (resolve, reject) => {
+        db.query(
+          orderQuery,
+          [productSlipPath, "pending", order_id, decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    // Return success response with the updated orders
+    res.status(200).json({
+      success: true,
+      message: "Order transaction confirmation updated successfully",
+      orders: updatedOrders,
+    });
+  } catch (error) {
+    // Handle errors
+    console.error("Error updating order transaction confirmation:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+module.exports = {
+  PostCheckout,
+  Getpayment,
+  Postfarmerorder,
+  Getfarmerorder,
+  GetOrderlist,
+  Postconfirmorder,
+  Postconfirmtransection,
+};

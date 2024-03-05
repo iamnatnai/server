@@ -1,8 +1,9 @@
 const bcrypt = require("bcrypt");
+const { usePooledConnectionAsync } = require("../database");
 const { checkIfExistsInAllTables } = require("../middleware");
 async function getNextId() {
   return await usePooledConnectionAsync(async (db) => {
-    new Promise(async (resolve, reject) => {
+    return await new Promise(async (resolve, reject) => {
       db.query("SELECT MAX(id) as maxId FROM members", (err, result) => {
         if (err) {
           reject(err);
@@ -126,7 +127,7 @@ async function insertUser(
   });
 }
 
-app.post("/addfarmer", checkTambon, async (req, res) => {
+const Postaddfarmer = async (req, res) => {
   const { username, email, password, firstName, lastName, tel, lat, lng } =
     req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel) {
@@ -194,9 +195,9 @@ app.post("/addfarmer", checkTambon, async (req, res) => {
     console.error("Error adding farmer:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
-});
+};
 
-app.post("/adduser", checkAdmin, async (req, res) => {
+const Postadduser = async (req, res) => {
   const { username, email, password, firstName, lastName, tel, role } =
     req.body;
   if (
@@ -243,7 +244,7 @@ app.post("/adduser", checkAdmin, async (req, res) => {
     console.error("Error adding user:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
-});
+};
 const Register = async (req, res) => {
   const { username, email, password, firstName, lastName, tel } = req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel) {
@@ -289,5 +290,7 @@ const Register = async (req, res) => {
   }
 };
 module.exports = {
+  Postaddfarmer,
+  Postadduser,
   Register,
 };
