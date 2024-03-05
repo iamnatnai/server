@@ -3754,7 +3754,7 @@ async function checkReservestatus(product_id) {
 }
 app.post("/reserve", async (req, res) => {
   try {
-    const { product_id, contact, quality } = req.body;
+    const { product_id, lineid, quantity } = req.body;
     const token = req.headers.authorization
       ? req.headers.authorization.split(" ")[1]
       : null;
@@ -3773,7 +3773,7 @@ app.post("/reserve", async (req, res) => {
       db.query(
         `INSERT INTO reserve_products (id, member_id, status, product_id, contact, quality, dates)
         VALUES (?, ?, ?, ?, ?, ?, Now())`,
-        [nextId, decoded.ID, "pending", product_id, contact, quality],
+        [nextId, decoded.ID, "pending", product_id, lineid, quantity],
         (err, result) => {
           if (err) {
             console.error(err);
