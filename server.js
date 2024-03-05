@@ -3891,7 +3891,7 @@ async function checkReservestatus(product_id) {
       db.query(
         `SELECT COUNT(*) AS count
         FROM products
-        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND status != 'pending'`,
+        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์'`,
         [product_id],
         (err, result) => {
           if (err) {
@@ -3904,6 +3904,26 @@ async function checkReservestatus(product_id) {
     });
   });
 }
+async function checkPendingStatus(product_id) {
+  return await usePooledConnectionAsync(async (db) => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `SELECT COUNT(*) AS count
+        FROM reserve_products
+        WHERE product_id = ? AND status != 'pending'`,
+        [product_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].count > 0);
+          }
+        }
+      );
+    });
+  });
+}
+
 app.post("/reserve", async (req, res) => {
   try {
     const { product_id, lineid, quantity } = req.body;
@@ -3913,11 +3933,17 @@ app.post("/reserve", async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const nextId = await getNextResId();
     const isProductReservable = await checkReservestatus(product_id);
-
+    const pendingplswait = await checkPendingStatus(product_id);
     if (!isProductReservable) {
       return res.status(400).json({
         success: false,
         message: "This product cannot be reserved via website",
+      });
+    }
+    if (!pendingplswait) {
+      return res.status(400).json({
+        success: false,
+        message: "ํYour Another Reserve Is Pending",
       });
     }
 
