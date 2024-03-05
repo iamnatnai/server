@@ -1267,7 +1267,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     product_video,
     additional_images,
     certificate,
-    shippingcost,
     weight,
   } = req.body;
   console.log(req.body);
@@ -1394,7 +1393,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   console.log(product_id, shopname);
   await usePooledConnectionAsync(async (db) => {
     db.query(
-      "SELECT p.*, f.firstname, f.lastname FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;",
+      "SELECT p.*, f.firstname, f.lastname, f.shippingcost FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;",
       [product_id, shopname],
       (err, result) => {
         if (err) {
@@ -3713,4 +3712,21 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   });
 });
 
+// const createNotification = async (sender_id, recipient_id, message, link) => {
+//   await usePooledConnectionAsync(async (db) => {
+//     return new Promise((resolve, reject) => {
+//       db.query(
+//         `INSERT INTO notifications (sender_id, recipient_id, type, link) VALUES (?, ?, ?, ?)`,
+//         [memberId, message, type, link],
+//         (err, result) => {
+//           if (err) {
+//             reject(err);
+//           } else {
+//             resolve(result);
+//           }
+//         }
+//       );
+//     });
+//   });
+// };
 app.listen(3001, () => console.log("Avalable 3001"));
