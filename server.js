@@ -3771,7 +3771,7 @@ app.post("/reserve", async (req, res) => {
 
     usePooledConnectionAsync(async (db) => {
       db.query(
-        `INSERT INTO reserve_products (id, member_id, status, product_id, contact, quality, dates)
+        `INSERT INTO reserve_products (id, member_id, status, product_id, contact,quantity, dates)
         VALUES (?, ?, ?, ?, ?, ?, Now())`,
         [nextId, decoded.ID, "pending", product_id, lineid, quantity],
         (err, result) => {
