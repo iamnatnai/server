@@ -3973,6 +3973,76 @@ app.post("/reserve", async (req, res) => {
   }
 });
 
+async function CheckFarmerwithproduct(reserve_id) {
+  return await usePooledConnectionAsync(async (db) => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `SELECT rp.product_id, p.farmer_id
+        FROM reserve_products rp
+        JOIN products p ON rp.product_id = p.product_id
+        WHERE rp.id = ?`,
+        [reserve_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        }
+      );
+    });
+  });
+}
+
+app.patch("/reserve", async (req, res) => {
+  try {
+    const { reserve_id, status } = req.body;
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    const farmerByProId = await CheckFarmerwithproduct(reserve_id); // ใช้ reserve_id แทน product_id
+
+    // ตรวจสอบว่า farmer ของ product ตรงกับ farmer ที่ลงทะเบียน
+    if (
+      farmerByProId.length === 0 ||
+      farmerByProId[0].farmer_id !== decoded.ID
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to update this reservation",
+      });
+    }
+
+    await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `UPDATE reserve_products
+          SET status = ?
+          WHERE id = ?`,
+          [status, reserve_id],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Reservation status updated successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
