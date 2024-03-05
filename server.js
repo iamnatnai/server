@@ -1973,7 +1973,7 @@ app.post(
   "/checkout",
   upload.fields([{ name: "productSlip", maxCount: 1 }]),
   async (req, res) => {
-    let { cartList } = req.body;
+    let { cartList, shippingcost } = req.body;
     var SUMITNOW = 0;
 
     try {
@@ -2043,11 +2043,19 @@ app.post(
         }
         const ORDNXT = await getNextORDID();
         const insertOrderVB =
-          "INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,date_buys) VALUES (?,?,?,?,?,?,NOW())";
+          "INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,shippingcost,date_buys) VALUES (?,?,?,?,?,?,?,NOW())";
         await new Promise((resolve, reject) => {
           db.query(
             insertOrderVB,
-            [ORDNXT, "pending", SUMITNOW, decoded.ID, productSlipPath, address],
+            [
+              ORDNXT,
+              "pending",
+              SUMITNOW,
+              decoded.ID,
+              productSlipPath,
+              address,
+              shippingcost,
+            ],
             (err, result) => {
               if (err) {
                 reject(err);
@@ -2584,7 +2592,7 @@ app.get("/farmerorder", async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
     SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, 
-    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number, os.address,
+    os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number, os.address, os.shippingcost,
     m.id, m.firstname, m.lastname, m.phone,
     p.product_name, p.product_image
     FROM order_items oi
