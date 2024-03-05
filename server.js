@@ -3840,6 +3840,113 @@ app.get("/allcategories", checkTambonProvider, async (req, res) => {
   });
 });
 
+async function getNextResId() {
+  return await usePooledConnectionAsync(async (db) => {
+    return await new Promise((resolve, reject) => {
+      db.query(
+        "SELECT MAX(id) as maxId FROM reserve_products",
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            let nextId = "RES000001";
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              console.log(currentId);
+              const numericPart = parseInt(currentId.substring(3), 10) + 1;
+              console.log(numericPart);
+              nextId = "RES" + numericPart.toString().padStart(6, "0");
+            }
+            resolve(nextId);
+          }
+        }
+      );
+    });
+  });
+}
+
+async function checkReservationToday(product_id) {
+  return await usePooledConnectionAsync(async (db) => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `SELECT COUNT(*) AS count
+      FROM reserve_products
+      WHERE DATE(reserve_date) = CURDATE()
+      AND product_id = ?`,
+        [product_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].count > 0);
+          }
+        }
+      );
+    });
+  });
+}
+async function checkReservestatus(product_id) {
+  return await usePooledConnectionAsync(async (db) => {
+    return new Promise((resolve, reject) => {
+      db.query(
+        `SELECT COUNT(*) AS count
+        FROM products
+        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์'`,
+        [product_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].count > 0);
+          }
+        }
+      );
+    });
+  });
+}
+app.post("/reserve", async (req, res) => {
+  try {
+    const { product_id, lineid, quantity } = req.body;
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+    const nextId = await getNextResId();
+    const isProductReservable = await checkReservestatus(product_id);
+
+    if (!isProductReservable) {
+      return res.status(400).json({
+        success: false,
+        message: "This product cannot be reserved via website",
+      });
+    }
+
+    usePooledConnectionAsync(async (db) => {
+      db.query(
+        `INSERT INTO reserve_products (id, member_id, status, product_id, contact,quantity, dates)
+        VALUES (?, ?, ?, ?, ?, ?, Now())`,
+        [nextId, decoded.ID, "pending", product_id, lineid, quantity],
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res.status(500).json({
+              success: false,
+              message: "Internal Server Error",
+            });
+          }
+          res.status(200).json({
+            success: true,
+            message: "Reservation successful",
+          });
+        }
+      );
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
