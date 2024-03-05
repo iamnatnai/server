@@ -3630,18 +3630,21 @@ app.get("/followfarmer", async (req, res) => {
       ? req.headers.authorization.split(" ")[1]
       : null;
     const decoded = jwt.verify(token, secretKey);
+
     if (decoded.role !== "members") {
       return res.status(401).json({
         success: false,
         message: "You are not allowed to perform this action",
       });
     }
+
     const results = await usePooledConnectionAsync(async (db) => {
       return new Promise((resolve, reject) => {
         db.query(
-          `SELECT farmer_id
-          FROM followedbymember
-          WHERE member_id = ?`,
+          `SELECT f.id, f.farmerstorename
+          FROM farmers f
+          INNER JOIN followedbymember fbm ON f.id = fbm.farmer_id
+          WHERE fbm.member_id = ?`,
           [decoded.ID],
           (err, result) => {
             if (err) {
@@ -3653,6 +3656,7 @@ app.get("/followfarmer", async (req, res) => {
         );
       });
     });
+
     res.status(200).json({ followed: true, data: results });
   } catch (error) {
     console.error(error);
