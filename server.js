@@ -1364,13 +1364,16 @@ app.post("/notification", async (req, res) => {
     const userId = decoded.ID;
     await usePooledConnectionAsync(async (db) => {
       await new Promise((resolve, reject) => {
+        //delete notification
         db.query(
-          "UPDATE notification SET is_unread = 0 WHERE recipient_id = ? and id = ?",
-          [userId, id],
+          "Delete FROM notification WHERE id = ? and recipient_id = ? and is_unread = 1",
+          [id, userId],
           (err, result) => {
             if (err) {
+              console.log(err);
               reject(err);
             } else {
+              console.log(result);
               resolve(result);
             }
           }
@@ -1539,7 +1542,11 @@ app.get("/getimage/:image", (req, res) => {
   const image = req.params.image;
   res.sendFile(path.join(__dirname, "uploads", image));
 });
-
+// app.get("/getproduct/:urlToShorten(*)", (req, res) => {
+//   console.log(req.originalUrl);
+//   console.log(req.params.urlToShorten);
+//   return res.status(200).send({ success: true });
+// });
 app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   const { product_id, shopname } = req.params;
   console.log(product_id, shopname);
@@ -1556,7 +1563,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
             .send({ exist: false, error: "Internal Server Error" });
         } else {
           console.log(result[0]);
-          res.json(result[0]);
+          res.header("charset", "utf-8").json(result[0]);
         }
       }
     );
@@ -3582,6 +3589,8 @@ app.post("/followfarmer", async (req, res) => {
         .json({ success: false, message: "You are not allow for do this !!" });
     }
     await insertFollow(decoded.ID, farmer_id);
+    await followerMileStone(farmer_id);
+
     res
       .status(200)
       .send({ followed: true, message: "Successfully followed farmer" });
@@ -3639,6 +3648,73 @@ app.delete("/followfarmer", async (req, res) => {
     res.status(500).send({ followed: false, message: "Internal Server Error" });
   }
 });
+
+const followerMileStone = async (farmer_id) => {
+  return await usePooledConnectionAsync(async (db) => {
+    let allfollowersCount = await new Promise((resolve, reject) => {
+      db.query(
+        `SELECT COUNT(*) as count FROM followedbymember WHERE farmer_id = ?`,
+        [farmer_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].count);
+          }
+        }
+      );
+    });
+    let followerMileStone = [
+      2, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000,
+      100000, 200000, 500000, 1000000,
+    ];
+    let followerMileStoneCount = followerMileStone.filter(
+      (milestone) => milestone == allfollowersCount
+    );
+    let followerMileStoneCountLength = followerMileStoneCount.length;
+
+    if (followerMileStoneCountLength > 0) {
+      db.query(
+        `SELECT farmerstorename FROM farmers WHERE id = ?`,
+        [farmer_id],
+        (err, result) => {
+          if (err) {
+            console.log(err);
+            return;
+          }
+          let farmerstorename = result[0].farmerstorename;
+          let message = `ยินดีด้วย! ร้านค้าของคุณ ${farmerstorename} ได้มีผู้ติดตามถึง ${followerMileStoneCount[0]} คนแล้ว!`;
+          // เคยได้ notification มาแล้วหรือยัง
+
+          db.query(
+            `SELECT * FROM notification WHERE recipient_id = ? AND message = ?`,
+            [farmer_id, message],
+            (err, result) => {
+              if (err) {
+                console.log(err);
+                return;
+              }
+              console.log(result);
+              if (result.length > 0) {
+                return;
+              }
+              createNotification(
+                null,
+                farmer_id,
+                message,
+                "/myproducts",
+                "ยินดีด้วย!"
+              );
+            }
+          );
+        }
+      );
+    }
+
+    return;
+  });
+};
+
 app.get("/followfarmer", async (req, res) => {
   try {
     const token = req.headers.authorization
@@ -3828,6 +3904,73 @@ app.get("/farmerregister", checkTambonProvider, async (req, res) => {
       );
     } catch (error) {
       console.error("Error getting farmers:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  });
+});
+
+app.get("/allfollowers", checkFarmer, async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      const { ID } = decoded;
+      let result = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT COUNT(*) as follow_count, DATE_FORMAT(follow_date, "%Y-%m-%d") as createAt FROM followedbymember WHERE farmer_id = ? GROUP BY DATE_FORMAT(follow_date, "%Y-%m-%d");
+          `,
+          [ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            resolve(result);
+          }
+        );
+      });
+      let j = 0;
+      let days30 = Array.from({ length: 30 }, (_, i) => {
+        let dayago = moment().subtract(i, "days").toDate().toLocaleDateString();
+        if (
+          result[j] &&
+          new Date(result[j].createAt).toLocaleDateString() === dayago
+        ) {
+          j++;
+          return {
+            createAt: dayago,
+            follow_count: result[j - 1].follow_count,
+          };
+        }
+        return {
+          createAt: dayago,
+          follow_count: 0,
+        };
+      });
+      let allfollowers = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT COUNT(*) as follow_count FROM followedbymember WHERE farmer_id = ?`,
+          [ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            resolve(result[0].follow_count);
+          }
+        );
+      });
+      return res.json({
+        success: true,
+        followers: days30.reverse(),
+        allfollowers: allfollowers,
+      });
+    } catch (error) {
+      console.error("Error getting followers:", error);
       return res
         .status(500)
         .json({ success: false, message: "Internal Server Error" });
