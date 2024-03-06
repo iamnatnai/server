@@ -1677,11 +1677,12 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
+  console.log(id);
   await usePooledConnectionAsync(async (db) => {
     //soft delete
     const decoded = jwt.verify(token, secretKey);
     let farmerId;
-    if (decoded.role !== "farmers") {
+    if (decoded.role === "farmers") {
       farmerId = decoded.ID;
     } else {
       farmerId = req.body.farmerId;
@@ -1983,7 +1984,7 @@ app.post(
   async (req, res) => {
     let { cartList, shippingcost } = req.body;
     var SUMITNOW = 0;
-
+    console.log(cartList, shippingcost, req.body);
     try {
       await usePooledConnectionAsync(async (db) => {
         cartList = JSON.parse(cartList);
@@ -2239,14 +2240,16 @@ app.post(
       console.error("Error during checkout:", error);
 
       // Rollback transaction
-      await new Promise((resolve, reject) => {
-        db.rollback((err) => {
-          if (err) {
-            reject(err);
-          } else {
-            console.log("Transaction rolled back.");
-            resolve();
-          }
+      usePooledConnectionAsync(async (db) => {
+        await new Promise((resolve, reject) => {
+          db.rollback((err) => {
+            if (err) {
+              reject(err);
+            } else {
+              console.log("Transaction rolled back.");
+              resolve();
+            }
+          });
         });
       });
 
@@ -3776,7 +3779,6 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
               .status(500)
               .json({ success: false, error: "Internal Server Error" });
           }
-          console.log(result);
           if (peroid === "month") {
             let j = 0;
             let months = Array.from({ length: 12 }, (_, i) => {
@@ -3914,8 +3916,7 @@ app.get("/allfollowers", checkFarmer, async (req, res) => {
       const { ID } = decoded;
       let result = await new Promise((resolve, reject) => {
         db.query(
-          `SELECT COUNT(*) as follow_count, DATE_FORMAT(follow_date, "%Y-%m-%d") as createAt FROM followedbymember WHERE farmer_id = ? GROUP BY DATE_FORMAT(follow_date, "%Y-%m-%d");
-          `,
+          `SELECT COUNT(*) as follow_count, DATE_FORMAT(follow_date, "%Y-%m-%d") as createAt FROM followedbymember WHERE farmer_id = ? GROUP BY DATE_FORMAT(follow_date, "%Y-%m-%d") ORDER BY follow_date DESC LIMIT 30`,
           [ID],
           (err, result) => {
             if (err) {
@@ -3929,6 +3930,7 @@ app.get("/allfollowers", checkFarmer, async (req, res) => {
       let j = 0;
       let days30 = Array.from({ length: 30 }, (_, i) => {
         let dayago = moment().subtract(i, "days").toDate().toLocaleDateString();
+        console.log(dayago, result[j]);
         if (
           result[j] &&
           new Date(result[j].createAt).toLocaleDateString() === dayago
