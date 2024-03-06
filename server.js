@@ -1543,9 +1543,10 @@ app.get("/getimage/:image", (req, res) => {
 app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   const { product_id, shopname } = req.params;
   console.log(product_id, shopname);
+  console.log("hi");
   await usePooledConnectionAsync(async (db) => {
     db.query(
-      "SELECT p.*, f.firstname, f.lastname, f.shippingcost FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;",
+      "SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng, f.facebooklink, f.lineid FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;",
       [product_id, shopname],
       (err, result) => {
         if (err) {
