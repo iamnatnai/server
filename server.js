@@ -3598,8 +3598,10 @@ async function unfollowFarmer(memberId, farmerId) {
         [memberId, farmerId],
         (err, result) => {
           if (err) {
+            console.log(err);
             reject(err);
           } else {
+            console.log(result);
             resolve(result);
           }
         }
@@ -3620,6 +3622,11 @@ app.delete("/followfarmer", async (req, res) => {
         success: false,
         message: "You are not allowed to perform this action",
       });
+    }
+    if (!farmer_id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid farmer ID" });
     }
     await unfollowFarmer(decoded.ID, farmer_id);
 
