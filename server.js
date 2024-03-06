@@ -2356,7 +2356,7 @@ app.get("/orderlist", async (req, res) => {
               }
               const products = await new Promise((resolve, reject) => {
                 const orderItemsQuery =
-                  "SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, p.price FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?";
+                  "SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, oi.price FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?";
                 db.query(orderItemsQuery, [order.id], async (err, result) => {
                   if (err) {
                     reject(err);
@@ -2599,7 +2599,7 @@ app.get("/farmerorder", async (req, res) => {
       : null;
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
-    SELECT oi.order_id, oi.product_id, oi.quantity, p.price, 
+    SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, 
     os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number, os.address, os.shippingcost,
     m.id, m.firstname, m.lastname, m.phone,
     p.product_name, p.product_image
@@ -3608,10 +3608,8 @@ async function unfollowFarmer(memberId, farmerId) {
         [memberId, farmerId],
         (err, result) => {
           if (err) {
-            console.log(err);
             reject(err);
           } else {
-            console.log(result);
             resolve(result);
           }
         }
@@ -3632,11 +3630,6 @@ app.delete("/followfarmer", async (req, res) => {
         success: false,
         message: "You are not allowed to perform this action",
       });
-    }
-    if (!farmer_id) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid farmer ID" });
     }
     await unfollowFarmer(decoded.ID, farmer_id);
 
@@ -4053,26 +4046,7 @@ async function checkReservestatus(product_id) {
       db.query(
         `SELECT COUNT(*) AS count
         FROM products
-        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์'`,
-        [product_id],
-        (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result[0].count > 0);
-          }
-        }
-      );
-    });
-  });
-}
-async function checkPendingStatus(product_id) {
-  return await usePooledConnectionAsync(async (db) => {
-    return new Promise((resolve, reject) => {
-      db.query(
-        `SELECT COUNT(*) AS count
-        FROM reserve_products
-        WHERE product_id = ? AND status != 'pending'`,
+        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND NOW() BETWEEN date_reserve_start AND date_reserve_end`,
         [product_id],
         (err, result) => {
           if (err) {
@@ -4086,6 +4060,32 @@ async function checkPendingStatus(product_id) {
   });
 }
 
+async function checkPendingStatus(product_id, member_id) {
+  try {
+    const result = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT COUNT(*) AS count
+          FROM reserve_products
+          WHERE product_id = ? AND member_id = ? AND status = 'pending'`,
+          [product_id, member_id],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0].count > 0);
+            }
+          }
+        );
+      });
+    });
+    return result;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+}
+
 app.post("/reserve", async (req, res) => {
   try {
     const { product_id, lineid, quantity } = req.body;
@@ -4095,14 +4095,14 @@ app.post("/reserve", async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const nextId = await getNextResId();
     const isProductReservable = await checkReservestatus(product_id);
-    const pendingplswait = await checkPendingStatus(product_id);
+    const pendingplswait = await checkPendingStatus(product_id, decoded.ID);
     if (!isProductReservable) {
       return res.status(400).json({
         success: false,
         message: "This product cannot be reserved via website",
       });
     }
-    if (!pendingplswait) {
+    if (pendingplswait) {
       return res.status(400).json({
         success: false,
         message: "ํYour Another Reserve Is Pending",
