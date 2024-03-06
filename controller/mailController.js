@@ -1,4 +1,5 @@
 const bcrypt = require("bcrypt");
+const { usePooledConnectionAsync } = require("../database");
 async function checkIfEmailAndNameMatch(email) {
   return await usePooledConnectionAsync(async (db) => {
     return new Promise(async (resolve, reject) => {

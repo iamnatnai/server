@@ -1,4 +1,5 @@
 const secretKey = require("../middleware");
+const { usePooledConnectionAsync } = require("../database");
 const Getimagepath = (req, res) => {
   const image = req.params.image;
   res.sendFile(path.join(__dirname, "uploads", image));
