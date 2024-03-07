@@ -4163,7 +4163,8 @@ app.post("/reserve", async (req, res) => {
     if (pendingplswait) {
       return res.status(400).json({
         success: false,
-        message: "ไม่สามารถจองสินค้าซ้ำได้ กรุณารอผลการตอบรับจากเกษตรกร",
+        message:
+          "ไม่สามารถจองสินค้าซ้ำได้ กรุณารอการอนุมัติการจองของสินค้าเดิมก่อน",
       });
     }
 
