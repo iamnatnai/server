@@ -4174,9 +4174,9 @@ app.get("/reserve", async (req, res) => {
 
     const formattedResults = results.map((result) => ({
       id: result.id,
+      status: result.status,
       reserve_products: {
         product_id: result.product_id,
-        status: result.status,
         quantity: result.quantity,
       },
       customer_info: {
