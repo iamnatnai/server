@@ -4406,7 +4406,6 @@ app.patch("/reserve", async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
 
     const farmerByProId = await CheckFarmerwithproduct(reserve_id); // ใช้ reserve_id แทน product_id
-
     // ตรวจสอบว่า farmer ของ product ตรงกับ farmer ที่ลงทะเบียน
     if (
       farmerByProId.length === 0 ||
@@ -4422,7 +4421,7 @@ app.patch("/reserve", async (req, res) => {
       return new Promise((resolve, reject) => {
         db.query(
           `UPDATE reserve_products
-          SET status = ?
+          SET status = ?, dates_complete = NOW()
           WHERE id = ?`,
           [status, reserve_id],
           (err, result) => {
