@@ -4477,7 +4477,24 @@ app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
         : null;
       const decoded = jwt.verify(token, secretKey);
       db.query(
-        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id WHERE f.id = ? and p.available = 1 GROUP BY f.id;`,
+        `SELECT 
+        f.firstname, 
+        f.lastname, 
+        f.farmerstorename, 
+        f.phone, 
+        f.email, 
+        f.createAt, 
+        COUNT(CASE WHEN p.available = 1 THEN p.product_id ELSE NULL END) AS product_count 
+    FROM 
+        farmers f 
+    LEFT JOIN 
+        products p 
+    ON 
+        f.id = p.farmer_id 
+    WHERE 
+        f.id = ?
+    GROUP BY 
+        f.id;`,
         [decoded.ID],
         (err, result) => {
           if (err) {
@@ -4486,6 +4503,7 @@ app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
               .status(500)
               .json({ success: false, error: "Internal Server Error" });
           }
+          console.log("asdfasdasd", result);
           res.json({ success: true, farmers: result });
         }
       );
