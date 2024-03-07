@@ -360,8 +360,7 @@ async function insertFarmer(
   });
 }
 app.post("/addfarmer", checkTambon, async (req, res) => {
-  const { username, email, password, firstName, lastName, tel, lat, lng } =
-    req.body;
+  const { username, email, password, firstName, lastName, tel } = req.body;
   if (!username || !email || !password || !firstName || !lastName || !tel) {
     return res
       .status(400)
@@ -390,9 +389,7 @@ app.post("/addfarmer", checkTambon, async (req, res) => {
       hashedPassword,
       firstName,
       lastName,
-      tel,
-      lat,
-      lng
+      tel
     );
     res
       .status(201)
@@ -593,33 +590,28 @@ app.get("/users", async (req, res) => {
 });
 
 app.delete("/deleteuser/:role/:username", async (req, res) => {
-  const token = req.headers.authorization
-    ? req.headers.authorization.split(" ")[1]
-    : null;
-
-  const decoded = jwt.verify(token, secretKey);
-  if (decoded.role !== "admins" && decoded.role !== "tambons") {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  const { role, username } = req.params;
-  console.log(role, username);
-  if (decoded.role === "tambons" && role !== "farmers") {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
   try {
     //soft delete
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== "admins" && decoded.role !== "tambons") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const { role, username } = req.params;
+    console.log(role, username);
+    if (decoded.role === "tambons" && role !== "farmers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
     await usePooledConnectionAsync(async (db) => {
       const query = `UPDATE ${role} SET available = 0 WHERE username = "${username}"`;
-      await new Promise((resolve, reject) => {
-        db.query(query, (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      });
+      db.query(query);
+      if (role === "farmers") {
+        const query = `UPDATE products SET available = 0 WHERE farmer_id = (select id from farmers where username = "${username}")`;
+        db.query(query);
+      }
     });
     res
       .status(200)
@@ -1398,8 +1390,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     unit,
     stock,
     selectedStatus,
-    startDate,
-    endDate,
+    date_reserve_start,
+    date_reserve_end,
     product_image,
     product_video,
     additional_images,
@@ -1437,11 +1429,14 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         });
       }
       if (product_id) {
-        const query = `UPDATE products SET product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
+        const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
         let result = await new Promise((resolve, reject) => {
           db.query(
             query,
             [
+              selectedStatus,
+              date_reserve_start,
+              date_reserve_end,
               product_name,
               product_description,
               category_id,
@@ -1477,12 +1472,15 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       const nextProductId = await getNextProductId();
 
       const query = `
-        INSERT INTO products (product_id, farmer_id, product_name, product_description, category_id, stock, price, weight, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id, product_name, product_description, category_id, stock, price, weight, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
+        VALUES (?, ?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
       `;
       db.query(
         query,
         [
+          selectedStatus,
+          date_reserve_start,
+          date_reserve_end,
           nextProductId,
           farmerId,
           product_name,
@@ -1506,19 +1504,19 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               .send({ success: false, message: "Internal Server Error" });
           }
           // find farmerstorename by farmer_id
-          let farmerstorename = await new Promise((resolve, reject) => {
-            db.query(
-              "SELECT farmerstorename FROM farmers WHERE id = ?",
-              [farmerId],
-              (err, result) => {
-                if (err) {
-                  console.error("Error finding farmerstorename:", err);
-                  reject(err);
-                }
-                resolve(result[0].farmerstorename);
-              }
-            );
-          });
+          // let farmerstorename = await new Promise((resolve, reject) => {
+          //   db.query(
+          //     "SELECT farmerstorename FROM farmers WHERE id = ?",
+          //     [farmerId],
+          //     (err, result) => {
+          //       if (err) {
+          //         console.error("Error finding farmerstorename:", err);
+          //         reject(err);
+          //       }
+          //       resolve(result[0].farmerstorename);
+          //     }
+          //   );
+          // });
           // notifyFollowersAddproduct(
           //   nextProductId,
           //   product_name,
