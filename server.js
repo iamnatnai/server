@@ -123,6 +123,24 @@ const checkAdmin = (req, res, next) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
+const checkAdminTambon = (req, res, next) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  if (!token) {
+    return res.status(400).json({ error: "Token not provided" });
+  }
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== "admins" && decoded.role !== "tambons") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
+  } catch (error) {
+    console.error("Error decoding token:1", error.message);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 const checkTambon = (req, res, next) => {
   const token = req.headers.authorization
@@ -1849,7 +1867,7 @@ app.post("/updateinfo", async (req, res) => {
   }
 });
 
-app.post("/updateinfoadmin", checkAdmin, async (req, res) => {
+app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
   const {
     email = null,
     firstname = null,
@@ -1868,6 +1886,7 @@ app.post("/updateinfoadmin", checkAdmin, async (req, res) => {
     username = null,
     payment = null,
     role = null,
+    shippingcost = null,
   } = req.body;
   if (!email || !firstname || !lastname || !phone || !role || !username) {
     return res
@@ -1875,11 +1894,15 @@ app.post("/updateinfoadmin", checkAdmin, async (req, res) => {
       .json({ success: false, message: "Missing required fields" });
   }
   try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
     var query;
-    if (role === "farmers") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", payment = "${payment}", lat = ${
-        lat ? `${lat}` : null
-      }, lng = ${
+    if (role === "farmers" || decoded.role === "tambons") {
+      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", payment = "${payment}", shippingcost='${JSON.stringify(
+        shippingcost
+      )}', lat = ${lat ? `${lat}` : null}, lng = ${
         lng ? `${lng}` : null
       }, zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`;
     } else if (role === "members") {
@@ -1887,7 +1910,6 @@ app.post("/updateinfoadmin", checkAdmin, async (req, res) => {
     } else {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`;
     }
-    console.log(query);
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
         if (err) {
@@ -1908,29 +1930,40 @@ app.post("/updateinfoadmin", checkAdmin, async (req, res) => {
   }
 });
 
-app.get("/getuseradmin/:role/:username", checkAdmin, async (req, res) => {
+app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
   const { role, username } = req.params;
   var query;
-  if (role !== "farmers") {
-    query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
-  } else if (role === "members") {
-    query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
-  } else {
-    query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`;
-  }
-  await usePooledConnectionAsync(async (db) => {
-    db.query(query, (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).send({ exist: false, error: "Internal Server Error" });
-      } else {
-        console.log(result);
-        res.json(result[0]);
-      }
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+    if (role === "farmers" || decoded.role === "tamboons") {
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
+    } else if (role === "members") {
+      query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
+    } else {
+      query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
+    }
+    await usePooledConnectionAsync(async (db) => {
+      db.query(query, (err, result) => {
+        if (err) {
+          console.log(err);
+          res
+            .status(500)
+            .send({ exist: false, error: "Internal Server Error" });
+        } else {
+          console.log(result);
+          res.json(result[0]);
+        }
+      });
     });
-  });
 
-  return res.status(200);
+    return res.status(200);
+  } catch (error) {
+    console.error("Error fetching user:", error.message);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 // app.post('/checkout', async (req, res) => {
@@ -3384,7 +3417,7 @@ app.post("/changepassword", async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
-
+  console.log(req.body);
   const checkMatchPssword = async (role, username, password) => {
     return await usePooledConnectionAsync(async (db) => {
       const hashedPassword = await new Promise(async (resolve, reject) => {
@@ -3415,7 +3448,10 @@ app.post("/changepassword", async (req, res) => {
 
   try {
     // ถ้าไม่ใช่ admin ต้องเช็คว่า password เดิมตรงกับที่อยู่ใน database หรือไม่
-    if (roleDecoded !== "admins") {
+    if (
+      roleDecoded !== "admins" &&
+      !(roleDecoded === "tambons" && roleBody === "farmers")
+    ) {
       if (
         !(await checkMatchPssword(roleDecoded, usernameDecoded, oldpassword))
       ) {
@@ -4143,7 +4179,79 @@ async function checkPendingStatus(product_id, member_id) {
   }
 }
 
-app.get("/reserve", async (req, res) => {
+app.get("/memberreserve", async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT 
+          rp.id, 
+          rp.product_id, 
+          rp.status, 
+          rp.quantity, 
+          rp.dates, 
+          rp.dates_complete, 
+          rp.contact,
+          p.product_name,
+          p.unit,
+          f.id AS farmer_id, 
+          f.farmerstorename, 
+          f.phone
+      FROM 
+          reserve_products rp
+      INNER JOIN 
+          products p ON rp.product_id = p.product_id
+      INNER JOIN 
+          farmers f ON p.farmer_id = f.id
+      WHERE 
+          rp.member_id = ?`,
+          [decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    const formattedResults = results.map((result) => ({
+      id: result.id,
+      status: result.status,
+      reserve_products: {
+        product_id: result.product_id,
+        product_name: result.product_name,
+        unit: result.unit,
+        quantity: result.quantity,
+      },
+      farmer_info: {
+        farmer_id: result.farmer_id,
+        farmerstorename: result.farmerstorename,
+        phone: result.phone,
+      },
+      dates: result.dates,
+      dates_complete: result.dates_complete,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "Reservation data retrieved successfully",
+      data: formattedResults,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.get("/reserve", checkFarmer, async (req, res) => {
   try {
     const token = req.headers.authorization
       ? req.headers.authorization.split(" ")[1]
