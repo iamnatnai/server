@@ -2392,7 +2392,7 @@ app.get("/orderlist", async (req, res) => {
               }
               const products = await new Promise((resolve, reject) => {
                 const orderItemsQuery =
-                  "SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, oi.price FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?";
+                  "SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, p.price FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?";
                 db.query(orderItemsQuery, [order.id], async (err, result) => {
                   if (err) {
                     reject(err);
@@ -2635,7 +2635,7 @@ app.get("/farmerorder", async (req, res) => {
       : null;
     const decoded = jwt.verify(token, secretKey);
     const orderItemsQuery = `
-    SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, 
+    SELECT oi.order_id, oi.product_id, oi.quantity, p.price, 
     os.total_amount, os.transaction_confirm, os.date_buys, os.date_complete, os.status, os.tracking_number, os.address, os.shippingcost,
     m.id, m.firstname, m.lastname, m.phone,
     p.product_name, p.product_image
