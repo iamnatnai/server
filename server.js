@@ -3152,6 +3152,7 @@ app.get("/excel", async (req, res) => {
           farmers f
         LEFT JOIN 
           products p ON f.id = p.farmer_id
+        WHERE p.available = 1
         GROUP BY
           f.id, f.email, f.username, f.firstname, f.lastname, f.farmerstorename, f.phone
       `;
@@ -4031,7 +4032,7 @@ app.get("/allcategories", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
-        `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor from products p LEFT JOIN categories c on p.category_id = c.category_id GROUP BY c.category_name;`,
+        `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor from products p LEFT JOIN categories c on p.category_id = c.category_id where p.available = 1 GROUP BY c.category_name;`,
         (err, result) => {
           if (err) {
             console.error(err);
@@ -4340,7 +4341,7 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
-        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id GROUP BY f.id;`,
+        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id and p.available = 1 GROUP BY f.id;`,
         (err, result) => {
           if (err) {
             console.error(err);
@@ -4368,7 +4369,7 @@ app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
         : null;
       const decoded = jwt.verify(token, secretKey);
       db.query(
-        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id WHERE f.id = ? GROUP BY f.id;`,
+        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id WHERE f.id = ? and p.available = 1 GROUP BY f.id;`,
         [decoded.ID],
         (err, result) => {
           if (err) {
