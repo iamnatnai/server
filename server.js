@@ -3753,6 +3753,60 @@ app.get("/followfarmer", async (req, res) => {
   }
 });
 
+app.get("/allsum", async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    if (decoded.role !== "farmers") {
+      return res.status(401).json({
+        success: false,
+        message: "You are not allowed to perform this action",
+      });
+    }
+
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT os.member_id, oi.product_id, COUNT(oi.quantity) AS total_quantity, SUM(oi.quantity * oi.price) AS total_price
+          FROM order_sumary os
+          JOIN order_items oi ON os.id = oi.order_id
+          JOIN products p ON oi.product_id = p.product_id
+          JOIN farmers f ON p.farmer_id = f.id
+          WHERE os.status = 'complete' AND f.id = ?
+          GROUP BY os.member_id, oi.product_id;`,
+          [decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    // นำผลลัพธ์ที่ได้มาประมวลผล
+    const processedResults = {};
+    results.forEach((row) => {
+      const { product_id, total_quantity, total_price } = row;
+      if (!processedResults[product_id]) {
+        processedResults[product_id] = { total_quantity: 0, total_price: 0 };
+      }
+      processedResults[product_id].total_quantity += total_quantity;
+      processedResults[product_id].total_price += total_price;
+    });
+
+    res.status(200).json({ success: true, data: processedResults });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
   let { peroid } = req.params;
   if (!peroid || (peroid !== "date" && peroid !== "month")) {
