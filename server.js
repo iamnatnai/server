@@ -4142,6 +4142,42 @@ async function checkPendingStatus(product_id, member_id) {
   }
 }
 
+app.get("/reserve", async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT rp.* FROM reserve_products rp
+          INNER JOIN products p ON rp.product_id = p.product_id
+          WHERE p.farmer_id = ?`,
+          [decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Reservation data retrieved successfully",
+      data: results,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 app.post("/reserve", async (req, res) => {
   try {
     const { product_id, lineid, quantity } = req.body;
