@@ -1296,6 +1296,7 @@ const notifyFollowersAddproduct = async (
   farmerId,
   farmerstorename
 ) => {
+  console.log("notifyFollowersAddproduct");
   return await usePooledConnectionAsync(async (db) => {
     console.log(farmerId);
     const followers = await new Promise((resolve, reject) => {
@@ -1313,8 +1314,8 @@ const notifyFollowersAddproduct = async (
       );
     });
     console.log(followers);
-    followers.forEach(({ member_id }) => {
-      createNotification(
+    followers.forEach(async ({ member_id }) => {
+      await createNotification(
         farmerId,
         member_id,
         `เกษตรกรร้านค้า ${farmerstorename} ได้เพิ่มสินค้าใหม่ ${product_name}`,
@@ -1518,12 +1519,12 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               }
             );
           });
-          notifyFollowersAddproduct(
-            nextProductId,
-            product_name,
-            farmerId,
-            farmerstorename
-          );
+          // notifyFollowersAddproduct(
+          //   nextProductId,
+          //   product_name,
+          //   farmerId,
+          //   farmerstorename
+          // );
           return res
             .status(200)
             .send({ success: true, message: "Product added successfully" });
@@ -1640,6 +1641,7 @@ app.get("/getproducts", async (req, res) => {
         console.log(err);
         res.status(500).send({ exist: false, error: "Internal Server Error" });
       } else {
+        console.log(result);
         res.json({
           products: result,
           maxPage:
@@ -4218,7 +4220,8 @@ app.post("/reserve", async (req, res) => {
     if (pendingplswait) {
       return res.status(400).json({
         success: false,
-        message: "ํYour Another Reserve Is Pending",
+        message:
+          "ไม่สามารถจองสินค้าซ้ำได้ กรุณารอการอนุมัติการจองของสินค้าเดิมก่อน",
       });
     }
 
@@ -4323,6 +4326,35 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
     try {
       db.query(
         `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id GROUP BY f.id;`,
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res
+              .status(500)
+              .json({ success: false, error: "Internal Server Error" });
+          }
+          res.json({ success: true, farmers: result });
+        }
+      );
+    } catch (error) {
+      console.error("Error getting farmer info:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  });
+});
+
+app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      db.query(
+        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id WHERE f.id = ? GROUP BY f.id;`,
+        [decoded.ID],
         (err, result) => {
           if (err) {
             console.error(err);
