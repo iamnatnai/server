@@ -4152,12 +4152,28 @@ app.get("/reserve", async (req, res) => {
     const results = await usePooledConnectionAsync(async (db) => {
       return new Promise((resolve, reject) => {
         db.query(
-          `SELECT rp.id, rp.product_id, rp.status, rp.quantity, rp.dates, rp.dates_complete, rp.contact,
-          m.id AS member_id, m.firstname, m.lastname, m.phone
-          FROM reserve_products rp
-          INNER JOIN members m ON rp.member_id = m.id
-          INNER JOIN products p ON rp.product_id = p.product_id
-          WHERE p.farmer_id = ?`,
+          `SELECT 
+          rp.id, 
+          rp.product_id, 
+          rp.status, 
+          rp.quantity, 
+          rp.dates, 
+          rp.dates_complete, 
+          rp.contact,
+          p.product_name,
+          p.unit,
+          m.id AS member_id, 
+          m.firstname, 
+          m.lastname, 
+          m.phone
+      FROM 
+          reserve_products rp
+      INNER JOIN 
+          members m ON rp.member_id = m.id
+      INNER JOIN 
+          products p ON rp.product_id = p.product_id
+      WHERE 
+          p.farmer_id = ?`,
           [decoded.ID],
           (err, result) => {
             if (err) {
@@ -4175,6 +4191,8 @@ app.get("/reserve", async (req, res) => {
       status: result.status,
       reserve_products: {
         product_id: result.product_id,
+        product_name: result.product_name,
+        unit: result.unit,
         quantity: result.quantity,
       },
       customer_info: {
