@@ -4142,6 +4142,63 @@ async function checkPendingStatus(product_id, member_id) {
   }
 }
 
+app.get("/reserve", async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT rp.id, rp.product_id, rp.status, rp.quantity, rp.dates, rp.dates_complete, rp.contact,
+          m.id AS member_id, m.firstname, m.lastname, m.phone
+          FROM reserve_products rp
+          INNER JOIN members m ON rp.member_id = m.id
+          INNER JOIN products p ON rp.product_id = p.product_id
+          WHERE p.farmer_id = ?`,
+          [decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    const formattedResults = results.map((result) => ({
+      id: result.id,
+      status: result.status,
+      reserve_products: {
+        product_id: result.product_id,
+        quantity: result.quantity,
+      },
+      customer_info: {
+        member_id: result.member_id,
+        firstname: result.firstname,
+        lastname: result.lastname,
+        phone: result.phone,
+        line: result.contact,
+      },
+      dates: result.dates,
+      dates_complete: result.dates_complete,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "Reservation data retrieved successfully",
+      data: formattedResults,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 app.post("/reserve", async (req, res) => {
   try {
     const { product_id, lineid, quantity } = req.body;
