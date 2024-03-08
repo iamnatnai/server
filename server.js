@@ -29,7 +29,8 @@ app.use(
 app.use(express.json());
 
 var db_config = {
-  host: "localhost",
+  host: "0.tcp.ap.ngrok.io",
+  port: "18574",
   socketPath:
     process.env.production == "true"
       ? "/var/run/mysqld/mysqld.sock"
@@ -73,35 +74,40 @@ const createNotification = async (
   type
 ) => {
   return await usePooledConnectionAsync(async (db) => {
-    let id = await new Promise(async (resolve, reject) => {
-      db.query("SELECT MAX(id) as maxId FROM notification", (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          let nextId = "NOTI00000001";
-          if (result[0].maxId) {
-            const currentId = result[0].maxId;
-            const numericPart = parseInt(currentId.substring(4), 10) + 1;
-
-            nextId = "NOTI" + numericPart.toString().padStart(8, "0");
-          }
-          resolve(nextId);
-        }
-      });
-    });
-    return new Promise((resolve, reject) => {
-      db.query(
-        `INSERT INTO notification (id, sender_id, recipient_id, message, link,type, timesent) VALUES (?,?, ?, ?, ?, ?, NOW())`,
-        [id, sender_id, recipient_id, message, link, type],
-        (err, result) => {
+    try {
+      let id = await new Promise(async (resolve, reject) => {
+        db.query("SELECT MAX(id) as maxId FROM notification", (err, result) => {
           if (err) {
             reject(err);
           } else {
-            resolve(result);
+            let nextId = "NOTI00000001";
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+              nextId = "NOTI" + numericPart.toString().padStart(8, "0");
+            }
+            resolve(nextId);
           }
-        }
-      );
-    });
+        });
+      });
+      return new Promise((resolve, reject) => {
+        db.query(
+          `INSERT INTO notification (id, sender_id, recipient_id, message, link,type, timesent) VALUES (?,?, ?, ?, ?, ?, NOW())`,
+          [id, sender_id, recipient_id, message, link, type],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      console.error("Error creating notification:", error);
+      throw error;
+    }
   });
 };
 
@@ -1308,31 +1314,34 @@ const notifyFollowersAddproduct = async (
 ) => {
   console.log("notifyFollowersAddproduct");
   return await usePooledConnectionAsync(async (db) => {
-    console.log(farmerId);
-    const followers = await new Promise((resolve, reject) => {
-      db.query(
-        "SELECT member_id FROM followedbymember WHERE farmer_id = ?",
-        [farmerId],
-        (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            console.log(result);
-            resolve(result);
+    try {
+      console.log(farmerId);
+      const followers = await new Promise((resolve, reject) => {
+        db.query(
+          "SELECT member_id FROM followedbymember WHERE farmer_id = ?",
+          [farmerId],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              console.log(result);
+              resolve(result);
+            }
           }
-        }
-      );
-    });
-    console.log(followers);
-    followers.forEach(async ({ member_id }) => {
-      await createNotification(
-        farmerId,
-        member_id,
-        `เกษตรกรร้านค้า ${farmerstorename} ได้เพิ่มสินค้าใหม่ ${product_name}`,
-        `/shop/${farmerstorename}/${productId}`,
-        "เพิ่มสินค้า"
-      );
-    });
+        );
+      });
+      followers.forEach(async ({ member_id }) => {
+        await createNotification(
+          farmerId,
+          member_id,
+          `เกษตรกรร้านค้า ${farmerstorename} ได้เพิ่มสินค้าใหม่ ${product_name}`,
+          `/shop/${farmerstorename}/${productId}`,
+          "เพิ่มสินค้า"
+        );
+      });
+    } catch (error) {
+      console.error("Error notifying followers:", error);
+    }
   });
 };
 
@@ -1522,25 +1531,25 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               .send({ success: false, message: "Internal Server Error" });
           }
           // find farmerstorename by farmer_id
-          // let farmerstorename = await new Promise((resolve, reject) => {
-          //   db.query(
-          //     "SELECT farmerstorename FROM farmers WHERE id = ?",
-          //     [farmerId],
-          //     (err, result) => {
-          //       if (err) {
-          //         console.error("Error finding farmerstorename:", err);
-          //         reject(err);
-          //       }
-          //       resolve(result[0].farmerstorename);
-          //     }
-          //   );
-          // });
-          // notifyFollowersAddproduct(
-          //   nextProductId,
-          //   product_name,
-          //   farmerId,
-          //   farmerstorename
-          // );
+          let farmerstorename = await new Promise((resolve, reject) => {
+            db.query(
+              "SELECT farmerstorename FROM farmers WHERE id = ?",
+              [farmerId],
+              (err, result) => {
+                if (err) {
+                  console.error("Error finding farmerstorename:", err);
+                  reject(err);
+                }
+                resolve(result[0].farmerstorename);
+              }
+            );
+          });
+          notifyFollowersAddproduct(
+            nextProductId,
+            product_name,
+            farmerId,
+            farmerstorename
+          );
           return res
             .status(200)
             .send({ success: true, message: "Product added successfully" });
@@ -2013,11 +2022,11 @@ app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
 
 app.post(
   "/checkout",
-  upload.fields([{ name: "productSlip", maxCount: 1 }]),
+  upload.fields([{ name: "image", maxCount: 1 }]),
   async (req, res) => {
     let { cartList, shippingcost } = req.body;
     var SUMITNOW = 0;
-    console.log(cartList, shippingcost, req.body);
+    console.log(cartList, shippingcost, req.headers);
     try {
       await usePooledConnectionAsync(async (db) => {
         cartList = JSON.parse(cartList);
@@ -2047,8 +2056,8 @@ app.post(
             }
           });
         });
-        const productSlipFile = req.files["productSlip"]
-          ? req.files["productSlip"][0]
+        const productSlipFile = req.files["image"]
+          ? req.files["image"][0]
           : null;
         const productSlipPath = productSlipFile
           ? `./uploads/${productSlipFile.filename}`
@@ -2453,12 +2462,10 @@ app.get("/orderlist", async (req, res) => {
 
 app.post(
   "/confirmtrancsaction",
-  upload.fields([{ name: "productSlip", maxCount: 1 }]),
+  upload.fields([{ name: "image", maxCount: 1 }]),
   async (req, res) => {
     try {
-      const productSlipFile = req.files["productSlip"]
-        ? req.files["productSlip"][0]
-        : null;
+      const productSlipFile = req.files["image"] ? req.files["image"][0] : null;
       const productSlipPath = productSlipFile
         ? `./uploads/${productSlipFile.filename}`
         : null;
@@ -2559,6 +2566,8 @@ app.post(
       const token = req.headers.authorization
         ? req.headers.authorization.split(" ")[1]
         : null;
+      console.log(req.headers);
+      console.log(req.body);
       const decoded = jwt.verify(token, secretKey);
       if (!req.files["image"]) {
         return res
@@ -4068,7 +4077,11 @@ app.get("/allcategories", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
-        `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor from products p LEFT JOIN categories c on p.category_id = c.category_id where p.available = 1 GROUP BY c.category_name;`,
+        `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor 
+        FROM products p 
+        LEFT JOIN categories c ON p.category_id = c.category_id 
+        WHERE p.available = 1 
+        GROUP BY c.category_name, c.bgcolor;`,
         (err, result) => {
           if (err) {
             console.error(err);
@@ -4516,4 +4529,4 @@ app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   });
 });
 
-app.listen(3001, () => console.log("Avalable 3001"));
+app.listen(3006, () => console.log("Avalable 3006"));
