@@ -29,8 +29,8 @@ app.use(
 app.use(express.json());
 
 var db_config = {
-  host: "0.tcp.ap.ngrok.io",
-  port: "18574",
+  host: "localhost",
+  // port: "18574",
   socketPath:
     process.env.production == "true"
       ? "/var/run/mysqld/mysqld.sock"
