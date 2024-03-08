@@ -175,7 +175,11 @@ const checkTambonProvider = (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, secretKey);
-    if (decoded.role !== "tambons" && decoded.role !== "providers") {
+    if (
+      decoded.role !== "tambons" &&
+      decoded.role !== "providers" &&
+      decoded.role !== "admins"
+    ) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     next();
