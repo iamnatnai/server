@@ -591,16 +591,54 @@ app.get("/users", async (req, res) => {
         });
 
         const farmersQuery =
-          "SELECT f.id AS farmer_id,f.email, f.username, f.firstname, f.lastname, f.phone, f.role,clf.id AS certificate_link_id,clf.standard_id FROM farmers f JOIN certificate_link_farmer clf ON f.id = clf.farmer_id WHERE f.available = 1;";
+          "SELECT f.id AS farmer_id, f.email, f.username, f.firstname, f.lastname, f.phone, f.role, clf.id AS certificate_link_id, clf.standard_id FROM farmers f JOIN certificate_link_farmer clf ON f.id = clf.farmer_id WHERE f.available = 1;";
+
         const farmersResult = await new Promise((resolve, reject) => {
           db.query(farmersQuery, (err, result) => {
             if (err) {
               reject(err);
             } else {
-              resolve(result);
+              // Grouping farmers by farmer_id
+              const farmersMap = {};
+              result.forEach((row) => {
+                const {
+                  farmer_id,
+                  email,
+                  username,
+                  firstname,
+                  lastname,
+                  phone,
+                  role,
+                  certificate_link_id,
+                  standard_id,
+                } = row;
+                if (!farmersMap[farmer_id]) {
+                  farmersMap[farmer_id] = {
+                    farmer_id,
+                    email,
+                    username,
+                    firstname,
+                    lastname,
+                    phone,
+                    role,
+                    certificates: [],
+                  };
+                }
+                // If certificate_link_id exists, push certificate data into certificates array
+                if (certificate_link_id) {
+                  farmersMap[farmer_id].certificates.push({
+                    certificate_link_id,
+                    standard_id,
+                  });
+                }
+              });
+              // Convert object values (grouped farmers) to array
+              const farmersArray = Object.values(farmersMap);
+              resolve(farmersArray);
             }
           });
         });
+
         const membersQuery =
           "SELECT email, username, firstname, lastname, phone, role FROM members WHERE available = 1";
         const membersResult = await new Promise((resolve, reject) => {
