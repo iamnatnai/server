@@ -351,7 +351,7 @@ async function checkIfExistsInAllTables(column, value) {
   return results.some((result) => result);
 }
 
-async function getNextCertId() {
+async function getNextCertId(index = 0) {
   return await usePooledConnectionAsync(async (db) => {
     return await new Promise(async (resolve, reject) => {
       db.query(
@@ -363,7 +363,8 @@ async function getNextCertId() {
             let nextId = "CERT000001";
             if (result[0].maxId) {
               const currentId = result[0].maxId;
-              const numericPart = parseInt(currentId.substring(4), 10) + 1;
+              const numericPart =
+                parseInt(currentId.substring(4), 10) + 1 + index;
 
               nextId = "CERT" + numericPart.toString().padStart(6, "0");
             }
@@ -385,6 +386,7 @@ async function insertFarmer(
   tel,
   certificateList
 ) {
+  console.log(certificateList);
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
       const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, role, farmerstorename, createAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
@@ -411,8 +413,8 @@ async function insertFarmer(
       );
     });
     if (certificateList) {
-      certificateList.forEach(async (certificate) => {
-        let nextCertId = await getNextCertId();
+      certificateList.map(async (certificate, index) => {
+        let nextCertId = await getNextCertId(index);
         await new Promise((resolve, reject) => {
           const query = `INSERT INTO certificate_link_farmer  (id, farmer_id, standard_id, status) VALUES (?,?, ?, "complete")`;
           db.query(
@@ -4603,36 +4605,59 @@ app.get("/certifarmer", async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });
-app.post("/certifarmer", async (req, res) => {
-  try {
-    const { standard_id, status } = req.body;
-    const token = req.headers.authorization
-      ? req.headers.authorization.split(" ")[1]
-      : null;
-    const decoded = jwt.verify(token, secretKey);
-    const results = await usePooledConnectionAsync(async (db) => {
-      return new Promise((resolve, reject) => {
-        db.query(
-          `INSERT INTO certificate_link_farmer 
-          SET standard_id = ?, status = ? ,farmer_id = ?`,
-          [standard_id, "pending", decoded.ID],
-          (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
+app.post(
+  "/certifarmer",
+  upload.fields([{ name: "image", maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const { standard_id, name, certificate_number } = req.body;
+      if (!standard_id) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid standard_id or name" });
+      }
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      let pathName = null;
+      if (req.files.image) {
+        let image = req.files.image[0].filename;
+        pathName = "/uploads/" + image;
+      }
+      const results = await usePooledConnectionAsync(async (db) => {
+        let nextId = await getNextCertId();
+        return new Promise((resolve, reject) => {
+          db.query(
+            `INSERT INTO certificate_link_farmer (id, farmer_id, standard_id, name, certificate_number, image, status) VALUES (?, ?, ?, ?, ?, ?, "pending")`,
+            [
+              nextId,
+              decoded.ID,
+              standard_id,
+              name,
+              certificate_number,
+              pathName,
+            ],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result);
+              }
             }
-          }
-        );
+          );
+        });
       });
-    });
-    console.log(results);
-    res.status(200).json({ success: true, data: results });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+      console.log(results);
+      res.status(200).json({ success: true, data: results });
+    } catch (error) {
+      console.error(error);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
   }
-});
+);
 app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
