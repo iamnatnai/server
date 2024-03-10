@@ -350,6 +350,30 @@ async function checkIfExistsInAllTables(column, value) {
   return results.some((result) => result);
 }
 
+async function getNextCertId() {
+  return await usePooledConnectionAsync(async (db) => {
+    return await new Promise(async (resolve, reject) => {
+      db.query(
+        "SELECT MAX(id) as maxId FROM certificate_link_farmer",
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            let nextId = "CERT000001";
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+              nextId = "CERT" + numericPart.toString().padStart(6, "0");
+            }
+            resolve(nextId);
+          }
+        }
+      );
+    });
+  });
+}
+
 async function insertFarmer(
   nextUserId,
   username,
@@ -357,10 +381,11 @@ async function insertFarmer(
   hashedPassword,
   firstName,
   lastName,
-  tel
+  tel,
+  certificateList
 ) {
   return await usePooledConnectionAsync(async (db) => {
-    return await new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, role, farmerstorename, createAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
       db.query(
         query,
@@ -384,11 +409,39 @@ async function insertFarmer(
         }
       );
     });
+    if (certificateList) {
+      certificateList.forEach(async (certificate) => {
+        let nextCertId = await getNextCertId();
+        await new Promise((resolve, reject) => {
+          const query = `INSERT INTO certificate_link_farmer  (id, farmer_id, standard_id, status) VALUES (?,?, ?, "complete")`;
+          db.query(
+            query,
+            [nextCertId, nextUserId, certificate],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result);
+              }
+            }
+          );
+        });
+      });
+    }
+    return;
   });
 }
 app.post("/addfarmer", checkTambon, async (req, res) => {
-  const { username, email, password, firstName, lastName, tel } = req.body;
-  if (!username || !email || !password || !firstName || !lastName || !tel) {
+  const {
+    username,
+    email,
+    password,
+    firstName,
+    lastName,
+    tel,
+    certificateList,
+  } = req.body;
+  if (!username || !email || !password) {
     return res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
@@ -416,7 +469,8 @@ app.post("/addfarmer", checkTambon, async (req, res) => {
       hashedPassword,
       firstName,
       lastName,
-      tel
+      tel,
+      certificateList
     );
     res
       .status(201)
@@ -428,17 +482,17 @@ app.post("/addfarmer", checkTambon, async (req, res) => {
 });
 
 app.post("/adduser", checkAdmin, async (req, res) => {
-  const { username, email, password, firstName, lastName, tel, role } =
-    req.body;
-  if (
-    !username ||
-    !email ||
-    !password ||
-    !firstName ||
-    !lastName ||
-    !tel ||
-    !role
-  ) {
+  const {
+    username,
+    email,
+    password,
+    firstName,
+    lastName,
+    tel,
+    role,
+    certificateList,
+  } = req.body;
+  if (!email || !username || !password || !role) {
     return res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
@@ -467,7 +521,8 @@ app.post("/adduser", checkAdmin, async (req, res) => {
         hashedPassword,
         firstName,
         lastName,
-        tel
+        tel,
+        certificateList
       );
     } else {
       await insertUser(
@@ -2355,6 +2410,7 @@ app.get("/orderlist", async (req, res) => {
       const token = req.headers.authorization
         ? req.headers.authorization.split(" ")[1]
         : null;
+
       const decoded = jwt.verify(token, secretKey);
       const orderQuery = "SELECT * FROM order_sumary WHERE member_id = ?";
       const orders = await new Promise((resolve, reject) => {
@@ -3529,7 +3585,42 @@ app.post("/certificate", checkAdmin, async (req, res) => {
       .json({ success: false, message: "Internal Server Error" });
   }
 });
-app.delete("/certificate/", checkAdmin, async (req, res) => {
+
+app.patch("/certificate", checkAdmin, async (req, res) => {
+  try {
+    return await usePooledConnectionAsync(async (db) => {
+      let { id, status, comment = "" } = req.body;
+      //check if name exist
+      if (!id || !status) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid farmer_id or standard_id or status",
+        });
+      }
+      let query = `UPDATE certificate_link_farmer SET status = "${status}", comment = "${comment}" WHERE id = "${id}"`;
+      db.query(query, (err, result) => {
+        if (err) {
+          console.error("Error adding certificate:", err);
+          return res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
+        } else {
+          return res.status(200).json({
+            success: true,
+            message: "Certificate added successfully",
+          });
+        }
+      });
+    });
+  } catch (error) {
+    console.error("Error adding certificate:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.delete("/certificate", checkAdmin, async (req, res) => {
   const { id } = req.body;
   if (!id) {
     return res
