@@ -591,7 +591,7 @@ app.get("/users", async (req, res) => {
         });
 
         const farmersQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM farmers WHERE available = 1";
+          "SELECT f.id AS farmer_id,f.email, f.username, f.firstname, f.lastname, f.phone, f.role,clf.id AS certificate_link_id,clf.standard_id FROM farmers f JOIN certificate_link_farmer clf ON f.id = clf.farmer_idWHERE f.available = 1;";
         const farmersResult = await new Promise((resolve, reject) => {
           db.query(farmersQuery, (err, result) => {
             if (err) {
@@ -3195,22 +3195,22 @@ app.get("/excel", async (req, res) => {
     await usePooledConnectionAsync(async (db) => {
       // Query data of farmers
       const farmerSqlQuery = `
-        SELECT 
-          f.id AS farmer_id, 
-          f.email, 
-          f.username, 
-          f.firstname, 
-          f.lastname, 
-          f.farmerstorename, 
-          f.phone,
-          COUNT(p.product_id) AS product_count
-        FROM 
-          farmers f
-        LEFT JOIN 
-          products p ON f.id = p.farmer_id
-        WHERE p.available = 1
-        GROUP BY
-          f.id, f.email, f.username, f.firstname, f.lastname, f.farmerstorename, f.phone
+      SELECT 
+    f.id AS farmer_id, 
+    f.email, 
+    f.username, 
+    f.firstname, 
+    f.lastname, 
+    f.farmerstorename, 
+    f.phone,
+    IFNULL(COUNT(p.product_id), 0) AS product_count
+FROM 
+    farmers f
+LEFT JOIN 
+    products p ON f.id = p.farmer_id AND p.available = 1
+GROUP BY
+    f.id, f.email, f.username, f.firstname, f.lastname, f.farmerstorename, f.phone;
+
       `;
 
       const farmersData = await new Promise((resolve, reject) => {
