@@ -4538,7 +4538,7 @@ app.get("/certifarmer", async (req, res) => {
     const results = await usePooledConnectionAsync(async (db) => {
       return new Promise((resolve, reject) => {
         db.query(
-          `SELECT * FROM certificate_link_farmer WHERE farmer_id = ?`,
+          `SELECT * FROM certificate_link_farmer WHERE farmer_id = ? and status not like "reject"`,
           [decoded.ID],
           (err, result) => {
             if (err) {
