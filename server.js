@@ -4513,6 +4513,36 @@ app.get("/certifarmer", async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });
+app.post("/certifarmer", async (req, res) => {
+  try {
+    const { standard_id, status } = req.body;
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `INSERT INTO certificate_link_farmer 
+          SET standard_id = ?, status = ? ,farmer_id = ?`,
+          [standard_id, "pending", decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+    console.log(results);
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
 app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
