@@ -4581,7 +4581,7 @@ app.post(
         let nextId = await getNextCertId();
         return new Promise((resolve, reject) => {
           db.query(
-            `INSERT INTO certificate_link_farmer (id, farmer_id, standard_id, name, certificate_number, image, status) VALUES (?, ?, ?, ?, ?, ?, "pending")`,
+            `INSERT INTO certificate_link_farmer (id, farmer_id, standard_id, name, certificate_number, image_path, status) VALUES (?, ?, ?, ?, ?, ?, "pending")`,
             [
               nextId,
               decoded.ID,
