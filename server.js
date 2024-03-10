@@ -218,15 +218,15 @@ app.post("/checkinguser", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     db.query(
       `
-      SELECT 'admins' AS role, username FROM admins WHERE username = ?
+      SELECT 'admins' AS role, username FROM admins WHERE username = ? and available = 1
       UNION
-      SELECT 'farmers' AS role, username FROM farmers WHERE username = ?
+      SELECT 'farmers' AS role, username FROM farmers WHERE username = ? and available = 1
       UNION
-      SELECT 'members' AS role, username FROM members WHERE username = ?
+      SELECT 'members' AS role, username FROM members WHERE username = ? and available = 1
       UNION
-      SELECT 'providers' AS role, username FROM providers WHERE username = ?
+      SELECT 'providers' AS role, username FROM providers WHERE username = ? and available = 1
       UNION
-      SELECT 'tambon' AS role, username FROM tambons WHERE username = ?
+      SELECT 'tambon' AS role, username FROM tambons WHERE username = ? and available = 1
       `,
       [username, username, username, username, username],
       (err, result) => {
@@ -252,15 +252,15 @@ app.post("/checkingemail", (req, res) => {
   usePooledConnectionAsync(async (db) => {
     db.query(
       `
-      SELECT 'admins' AS role, email FROM admins WHERE email = ?
+      SELECT 'admins' AS role, email FROM admins WHERE email = ? and available = 1
       UNION
-      SELECT 'farmers' AS role, email FROM farmers WHERE email = ?
+      SELECT 'farmers' AS role, email FROM farmers WHERE email = ? and available = 1
       UNION
-      SELECT 'members' AS role, email FROM members WHERE email = ?
+      SELECT 'members' AS role, email FROM members WHERE email = ? and available = 1
       UNION
-      SELECT 'providers' AS role, email FROM providers WHERE email = ?
+      SELECT 'providers' AS role, email FROM providers WHERE email = ? and available = 1
       UNION
-      SELECT 'tambon' AS role, email FROM tambons WHERE email = ?
+      SELECT 'tambon' AS role, email FROM tambons WHERE email = ? and available = 1
       `,
       [email, email, email, email, email],
       (err, result) => {
@@ -328,9 +328,9 @@ app.post("/register", async (req, res) => {
 
 async function checkIfExists(role, column, value) {
   return await usePooledConnectionAsync(async (db) => {
-    new Promise(async (resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       db.query(
-        `SELECT * FROM ${role} WHERE ${column} = ?`,
+        `SELECT * FROM ${role} WHERE ${column} = ? and available = 1`,
         [value],
         (err, result) => {
           if (err) {
@@ -802,7 +802,6 @@ passport.use(jwtAuth);
 
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  console.log(123);
   if (!username || !password) {
     return res
       .status(400)
