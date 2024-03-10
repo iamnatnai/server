@@ -4657,4 +4657,28 @@ app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   });
 });
 
+app.get("/getadmincertificate", checkAdmin, async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      db.query(
+        `SELECT cf.*, f.firstname, f.lastname, s.standard_name FROM certificate_link_farmer cf join farmers f on f.id = cf.farmer_id join standard_products s on s.standard_id = cf.standard_id where cf.status = "pending"`,
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res
+              .status(500)
+              .json({ success: false, error: "Internal Server Error" });
+          }
+          res.json({ success: true, certificate: result });
+        }
+      );
+    } catch (error) {
+      console.error("Error getting farmer info:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  });
+});
+
 app.listen(3006, () => console.log("Avalable 3006"));
