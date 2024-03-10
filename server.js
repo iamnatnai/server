@@ -591,7 +591,7 @@ app.get("/users", async (req, res) => {
         });
 
         const farmersQuery =
-          "SELECT f.id AS farmer_id,f.email, f.username, f.firstname, f.lastname, f.phone, f.role,clf.id AS certificate_link_id,clf.standard_id FROM farmers f JOIN certificate_link_farmer clf ON f.id = clf.farmer_idWHERE f.available = 1;";
+          "SELECT f.id AS farmer_id,f.email, f.username, f.firstname, f.lastname, f.phone, f.role,clf.id AS certificate_link_id,clf.standard_id FROM farmers f JOIN certificate_link_farmer clf ON f.id = clf.farmer_id WHERE f.available = 1;";
         const farmersResult = await new Promise((resolve, reject) => {
           db.query(farmersQuery, (err, result) => {
             if (err) {
