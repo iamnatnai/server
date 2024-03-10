@@ -4485,7 +4485,34 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
     }
   });
 });
+app.get("/certifarmer", async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT * FROM certificate_link_farmer WHERE farmer_id = ?`,
+          [decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
 
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
 app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
