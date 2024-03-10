@@ -483,17 +483,17 @@ app.post("/addfarmer", checkTambon, async (req, res) => {
 });
 
 app.post("/adduser", checkAdmin, async (req, res) => {
-  const { username, email, password, firstName, lastName, tel, role } =
-    req.body;
-  if (
-    !username ||
-    !email ||
-    !password ||
-    !firstName ||
-    !lastName ||
-    !tel ||
-    !role
-  ) {
+  const {
+    username,
+    email,
+    password,
+    firstName,
+    lastName,
+    tel,
+    role,
+    certificateList,
+  } = req.body;
+  if (!username || !password || !role) {
     return res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
@@ -522,7 +522,8 @@ app.post("/adduser", checkAdmin, async (req, res) => {
         hashedPassword,
         firstName,
         lastName,
-        tel
+        tel,
+        certificateList
       );
     } else {
       await insertUser(
