@@ -414,7 +414,7 @@ async function insertFarmer(
       certificateList.forEach(async (certificate) => {
         let nextCertId = await getNextCertId();
         await new Promise((resolve, reject) => {
-          const query = `INSERT INTO certificate_link_farmer  (id,farmer_id, standard_id, status) VALUES (?, ?, "complete")`;
+          const query = `INSERT INTO certificate_link_farmer  (id, farmer_id, standard_id, status) VALUES (?,?, ?, "complete")`;
           db.query(
             query,
             [nextCertId, nextUserId, certificate],
