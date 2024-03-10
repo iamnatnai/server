@@ -4643,6 +4643,62 @@ app.post(
     }
   }
 );
+app.get("/certiconver/:product_id", async (req, res) => {
+  const { product_id } = req.params;
+
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      const certificateQuery = `
+      SELECT certificate
+      FROM products
+      WHERE product_id = ?;
+    `;
+
+      const certificateResults = await new Promise((resolve, reject) => {
+        db.query(certificateQuery, [product_id], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+
+      const standardIds = certificateResults.map((row) => row.standard_id);
+
+      const standardQuery = `
+      SELECT clf.standard_id, f.id AS farmer_id
+      FROM certificate_link_farmer clf
+      JOIN farmers f ON clf.farmer_id = f.id
+      WHERE clf.standard_id IN (?);
+    `;
+
+      const farmerResults = await new Promise((resolve, reject) => {
+        db.query(standardQuery, [standardIds], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+
+      // Grouping farmers by standard_id
+      const farmersByStandard = {};
+      farmerResults.forEach((row) => {
+        const { standard_id, farmer_id } = row;
+        if (!farmersByStandard[standard_id]) {
+          farmersByStandard[standard_id] = [];
+        }
+        farmersByStandard[standard_id].push(farmer_id);
+      });
+    });
+    res.status(200).json({ success: true, farmersByStandard });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
 app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
