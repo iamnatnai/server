@@ -4013,7 +4013,7 @@ app.get("/farmerregister", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
-        `SELECT count(*) as register_count, createAt FROM farmers group by createAt order by createAt desc limit 30`,
+        `SELECT count(*) as register_count, date(createAt) as createAt FROM farmers group by date(createAt) order by date(createAt) desc limit 30;`,
         (err, result) => {
           if (err) {
             console.error(err);
