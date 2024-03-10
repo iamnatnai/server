@@ -307,7 +307,6 @@ app.post("/register", async (req, res) => {
     }
 
     const nextId = await getNextId();
-    console.log(nextId);
 
     await insertMember(
       nextId,
@@ -686,7 +685,6 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
     const { role, username } = req.params;
-    console.log(role, username);
     if (decoded.role === "tambons" && role !== "farmers") {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -746,7 +744,6 @@ async function getNextUserId(role) {
       rolePrefix = "TB";
       break;
   }
-  console.log("role = ", role);
   return await usePooledConnectionAsync(async (db) => {
     return new Promise(async (resolve, reject) => {
       db.query(`SELECT MAX(id) as maxId FROM ${role}`, (err, result) => {
@@ -758,7 +755,6 @@ async function getNextUserId(role) {
             const currentId = result[0].maxId;
             const numericPart =
               parseInt(currentId.substring(rolePrefix.length), 10) + 1;
-            console.log(numericPart);
             nextUserId = `${rolePrefix}${numericPart
               .toString()
               .padStart(6, "0")}`;
@@ -873,15 +869,9 @@ app.post("/login", async (req, res) => {
         .status(401)
         .send({ status: false, error: "Invalid username or password" });
     }
-    console.log("User:", user.uze_name);
-    console.log("Password:", password);
-    console.log("Hash Password:", user.pazz);
-    console.log("role:", user.role);
-    console.log("+++++++++++++++++++++++++++++++++++++++");
     const passwordMatch = await bcrypt.compare(password, user.pazz);
 
     if (!passwordMatch) {
-      console.log("not");
       return res
         .status(401)
         .send({ status: false, error: "Invalid username or password" });
@@ -1093,7 +1083,7 @@ app.post("/categories", checkAdmin, async (req, res) => {
                   result[0].maxId.substring(3),
                   10
                 );
-                console.log(result[0]);
+
                 const nextNumericPart = currentIdNumericPart + 1;
                 const paddedNextNumericPart = String(nextNumericPart).padStart(
                   4,
@@ -1106,8 +1096,6 @@ app.post("/categories", checkAdmin, async (req, res) => {
           }
         );
       });
-
-      console.log(category_id);
     }
 
     // find if category_id is exist on database
@@ -1375,7 +1363,6 @@ const notifyFollowersAddproduct = async (
   console.log("notifyFollowersAddproduct");
   return await usePooledConnectionAsync(async (db) => {
     try {
-      console.log(farmerId);
       const followers = await new Promise((resolve, reject) => {
         db.query(
           "SELECT member_id FROM followedbymember WHERE farmer_id = ?",
@@ -1485,7 +1472,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     certificate,
     weight,
   } = req.body;
-  console.log(req.body);
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
@@ -1496,7 +1482,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       if (decoded.role == "farmers") {
         farmerId = decoded.ID;
       } else {
-        console.log(req.body.username);
         farmerId = await new Promise((resolve, reject) => {
           db.query(
             "SELECT ID FROM farmers WHERE username = ?",
@@ -1635,8 +1620,6 @@ app.get("/getimage/:image", (req, res) => {
 // });
 app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   const { product_id, shopname } = req.params;
-  console.log(product_id, shopname);
-  console.log("hi");
   await usePooledConnectionAsync(async (db) => {
     db.query(
       "SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng, f.facebooklink, f.lineid FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;",
@@ -1667,7 +1650,6 @@ app.get("/getproducts", async (req, res) => {
     groupby,
     farmerstorename: shopname,
   } = req.query;
-  console.log(shopname);
   if (page < 1) {
     page = 1;
   }
@@ -1709,7 +1691,6 @@ app.get("/getproducts", async (req, res) => {
     }  
     ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
   }
-  console.log(query);
   await usePooledConnectionAsync(async (db) => {
     let AllPage = await new Promise((resolve, reject) => {
       db.query(queryMaxPage, (err, result) => {
@@ -1764,7 +1745,6 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
-  console.log(id);
   await usePooledConnectionAsync(async (db) => {
     //soft delete
     const decoded = jwt.verify(token, secretKey);
@@ -1793,7 +1773,6 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
 app.get("/updateview/:id", async (req, res) => {
   const { id } = req.params;
   // update view_count + 1
-  console.log(id);
   await usePooledConnectionAsync(async (db) => {
     db.query(
       "UPDATE products SET view_count = view_count + 1 WHERE product_id = ?",
@@ -1898,7 +1877,6 @@ app.post("/updateinfo", async (req, res) => {
     shippingcost = null,
   } = req.body;
   try {
-    console.log(req.body);
     let decoded = jwt.verify(token, secretKey);
     const { username, role } = decoded;
     if (role === "farmers") {
@@ -1914,7 +1892,6 @@ app.post("/updateinfo", async (req, res) => {
     } else {
       query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`;
     }
-    console.log(query);
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
         if (err) {
@@ -2086,7 +2063,6 @@ app.post(
   async (req, res) => {
     let { cartList, shippingcost } = req.body;
     var SUMITNOW = 0;
-    console.log(cartList, shippingcost, req.headers);
     try {
       await usePooledConnectionAsync(async (db) => {
         cartList = JSON.parse(cartList);
@@ -2128,7 +2104,7 @@ app.post(
         } else {
           address = memberaddress[0].address;
         }
-        console.log("-+-+-+-+--++--+-+-+-+-+-+-+-+-+-+-+");
+
         async function getNextORDID() {
           return new Promise((resolve, reject) => {
             db.query(
@@ -2140,10 +2116,10 @@ app.post(
                   let ORDNXT = "ORD00001";
                   if (result[0].maxId) {
                     const currentId = result[0].maxId;
-                    console.log(currentId);
+
                     const numericPart =
                       parseInt(currentId.substring(3), 10) + 1;
-                    console.log(numericPart);
+
                     ORDNXT = "ORD" + numericPart.toString().padStart(5, "0");
                   }
                   resolve(ORDNXT);
@@ -2173,16 +2149,15 @@ app.post(
               } else {
                 resolve(result);
               }
-              console.log("ORDNXT", ORDNXT);
             }
           );
         });
         for (const item of cartList) {
           const { product_id, amount } = item;
-          console.log(decoded);
+
           const getProductQuery =
             "SELECT stock, farmer_id, selectedType FROM products WHERE product_id = ?";
-          console.log(productSlipPath);
+
           const [product] = await new Promise((resolve, reject) => {
             db.query(getProductQuery, [product_id], (err, result) => {
               if (err) {
@@ -2192,10 +2167,10 @@ app.post(
               }
             });
           });
-          console.log("idoffarmer");
-          console.log(idoffarmer);
-          console.log(product.farmer_id);
-          console.log(product.selectedType);
+          // console.log("idoffarmer");
+          // console.log(idoffarmer);
+          // console.log(product.farmer_id);
+          // console.log(product.selectedType);
           if (!idoffarmer) {
             idoffarmer = product.farmer_id;
           } else if (idoffarmer != product.farmer_id) {
@@ -2224,14 +2199,9 @@ app.post(
               }
             });
           });
-          console.log("this");
-          console.log(result.price);
           const price = result.price;
           const totalProductPrice = price * amount;
           SUMITNOW = SUMITNOW + totalProductPrice;
-          console.log("total : ", totalProductPrice);
-          console.log(product.farmer_id);
-          console.log(cartList[0].farmer_id);
           if (!product || product.length === 0) {
             console.error(`Product ID ${product_id} not found`);
             return res
@@ -2276,10 +2246,8 @@ app.post(
                     let nextId = "ITEM00001";
                     if (result[0].maxId) {
                       const currentId = result[0].maxId;
-                      console.log(currentId);
                       const numericPart =
                         parseInt(currentId.substring(4), 10) + 1;
-                      console.log(numericPart);
                       nextId = "ITEM" + numericPart.toString().padStart(5, "0");
                     }
                     resolve(nextId);
@@ -2288,8 +2256,6 @@ app.post(
               );
             });
           }
-          console.log("++++++");
-          console.log(decoded.ID);
           const nextitemId = await getNextItemId();
           const insertOrderItemQuery =
             "INSERT INTO order_items (item_id,product_id,order_id,price, quantity) VALUES (?,?,?,?,?)";
@@ -2303,8 +2269,6 @@ app.post(
                 } else {
                   resolve(result);
                 }
-                console.log("nextitemId");
-                console.log(nextitemId);
               }
             );
           });
@@ -2503,10 +2467,7 @@ app.get("/orderlist", async (req, res) => {
               order.date_complete = order.date_complete
                 ? new Date(order.date_complete).toLocaleString()
                 : null;
-              console.log(
-                "++++++++++++++++++++++++++++++++++++++++++++++",
-                order.date_complete
-              );
+
               delete order.member_id;
             }
             resolve(result);
@@ -2783,7 +2744,6 @@ app.post("/confirmorder", async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invalid status" });
     }
-    console.log(req.body);
 
     const updateOrderStatusQuery = `UPDATE order_sumary SET status = ? ${
       comment ? `,comment = "${comment}"` : ""
@@ -2792,7 +2752,7 @@ app.post("/confirmorder", async (req, res) => {
         ? `${`,tracking_number = "${tracking_number}",date_complete = NOW()`}`
         : ""
     } WHERE id = ?`;
-    console.log(updateOrderStatusQuery);
+
     const updatedOrders = await usePooledConnectionAsync(async (db) => {
       return await new Promise(async (resolve, reject) => {
         db.query(updateOrderStatusQuery, [status, order_id], (err, result) => {
@@ -2919,16 +2879,11 @@ app.post("/comment", async (req, res) => {
             if (err) {
               reject(err);
             } else {
-              console.log(result);
-              console.log(product_id);
               resolve(result);
             }
           }
         );
       });
-
-      console.log("birdddddddddddddd");
-      console.log(duplicateOrders);
 
       if (duplicateOrders.length > 0) {
         return res.status(400).json({
@@ -2948,7 +2903,6 @@ app.post("/comment", async (req, res) => {
 
       const insertCommentQuery =
         "INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id,date_comment) VALUES (?, ?, ?, ?, ?, ?,NOW())";
-      console.log(orderResult.order_id);
 
       db.query(
         insertCommentQuery,
@@ -2973,7 +2927,6 @@ app.post("/comment", async (req, res) => {
 });
 app.get("/getcomment/:id", async (req, res) => {
   const id = req.params.id;
-  console.log(id);
   if (!id) {
     return res
       .status(400)
@@ -3053,7 +3006,7 @@ app.post("/editcomment/:id", async (req, res) => {
           }
         );
       });
-      console.log(EDITC);
+
       res
         .status(200)
         .json({ success: true, message: "Comment updated successfully" });
@@ -3487,7 +3440,6 @@ app.post("/changepassword", async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
-  console.log(req.body);
   const checkMatchPssword = async (role, username, password) => {
     return await usePooledConnectionAsync(async (db) => {
       const hashedPassword = await new Promise(async (resolve, reject) => {
@@ -4126,7 +4078,7 @@ app.get("/allfollowers", checkFarmer, async (req, res) => {
       let j = 0;
       let days30 = Array.from({ length: 30 }, (_, i) => {
         let dayago = moment().subtract(i, "days").toDate().toLocaleDateString();
-        console.log(dayago, result[j]);
+
         if (
           result[j] &&
           new Date(result[j].createAt).toLocaleDateString() === dayago
@@ -4209,9 +4161,9 @@ async function getNextResId() {
             let nextId = "RES000001";
             if (result[0].maxId) {
               const currentId = result[0].maxId;
-              console.log(currentId);
+
               const numericPart = parseInt(currentId.substring(3), 10) + 1;
-              console.log(numericPart);
+
               nextId = "RES" + numericPart.toString().padStart(6, "0");
             }
             resolve(nextId);
@@ -4692,7 +4644,7 @@ app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
               .status(500)
               .json({ success: false, error: "Internal Server Error" });
           }
-          console.log("asdfasdasd", result);
+
           res.json({ success: true, farmers: result });
         }
       );
