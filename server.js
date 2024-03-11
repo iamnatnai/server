@@ -4648,11 +4648,12 @@ app.get("/certiconver/:product_id", async (req, res) => {
 
   try {
     await usePooledConnectionAsync(async (db) => {
+      // 1. ดึง certificate จากตาราง products โดยใช้ product_id
       const certificateQuery = `
-      SELECT certificate
-      FROM products
-      WHERE product_id = ?;
-    `;
+        SELECT certificate
+        FROM products
+        WHERE product_id = ?;
+      `;
 
       const certificateResults = await new Promise((resolve, reject) => {
         db.query(certificateQuery, [product_id], (err, result) => {
@@ -4664,17 +4665,39 @@ app.get("/certiconver/:product_id", async (req, res) => {
         });
       });
 
-      const standardIds = certificateResults.map((row) => row.standard_id);
+      const certificates = certificateResults.map((row) => row.certificate);
+      const certificatesArray = JSON.parse(certificates[0]);
+      const certificateValue = certificatesArray[0]; // เข้าถึงค่าในอาร์เรย์และนำมาใช้งาน
 
-      const standardQuery = `
-      SELECT clf.standard_id, f.id AS farmer_id
+      // 2. ดึง standard_id จากตาราง certificate_link_farmer โดยใช้ certificate ที่ได้จากขั้นที่ 1
+      const standardIdsQuery = `
+      SELECT clf.standard_id
       FROM certificate_link_farmer clf
-      JOIN farmers f ON clf.farmer_id = f.id
-      WHERE clf.standard_id IN (?);
-    `;
-
-      const farmerResults = await new Promise((resolve, reject) => {
-        db.query(standardQuery, [standardIds], (err, result) => {
+      WHERE clf.id = ?;
+`;
+      console.log(certificateValue);
+      const standardIdsResults = await new Promise((resolve, reject) => {
+        db.query(standardIdsQuery, certificateValue, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+      console.log(standardIdsResults);
+      const standardIds = standardIdsResults.map((row) => row.standard_id);
+      console.log(standardIds);
+      // 3. ดึง standard_name จากตาราง standard_products โดยใช้ standard_id ที่ได้จากขั้นที่ 2
+      const standardNamesQuery = `
+      SELECT sp.standard_name
+      FROM standard_products sp
+      WHERE sp.standard_id = ?;
+      `;
+      console.log(standardNamesQuery);
+      console.log(standardNamesResults);
+      const standardNamesResults = await new Promise((resolve, reject) => {
+        db.query(standardNamesQuery, [standardIds], (err, result) => {
           if (err) {
             reject(err);
           } else {
@@ -4683,22 +4706,18 @@ app.get("/certiconver/:product_id", async (req, res) => {
         });
       });
 
-      // Grouping farmers by standard_id
-      const farmersByStandard = {};
-      farmerResults.forEach((row) => {
-        const { standard_id, farmer_id } = row;
-        if (!farmersByStandard[standard_id]) {
-          farmersByStandard[standard_id] = [];
-        }
-        farmersByStandard[standard_id].push(farmer_id);
-      });
+      const standardNames = standardNamesResults.map(
+        (row) => row.standard_name
+      );
+
+      res.status(200).json({ success: true, certificates, standardNames });
     });
-    res.status(200).json({ success: true, farmersByStandard });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });
+
 app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
