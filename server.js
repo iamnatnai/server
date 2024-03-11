@@ -4648,7 +4648,7 @@ app.get("/certiconver/:product_id", async (req, res) => {
 
   try {
     await usePooledConnectionAsync(async (db) => {
-      // 1. ดึง certificate จากตาราง products โดยใช้ product_id
+      // 1. Retrieve certificates from the products table using product_id
       const certificateQuery = `
         SELECT certificate
         FROM products
@@ -4666,51 +4666,58 @@ app.get("/certiconver/:product_id", async (req, res) => {
       });
 
       const certificates = certificateResults.map((row) => row.certificate);
-      const certificatesArray = JSON.parse(certificates[0]);
-      const certificateValue = certificatesArray[0]; // เข้าถึงค่าในอาร์เรย์และนำมาใช้งาน
+      const certificatesArray = certificates.map((cert) => JSON.parse(cert));
 
-      // 2. ดึง standard_id จากตาราง certificate_link_farmer โดยใช้ certificate ที่ได้จากขั้นที่ 1
-      const standardIdsQuery = `
-      SELECT clf.standard_id
-      FROM certificate_link_farmer clf
-      WHERE clf.id = ?;
-`;
-      console.log(certificateValue);
-      const standardIdsResults = await new Promise((resolve, reject) => {
-        db.query(standardIdsQuery, certificateValue, (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      });
-      console.log(standardIdsResults);
-      const standardIds = standardIdsResults.map((row) => row.standard_id);
-      console.log(standardIds);
-      // 3. ดึง standard_name จากตาราง standard_products โดยใช้ standard_id ที่ได้จากขั้นที่ 2
-      const standardNamesQuery = `
-      SELECT sp.standard_name
-      FROM standard_products sp
-      WHERE sp.standard_id = ?;
-      `;
-      console.log(standardNamesQuery);
-      console.log(standardNamesResults);
-      const standardNamesResults = await new Promise((resolve, reject) => {
-        db.query(standardNamesQuery, [standardIds], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      });
+      const standardNames = [];
 
-      const standardNames = standardNamesResults.map(
-        (row) => row.standard_name
-      );
+      for (let i = 0; i < certificatesArray.length; i++) {
+        const certificateValues = certificatesArray[i];
 
-      res.status(200).json({ success: true, certificates, standardNames });
+        for (let j = 0; j < certificateValues.length; j++) {
+          const certificateValue = certificateValues[j];
+
+          // 2. Retrieve standard_ids from the certificate_link_farmer table using the certificate obtained in step 1
+          const standardIdsQuery = `
+          SELECT clf.standard_id
+          FROM certificate_link_farmer clf
+          WHERE clf.id = ?;
+          `;
+
+          const standardIdsResults = await new Promise((resolve, reject) => {
+            db.query(standardIdsQuery, certificateValue, (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result);
+              }
+            });
+          });
+
+          const standardIds = standardIdsResults.map((row) => row.standard_id);
+
+          const standardNamesQuery = `
+          SELECT sp.standard_name
+          FROM standard_products sp
+          WHERE sp.standard_id IN (?);
+          `;
+
+          const standardNamesResults = await new Promise((resolve, reject) => {
+            db.query(standardNamesQuery, [standardIds], (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result);
+              }
+            });
+          });
+
+          standardNames.push(
+            standardNamesResults.map((row) => row.standard_name)
+          );
+        }
+      }
+
+      res.status(200).json({ success: true, certificatesArray, standardNames });
     });
   } catch (error) {
     console.error("Error:", error);
