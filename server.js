@@ -283,7 +283,14 @@ app.post("/checkingemail", (req, res) => {
 
 app.post("/register", async (req, res) => {
   const { username, email, password, firstName, lastName, tel } = req.body;
-  if (!username || !email || !password || !firstName || !lastName || !tel) {
+  if (
+    username === "" ||
+    email === "" ||
+    password === "" ||
+    firstName === "" ||
+    lastName === "" ||
+    tel === ""
+  ) {
     return res
       .status(400)
       .send({ exist: false, error: "Missing required fields" });
