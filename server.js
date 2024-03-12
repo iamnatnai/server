@@ -71,7 +71,8 @@ const createNotification = async (
   recipient_id,
   message,
   link,
-  type
+  type,
+  index = 0
 ) => {
   return await usePooledConnectionAsync(async (db) => {
     try {
@@ -83,7 +84,8 @@ const createNotification = async (
             let nextId = "NOTI00000001";
             if (result[0].maxId) {
               const currentId = result[0].maxId;
-              const numericPart = parseInt(currentId.substring(4), 10) + 1;
+              const numericPart =
+                parseInt(currentId.substring(4), 10) + 1 + index;
 
               nextId = "NOTI" + numericPart.toString().padStart(8, "0");
             }
@@ -283,7 +285,14 @@ app.post("/checkingemail", (req, res) => {
 
 app.post("/register", async (req, res) => {
   const { username, email, password, firstName, lastName, tel } = req.body;
-  if (!username || !email || !password || !firstName || !lastName || !tel) {
+  if (
+    username === "" ||
+    email === "" ||
+    password === "" ||
+    firstName === "" ||
+    lastName === "" ||
+    tel === ""
+  ) {
     return res
       .status(400)
       .send({ exist: false, error: "Missing required fields" });
@@ -1410,13 +1419,14 @@ const notifyFollowersAddproduct = async (
           }
         );
       });
-      followers.forEach(async ({ member_id }) => {
+      followers.forEach(async ({ member_id }, index) => {
         await createNotification(
           farmerId,
           member_id,
           `เกษตรกรร้านค้า ${farmerstorename} ได้เพิ่มสินค้าใหม่ ${product_name}`,
           `/shop/${farmerstorename}/${productId}`,
-          "เพิ่มสินค้า"
+          "เพิ่มสินค้า",
+          index
         );
       });
     } catch (error) {
@@ -2447,7 +2457,8 @@ app.get("/orderlist", async (req, res) => {
         : null;
 
       const decoded = jwt.verify(token, secretKey);
-      const orderQuery = "SELECT * FROM order_sumary WHERE member_id = ?";
+      const orderQuery =
+        "SELECT os.*, m.address, m.firstname, m.lastname, m.phone FROM order_sumary os INNER JOIN members m on m.id = os.member_id WHERE member_id = ?";
       const orders = await new Promise((resolve, reject) => {
         db.query(orderQuery, [decoded.ID], async (err, result) => {
           if (err) {
@@ -2464,6 +2475,7 @@ app.get("/orderlist", async (req, res) => {
                   if (err) {
                     reject(err);
                   } else {
+                    console.log(result);
                     Promise.all(
                       result.map(async (product) => {
                         return await new Promise((resolve, reject) => {
@@ -3473,6 +3485,11 @@ app.post("/changepassword", async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
+  if (oldpassword === "" || newpassword === "") {
+    return res
+      .status(400)
+      .json({ success: false, message: "Password cannot be empty" });
+  }
   const checkMatchPssword = async (role, username, password) => {
     return await usePooledConnectionAsync(async (db) => {
       const hashedPassword = await new Promise(async (resolve, reject) => {
@@ -3895,13 +3912,14 @@ app.get("/allsum", async (req, res) => {
     const results = await usePooledConnectionAsync(async (db) => {
       return new Promise((resolve, reject) => {
         db.query(
-          `SELECT os.member_id, oi.product_id, COUNT(oi.quantity) AS total_quantity, SUM(oi.quantity * oi.price) AS total_price
+          `SELECT oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name, c.category_name
           FROM order_sumary os
           JOIN order_items oi ON os.id = oi.order_id
           JOIN products p ON oi.product_id = p.product_id
           JOIN farmers f ON p.farmer_id = f.id
+          JOIN categories c ON c.category_id = p.category_id
           WHERE os.status = 'complete' AND f.id = ?
-          GROUP BY os.member_id, oi.product_id;`,
+          GROUP BY oi.product_id order by total_quantity desc;`,
           [decoded.ID],
           (err, result) => {
             if (err) {
@@ -3915,17 +3933,17 @@ app.get("/allsum", async (req, res) => {
     });
 
     // นำผลลัพธ์ที่ได้มาประมวลผล
-    const processedResults = {};
-    results.forEach((row) => {
-      const { product_id, total_quantity, total_price } = row;
-      if (!processedResults[product_id]) {
-        processedResults[product_id] = { total_quantity: 0, total_price: 0 };
-      }
-      processedResults[product_id].total_quantity += total_quantity;
-      processedResults[product_id].total_price += parseFloat(total_price); // หรือ Number(total_price)
-    });
+    // const processedResults = {};
+    // results.forEach((row) => {
+    //   const { product_id, total_quantity, total_price } = row;
+    //   if (!processedResults[product_id]) {
+    //     processedResults[product_id] = { total_quantity: 0, total_price: 0 };
+    //   }
+    //   processedResults[product_id].total_quantity = total_quantity;
+    //   processedResults[product_id].total_price += parseFloat(total_price); // หรือ Number(total_price)
+    // });
 
-    res.status(200).json({ success: true, data: processedResults });
+    res.status(200).json({ success: true, data: results });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
