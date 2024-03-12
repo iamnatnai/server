@@ -71,7 +71,8 @@ const createNotification = async (
   recipient_id,
   message,
   link,
-  type
+  type,
+  index = 0
 ) => {
   return await usePooledConnectionAsync(async (db) => {
     try {
@@ -83,7 +84,8 @@ const createNotification = async (
             let nextId = "NOTI00000001";
             if (result[0].maxId) {
               const currentId = result[0].maxId;
-              const numericPart = parseInt(currentId.substring(4), 10) + 1;
+              const numericPart =
+                parseInt(currentId.substring(4), 10) + 1 + index;
 
               nextId = "NOTI" + numericPart.toString().padStart(8, "0");
             }
@@ -1417,13 +1419,14 @@ const notifyFollowersAddproduct = async (
           }
         );
       });
-      followers.forEach(async ({ member_id }) => {
+      followers.forEach(async ({ member_id }, index) => {
         await createNotification(
           farmerId,
           member_id,
           `เกษตรกรร้านค้า ${farmerstorename} ได้เพิ่มสินค้าใหม่ ${product_name}`,
           `/shop/${farmerstorename}/${productId}`,
-          "เพิ่มสินค้า"
+          "เพิ่มสินค้า",
+          index
         );
       });
     } catch (error) {
