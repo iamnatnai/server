@@ -3480,6 +3480,11 @@ app.post("/changepassword", async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
+  if (oldpassword === "" || newpassword === "") {
+    return res
+      .status(400)
+      .json({ success: false, message: "Password cannot be empty" });
+  }
   const checkMatchPssword = async (role, username, password) => {
     return await usePooledConnectionAsync(async (db) => {
       const hashedPassword = await new Promise(async (resolve, reject) => {
