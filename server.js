@@ -3922,7 +3922,7 @@ app.get("/allsum", async (req, res) => {
         processedResults[product_id] = { total_quantity: 0, total_price: 0 };
       }
       processedResults[product_id].total_quantity += total_quantity;
-      processedResults[product_id].total_price += total_price;
+      processedResults[product_id].total_price += parseFloat(total_price); // หรือ Number(total_price)
     });
 
     res.status(200).json({ success: true, data: processedResults });
