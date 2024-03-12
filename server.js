@@ -2454,8 +2454,7 @@ app.get("/orderlist", async (req, res) => {
         : null;
 
       const decoded = jwt.verify(token, secretKey);
-      const orderQuery =
-        "SELECT os.*, m.firstname, m.lastname, m.address, m.phone FROM order_sumary os INNER JOIN members WHERE member_id = ?";
+      const orderQuery = "SELECT * FROM order_sumary WHERE member_id = ?";
       const orders = await new Promise((resolve, reject) => {
         db.query(orderQuery, [decoded.ID], async (err, result) => {
           if (err) {
@@ -2467,7 +2466,7 @@ app.get("/orderlist", async (req, res) => {
               }
               const products = await new Promise((resolve, reject) => {
                 const orderItemsQuery =
-                  "SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, p.price FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?";
+                  "SELECT oi.product_id, p.product_name, p.product_image, oi.quantity, p.price, os.address FROM order_items oi INNER JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?";
                 db.query(orderItemsQuery, [order.id], async (err, result) => {
                   if (err) {
                     reject(err);
