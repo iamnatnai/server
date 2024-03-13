@@ -611,10 +611,45 @@ app.get("/users/:roleParams", async (req, res) => {
                         }
                       );
                     });
+
+                    let allCertifications = await new Promise(
+                      (resolve, reject) => {
+                        db.query(
+                          "SELECT * FROM certificate_link_farmer WHERE farmer_id = ? and status = 'complete'",
+                          [farmer.id],
+                          (err, certResult) => {
+                            if (err) {
+                              reject(err);
+                            } else {
+                              resolve(certResult);
+                            }
+                          }
+                        );
+                      }
+                    );
+
+                    let allProductCategory = await new Promise(
+                      (resolve, reject) => {
+                        db.query(
+                          "SELECT count(*) as count, c.category_name, c.bgcolor FROM products p JOIN categories c on p.category_id = c.category_id WHERE farmer_id = ? and p.available = 1 group by c.category_name",
+                          [farmer.id],
+                          (err, productResult) => {
+                            if (err) {
+                              reject(err);
+                            } else {
+                              resolve(productResult);
+                            }
+                          }
+                        );
+                      }
+                    );
+
                     return {
                       ...farmer,
                       certiCount: certiCount,
                       productCount: productCount,
+                      certificates: allCertifications,
+                      categories: allProductCategory,
                     };
                   })
                 );
@@ -2748,6 +2783,43 @@ app.get("/farmerorder", async (req, res) => {
 
     const farmerOrders = Array.from(farmerOrdersMap.values());
     res.json(farmerOrders);
+  } catch (error) {
+    console.error("Error fetching farmer orders:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.get("/aumpherproduct", checkTambonProvider, async (req, res) => {
+  try {
+    usePooledConnectionAsync(async (db) => {
+      const query = `SELECT count(*) as count, amphure FROM farmers GROUP BY amphure;`;
+      db.query(query, async (err, result) => {
+        if (err) {
+          console.log(err);
+          res
+            .status(500)
+            .send({ exist: false, error: "Internal Server Error" });
+        } else {
+          let allAmpher = {
+            จังหวัดอื่นๆ: 0,
+            เมืองนนทบุรี: 0,
+            บางบัวทอง: 0,
+            บางกรวย: 0,
+            บางใหญ่: 0,
+            ปากเกร็ด: 0,
+            ไทรน้อย: 0,
+          };
+          let key = Object.keys(allAmpher);
+          result.forEach((element) => {
+            if (key.includes(element.amphure)) {
+              allAmpher[element.amphure] += element.count;
+            }
+            allAmpher["จังหวัดอื่นๆ"] += element.count;
+          });
+          res.json(result);
+        }
+      });
+    });
   } catch (error) {
     console.error("Error fetching farmer orders:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
