@@ -442,57 +442,8 @@ async function insertFarmer(
     return;
   });
 }
-app.post("/addfarmer", checkTambon, async (req, res) => {
-  const {
-    username,
-    email,
-    password,
-    firstName,
-    lastName,
-    tel,
-    certificateList,
-  } = req.body;
-  if (!username || !email || !password) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
 
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const usernameExists = await checkIfExistsInAllTables("username", username);
-    const emailExists = await checkIfExistsInAllTables("email", email);
-    if (usernameExists) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Username already exists" });
-    }
-    if (emailExists) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Email already exists" });
-    }
-    const nextUserId = await getNextUserId("farmers");
-    await insertFarmer(
-      nextUserId,
-      username,
-      email,
-      hashedPassword,
-      firstName,
-      lastName,
-      tel,
-      certificateList
-    );
-    res
-      .status(201)
-      .json({ success: true, message: "Farmer added successfully" });
-  } catch (error) {
-    console.error("Error adding farmer:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
-  }
-});
-
-app.post("/adduser", checkAdmin, async (req, res) => {
+app.post("/adduser", checkAdminTambon, async (req, res) => {
   const {
     username,
     email,
@@ -510,6 +461,15 @@ app.post("/adduser", checkAdmin, async (req, res) => {
   }
 
   try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    if (decoded.role === "tambons" && role !== "farmers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const usernameExists = await checkIfExistsInAllTables("username", username);
     const emailExists = await checkIfExistsInAllTables("email", email);
@@ -573,10 +533,12 @@ app.get("/role", async (req, res) => {
   });
 });
 
-app.get("/users", async (req, res) => {
+app.get("/users/:roleParams", async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
+  const { roleParams } = req.params;
+  console.log(roleParams);
 
   try {
     const decoded = jwt.verify(token, secretKey);
@@ -585,128 +547,78 @@ app.get("/users", async (req, res) => {
     if (role !== "admins" && role !== "tambons") {
       return res.status(401).json({ error: "Unauthorized" });
     }
+    if (role === "tambons" && roleParams !== "farmers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (
+      roleParams !== "admins" &&
+      roleParams !== "farmers" &&
+      roleParams !== "members" &&
+      roleParams !== "providers" &&
+      roleParams !== "tambons"
+    ) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
     await usePooledConnectionAsync(async (db) => {
-      if (role === "admins") {
-        const adminsQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM admins WHERE available = 1";
-        const adminsResult = await new Promise((resolve, reject) => {
-          db.query(adminsQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
+      if (roleParams === "admins") {
+        db.query("SELECT * FROM admins WHERE available = 1", (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result);
+          }
         });
-
-        const farmersQuery =
-          "SELECT f.id AS farmer_id, f.email, f.username, f.firstname, f.lastname, f.phone, f.role, GROUP_CONCAT(clf.standard_id) AS standard_ids FROM farmers f JOIN certificate_link_farmer clf ON f.id = clf.farmer_id WHERE f.available = 1 GROUP BY f.id, f.email, f.username, f.firstname, f.lastname, f.phone, f.role;";
-
-        const farmersResult = await new Promise((resolve, reject) => {
-          db.query(farmersQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              // Process the result here
-              const farmersMap = {};
-              result.forEach((row) => {
-                const {
-                  farmer_id,
-                  email,
-                  username,
-                  firstname,
-                  lastname,
-                  phone,
-                  role,
-                  standard_ids,
-                } = row;
-
-                if (!farmersMap[farmer_id]) {
-                  farmersMap[farmer_id] = {
-                    farmer_id,
-                    email,
-                    username,
-                    firstname,
-                    lastname,
-                    phone,
-                    role,
-                    certificates: standard_ids.split(","), // Convert comma-separated string to an array
-                  };
-                }
-              });
-
-              // Convert object values (grouped farmers) to array
-              const farmersArray = Object.values(farmersMap);
-
-              resolve(farmersArray);
-            }
-          });
+      } else if (roleParams === "farmers") {
+        db.query("SELECT * FROM farmers WHERE available = 1", (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result);
+          }
         });
-        console.log(farmersResult);
-        const membersQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM members WHERE available = 1";
-        const membersResult = await new Promise((resolve, reject) => {
-          db.query(membersQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
+      } else if (roleParams === "members") {
+        db.query("SELECT * FROM members WHERE available = 1", (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result);
+          }
         });
-
-        const providersQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM providers WHERE available = 1";
-        const providersResult = await new Promise((resolve, reject) => {
-          db.query(providersQuery, (err, result) => {
+      } else if (roleParams === "providers") {
+        db.query(
+          "SELECT * FROM providers WHERE available = 1",
+          (err, result) => {
             if (err) {
-              reject(err);
+              console.log(err);
+              res
+                .status(500)
+                .send({ exist: false, error: "Internal Server Error" });
             } else {
-              resolve(result);
+              res.json(result);
             }
-          });
+          }
+        );
+      } else if (roleParams === "tambons") {
+        db.query("SELECT * FROM tambons WHERE available = 1", (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result);
+          }
         });
-
-        const tambonQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM tambons WHERE available = 1";
-        const tambonResult = await new Promise((resolve, reject) => {
-          db.query(tambonQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
-        });
-
-        const admins = adminsResult;
-        const farmers = farmersResult;
-        const members = membersResult;
-        const providers = providersResult;
-        const tambon = tambonResult;
-
-        const users = [
-          ...admins,
-          ...farmers,
-          ...members,
-          ...providers,
-          ...tambon,
-        ];
-
-        res.status(200).json(users);
-      } else {
-        const farmerQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM farmers WHERE available = 1";
-        const farmerResult = await new Promise((resolve, reject) => {
-          db.query(farmerQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
-        });
-        res.status(200).json(farmerResult);
       }
     });
   } catch (error) {
