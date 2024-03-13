@@ -442,57 +442,8 @@ async function insertFarmer(
     return;
   });
 }
-app.post("/addfarmer", checkTambon, async (req, res) => {
-  const {
-    username,
-    email,
-    password,
-    firstName,
-    lastName,
-    tel,
-    certificateList,
-  } = req.body;
-  if (!username || !email || !password) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
 
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const usernameExists = await checkIfExistsInAllTables("username", username);
-    const emailExists = await checkIfExistsInAllTables("email", email);
-    if (usernameExists) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Username already exists" });
-    }
-    if (emailExists) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Email already exists" });
-    }
-    const nextUserId = await getNextUserId("farmers");
-    await insertFarmer(
-      nextUserId,
-      username,
-      email,
-      hashedPassword,
-      firstName,
-      lastName,
-      tel,
-      certificateList
-    );
-    res
-      .status(201)
-      .json({ success: true, message: "Farmer added successfully" });
-  } catch (error) {
-    console.error("Error adding farmer:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
-  }
-});
-
-app.post("/adduser", checkAdmin, async (req, res) => {
+app.post("/adduser", checkAdminTambon, async (req, res) => {
   const {
     username,
     email,
@@ -510,6 +461,15 @@ app.post("/adduser", checkAdmin, async (req, res) => {
   }
 
   try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    const decoded = jwt.verify(token, secretKey);
+
+    if (decoded.role === "tambons" && role !== "farmers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const usernameExists = await checkIfExistsInAllTables("username", username);
     const emailExists = await checkIfExistsInAllTables("email", email);
@@ -573,10 +533,12 @@ app.get("/role", async (req, res) => {
   });
 });
 
-app.get("/users", async (req, res) => {
+app.get("/users/:roleParams", async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
+  const { roleParams } = req.params;
+  console.log(roleParams);
 
   try {
     const decoded = jwt.verify(token, secretKey);
@@ -585,128 +547,159 @@ app.get("/users", async (req, res) => {
     if (role !== "admins" && role !== "tambons") {
       return res.status(401).json({ error: "Unauthorized" });
     }
+    if (role === "tambons" && roleParams !== "farmers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (
+      roleParams !== "admins" &&
+      roleParams !== "farmers" &&
+      roleParams !== "members" &&
+      roleParams !== "providers" &&
+      roleParams !== "tambons"
+    ) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
     await usePooledConnectionAsync(async (db) => {
-      if (role === "admins") {
-        const adminsQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM admins WHERE available = 1";
-        const adminsResult = await new Promise((resolve, reject) => {
-          db.query(adminsQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
+      if (roleParams === "admins") {
+        db.query("SELECT * FROM admins WHERE available = 1", (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result);
+          }
         });
-
-        const farmersQuery =
-          "SELECT f.id AS farmer_id, f.email, f.username, f.firstname, f.lastname, f.phone, f.role, GROUP_CONCAT(clf.standard_id) AS standard_ids FROM farmers f JOIN certificate_link_farmer clf ON f.id = clf.farmer_id WHERE f.available = 1 GROUP BY f.id, f.email, f.username, f.firstname, f.lastname, f.phone, f.role;";
-
-        const farmersResult = await new Promise((resolve, reject) => {
-          db.query(farmersQuery, (err, result) => {
+      } else if (roleParams === "farmers") {
+        db.query(
+          "SELECT * FROM farmers WHERE available = 1",
+          async (err, result) => {
             if (err) {
-              reject(err);
+              console.log(err);
+              res
+                .status(500)
+                .send({ exist: false, error: "Internal Server Error" });
             } else {
-              // Process the result here
-              const farmersMap = {};
-              result.forEach((row) => {
-                const {
-                  farmer_id,
-                  email,
-                  username,
-                  firstname,
-                  lastname,
-                  phone,
-                  role,
-                  standard_ids,
-                } = row;
+              try {
+                let compiledResult = await Promise.all(
+                  result.map(async (farmer) => {
+                    let certiCount = await new Promise((resolve, reject) => {
+                      db.query(
+                        "SELECT count(*) as count FROM certificate_link_farmer WHERE farmer_id = ? and status = 'complete'",
+                        [farmer.id],
+                        (err, certResult) => {
+                          if (err) {
+                            reject(err);
+                          } else {
+                            resolve(certResult[0]["count"]);
+                          }
+                        }
+                      );
+                    });
+                    let productCount = await new Promise((resolve, reject) => {
+                      db.query(
+                        "SELECT count(*) as count FROM products WHERE farmer_id = ? and available = 1",
+                        [farmer.id],
+                        (err, productResult) => {
+                          if (err) {
+                            reject(err);
+                          } else {
+                            resolve(productResult[0]["count"]);
+                          }
+                        }
+                      );
+                    });
 
-                if (!farmersMap[farmer_id]) {
-                  farmersMap[farmer_id] = {
-                    farmer_id,
-                    email,
-                    username,
-                    firstname,
-                    lastname,
-                    phone,
-                    role,
-                    certificates: standard_ids.split(","), // Convert comma-separated string to an array
-                  };
-                }
-              });
+                    let allCertifications = await new Promise(
+                      (resolve, reject) => {
+                        db.query(
+                          "SELECT * FROM certificate_link_farmer WHERE farmer_id = ? and status = 'complete'",
+                          [farmer.id],
+                          (err, certResult) => {
+                            if (err) {
+                              reject(err);
+                            } else {
+                              resolve(certResult);
+                            }
+                          }
+                        );
+                      }
+                    );
 
-              // Convert object values (grouped farmers) to array
-              const farmersArray = Object.values(farmersMap);
+                    let allProductCategory = await new Promise(
+                      (resolve, reject) => {
+                        db.query(
+                          "SELECT count(*) as count, c.category_name, c.bgcolor FROM products p JOIN categories c on p.category_id = c.category_id WHERE farmer_id = ? and p.available = 1 group by c.category_name",
+                          [farmer.id],
+                          (err, productResult) => {
+                            if (err) {
+                              reject(err);
+                            } else {
+                              resolve(productResult);
+                            }
+                          }
+                        );
+                      }
+                    );
 
-              resolve(farmersArray);
+                    return {
+                      ...farmer,
+                      certiCount: certiCount,
+                      productCount: productCount,
+                      certificates: allCertifications,
+                      categories: allProductCategory,
+                    };
+                  })
+                );
+                console.log(compiledResult);
+                res.json(compiledResult);
+              } catch (error) {
+                console.error(error);
+                res
+                  .status(500)
+                  .send({ exist: false, error: "Internal Server Error" });
+              }
             }
-          });
+          }
+        );
+      } else if (roleParams === "members") {
+        db.query("SELECT * FROM members WHERE available = 1", (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result);
+          }
         });
-        console.log(farmersResult);
-        const membersQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM members WHERE available = 1";
-        const membersResult = await new Promise((resolve, reject) => {
-          db.query(membersQuery, (err, result) => {
+      } else if (roleParams === "providers") {
+        db.query(
+          "SELECT * FROM providers WHERE available = 1",
+          (err, result) => {
             if (err) {
-              reject(err);
+              console.log(err);
+              res
+                .status(500)
+                .send({ exist: false, error: "Internal Server Error" });
             } else {
-              resolve(result);
+              res.json(result);
             }
-          });
+          }
+        );
+      } else if (roleParams === "tambons") {
+        db.query("SELECT * FROM tambons WHERE available = 1", (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result);
+          }
         });
-
-        const providersQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM providers WHERE available = 1";
-        const providersResult = await new Promise((resolve, reject) => {
-          db.query(providersQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
-        });
-
-        const tambonQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM tambons WHERE available = 1";
-        const tambonResult = await new Promise((resolve, reject) => {
-          db.query(tambonQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
-        });
-
-        const admins = adminsResult;
-        const farmers = farmersResult;
-        const members = membersResult;
-        const providers = providersResult;
-        const tambon = tambonResult;
-
-        const users = [
-          ...admins,
-          ...farmers,
-          ...members,
-          ...providers,
-          ...tambon,
-        ];
-
-        res.status(200).json(users);
-      } else {
-        const farmerQuery =
-          "SELECT email, username, firstname, lastname, phone, role FROM farmers WHERE available = 1";
-        const farmerResult = await new Promise((resolve, reject) => {
-          db.query(farmerQuery, (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
-            }
-          });
-        });
-        res.status(200).json(farmerResult);
       }
     });
   } catch (error) {
@@ -918,7 +911,17 @@ app.post("/login", async (req, res) => {
         .status(401)
         .send({ status: false, error: "Invalid username or password" });
     }
-
+    usePooledConnectionAsync(async (db) => {
+      db.query(
+        `UPDATE ${user.role} SET lastLogin = NOW() WHERE username = ?`,
+        [username],
+        (err, result) => {
+          if (err) {
+            console.error("Error updating last login:", err);
+          }
+        }
+      );
+    });
     const token = jwt.sign(
       { username: user.uze_name, ID: user.user_id, role: user.role },
       secretKey,
@@ -959,7 +962,17 @@ app.get("/login", async (req, res) => {
         expiresIn: "15d",
       }
     );
-
+    usePooledConnectionAsync(async (db) => {
+      db.query(
+        `UPDATE ${decoded.role} SET lastLogin = NOW() WHERE username = ?`,
+        [decoded.username],
+        (err, result) => {
+          if (err) {
+            console.error("Error updating last login:", err);
+          }
+        }
+      );
+    });
     return res.status(200).json({ isValid: true, newToken: newToken });
   } catch (error) {
     console.error("Error decoding token:4", error.message);
@@ -1519,6 +1532,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     ? req.headers.authorization.split(" ")[1]
     : null;
   try {
+    console.log(req.body);
     await usePooledConnectionAsync(async (db) => {
       const decoded = jwt.verify(token, secretKey);
       let farmerId = null;
@@ -2769,6 +2783,43 @@ app.get("/farmerorder", async (req, res) => {
 
     const farmerOrders = Array.from(farmerOrdersMap.values());
     res.json(farmerOrders);
+  } catch (error) {
+    console.error("Error fetching farmer orders:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.get("/aumpherproduct", checkTambonProvider, async (req, res) => {
+  try {
+    usePooledConnectionAsync(async (db) => {
+      const query = `SELECT count(*) as count, amphure FROM farmers GROUP BY amphure;`;
+      db.query(query, async (err, result) => {
+        if (err) {
+          console.log(err);
+          res
+            .status(500)
+            .send({ exist: false, error: "Internal Server Error" });
+        } else {
+          let allAmpher = {
+            จังหวัดอื่นๆ: 0,
+            เมืองนนทบุรี: 0,
+            บางบัวทอง: 0,
+            บางกรวย: 0,
+            บางใหญ่: 0,
+            ปากเกร็ด: 0,
+            ไทรน้อย: 0,
+          };
+          let key = Object.keys(allAmpher);
+          result.forEach((element) => {
+            if (key.includes(element.amphure)) {
+              allAmpher[element.amphure] += element.count;
+            }
+            allAmpher["จังหวัดอื่นๆ"] += element.count;
+          });
+          res.json(result);
+        }
+      });
+    });
   } catch (error) {
     console.error("Error fetching farmer orders:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -4580,17 +4631,29 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
     }
   });
 });
-app.get("/certifarmer", async (req, res) => {
+app.get("/certifarmer/:username", async (req, res) => {
   try {
-    const token = req.headers.authorization
-      ? req.headers.authorization.split(" ")[1]
-      : null;
-    const decoded = jwt.verify(token, secretKey);
+    const { username } = req.params;
+    console.log(username);
     const results = await usePooledConnectionAsync(async (db) => {
+      let farmer_id = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT id FROM farmers WHERE username = ?`,
+          [username],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              console.log(result);
+              resolve(result[0].id);
+            }
+          }
+        );
+      });
       return new Promise((resolve, reject) => {
         db.query(
           `SELECT * FROM certificate_link_farmer WHERE farmer_id = ? and status not like "reject"`,
-          [decoded.ID],
+          [farmer_id],
           (err, result) => {
             if (err) {
               reject(err);
@@ -4613,7 +4676,8 @@ app.post(
   upload.fields([{ name: "image", maxCount: 1 }]),
   async (req, res) => {
     try {
-      const { standard_id, name, certificate_number } = req.body;
+      const { standard_id, name, certificate_number, username } = req.body;
+      console.log(req.body);
       if (!standard_id) {
         return res
           .status(400)
@@ -4629,13 +4693,26 @@ app.post(
         pathName = "/uploads/" + image;
       }
       const results = await usePooledConnectionAsync(async (db) => {
+        let farmer_id = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT id FROM farmers WHERE username = ?`,
+            [username],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result[0].id);
+              }
+            }
+          );
+        });
         let nextId = await getNextCertId();
         return new Promise((resolve, reject) => {
           db.query(
             `INSERT INTO certificate_link_farmer (id, farmer_id, standard_id, name, certificate_number, image_path, status) VALUES (?, ?, ?, ?, ?, ?, "pending")`,
             [
               nextId,
-              decoded.ID,
+              farmer_id,
               standard_id,
               name,
               certificate_number,
