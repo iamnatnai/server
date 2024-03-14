@@ -1851,17 +1851,71 @@ app.get("/updateview/:id", async (req, res) => {
 app.get("/myproducts/:username", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     const { username } = req.params;
+    // db.query(
+    //   "SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id LEFT JOIN categories c on p.category_id = c.category_id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;",
+    //   [username],
+    //   (err, result) => {
+    //     if (err) {
+    //       console.log(err);
+    //       res
+    //         .status(500)
+    //         .send({ exist: false, error: "Internal Server Error" });
+    //     } else {
+
+    //       res.json(result);
+    //     }
+    //   }
+    // );
     db.query(
-      "SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id LEFT JOIN categories c on p.category_id = c.category_id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;",
+      "SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType,p.certificate, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id LEFT JOIN categories c on p.category_id = c.category_id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;",
       [username],
-      (err, result) => {
+      async (err, result) => {
         if (err) {
           console.log(err);
           res
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          res.json(result);
+          try {
+            let results = await Promise.all(
+              result.map(async (product) => {
+                let certificate = JSON.parse(product.certificate);
+                let allStandardName = await Promise.all(
+                  certificate.map(async (cert, index) => {
+                    try {
+                      let standardName = await new Promise(
+                        (resolve, reject) => {
+                          db.query(
+                            "SELECT sn.standard_name FROM certificate_link_farmer clf join standard_products sn on clf.standard_id = sn.standard_id WHERE clf.id = ?",
+                            [cert],
+                            (err, result) => {
+                              if (err) {
+                                console.log(err);
+                                reject(err);
+                              } else {
+                                resolve(result[0].standard_name);
+                              }
+                            }
+                          );
+                        }
+                      );
+                      return standardName;
+                    } catch (error) {
+                      console.error(error);
+                      throw error;
+                    }
+                  })
+                );
+                return { ...product, certification: allStandardName };
+              })
+            );
+            res.json({ result: results });
+          } catch (error) {
+            console.error(error);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          }
         }
       }
     );
