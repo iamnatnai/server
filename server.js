@@ -4846,9 +4846,7 @@ app.get("/certiconver/:product_id", async (req, res) => {
           const standardIds = standardIdsResults.map((row) => row.standard_id);
 
           if (standardIds.length === 0) {
-            res
-              .status(200)
-              .json({ success: true, certificatesArray, standardNames: [] });
+            res.status(200).json({ success: true, standardNames: [] });
             return;
           }
 
@@ -4873,7 +4871,7 @@ app.get("/certiconver/:product_id", async (req, res) => {
         }
       }
 
-      res.status(200).json({ success: true, certificatesArray, standardNames });
+      res.status(200).json({ success: true, standardNames });
     });
   } catch (error) {
     console.error("Error:", error);
