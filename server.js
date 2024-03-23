@@ -2096,7 +2096,7 @@ app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
       : null;
     const decoded = jwt.verify(token, secretKey);
     if (role === "farmers" || decoded.role === "tamboons") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}"`;
     } else if (role === "members") {
       query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
     } else {
