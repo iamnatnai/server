@@ -889,7 +889,7 @@ const jwtAuth = new JwtStrategy(jwtOptions, async (payload, done) => {
 passport.use(jwtAuth);
 
 app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, rememberMe } = req.body;
   if (!username || !password) {
     return res
       .status(400)
@@ -926,7 +926,7 @@ app.post("/login", async (req, res) => {
       { username: user.uze_name, ID: user.user_id, role: user.role },
       secretKey,
       {
-        expiresIn: "15d",
+        expiresIn: rememberMe ? "15d" : "1d",
       }
     );
 
