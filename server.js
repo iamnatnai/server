@@ -1,10 +1,8 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const mysql = require("mysql2");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const passport = require("passport");
-const util = require("util");
 const app = express();
 const nodemailer = require("nodemailer");
 const multer = require("multer");
@@ -14,11 +12,11 @@ const port = 3000;
 const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require("jsonwebtoken");
-const { log } = require("console");
 const secretKey = "pifOvrart4";
 const excel = require("exceljs");
 const moment = require("moment");
 const momentz = require("moment-timezone");
+
 require("dotenv").config();
 
 app.use(
@@ -214,6 +212,26 @@ const checkFarmer = (req, res, next) => {
   }
 };
 
+const checkActivated = (req, res, next) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  if (!token) {
+    return res.status(400).json({ error: "Token not provided" });
+  }
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    console.log(decoded, "decoded");
+    if (decoded.role === "members" && !decoded.activate) {
+      return res.status(401).json({ error: "กรุณายืนยันตัวตน" });
+    }
+    next();
+  } catch (error) {
+    console.error("Error decoding token:4", error.message);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 app.post("/checkinguser", async (req, res) => {
   const username = req.body.username;
   await usePooledConnectionAsync(async (db) => {
@@ -314,6 +332,35 @@ app.post("/register", async (req, res) => {
         .send({ exist: false, error: "Email already exists" });
     }
 
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "thebestkasetnont@gmail.com",
+        pass: "ggtf brgm brip mqvq",
+      },
+    });
+    let url =
+      process.env.production == "true"
+        ? process.env.url
+        : "http://localhost:3000";
+    const mailOptions = {
+      from: "thebestkasetnont@gmail.com",
+      to: email,
+      subject: "ยืนยันตัวตน",
+      text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
+        email + secretKey,
+        10
+      )}`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Error sending email:", error);
+      } else {
+        console.log("Email sent:", info.response);
+      }
+    });
+
     const nextId = await getNextId();
 
     await insertMember(
@@ -331,6 +378,42 @@ app.post("/register", async (req, res) => {
     console.error(error);
     res.status(500).send({ exist: false, error: "Internal Server Error" });
   }
+});
+
+app.get("/confirm/:email/:hashed", async (req, res) => {
+  const email = req.params.email;
+  const hashed = req.params.hashed;
+  console.log(email, hashed);
+  if (!email || !hashed) {
+    return res
+      .status(400)
+      .send({ success: false, error: "Missing required fields" });
+  }
+
+  if (!(await bcrypt.compare(email + secretKey, hashed))) {
+    return res
+      .status(400)
+      .send({ success: false, error: "Invalid email confirmation link" });
+  }
+
+  await usePooledConnectionAsync(async (db) => {
+    db.query(
+      "UPDATE members SET activate = 1 WHERE email = ?",
+      [email],
+      (err, result) => {
+        if (err) {
+          console.error("Error confirming email:", err);
+          res
+            .status(500)
+            .send({ success: false, error: "Internal Server Error" });
+        } else {
+          res
+            .status(200)
+            .send({ success: true, message: "Email confirmed successfully" });
+        }
+      }
+    );
+  });
 });
 
 async function checkIfExists(role, column, value) {
@@ -886,7 +969,7 @@ const jwtAuth = new JwtStrategy(jwtOptions, async (payload, done) => {
 passport.use(jwtAuth);
 
 app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, rememberMe } = req.body;
   if (!username || !password) {
     return res
       .status(400)
@@ -919,13 +1002,28 @@ app.post("/login", async (req, res) => {
         }
       );
     });
-    const token = jwt.sign(
-      { username: user.uze_name, ID: user.user_id, role: user.role },
-      secretKey,
-      {
-        expiresIn: "15d",
-      }
-    );
+    let option = { username: user.uze_name, ID: user.user_id, role: user.role };
+    if (user.role === "members") {
+      let activation = await usePooledConnectionAsync(async (db) => {
+        return new Promise((resolve, reject) => {
+          db.query(
+            "SELECT activate FROM members WHERE username = ?",
+            [user.uze_name],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result[0].activate);
+              }
+            }
+          );
+        });
+      });
+      option = { ...option, activate: activation };
+    }
+    const token = jwt.sign(option, secretKey, {
+      expiresIn: rememberMe ? "15d" : "1d",
+    });
 
     res.status(200).send({
       status: true,
@@ -950,13 +1048,17 @@ app.get("/login", async (req, res) => {
   }
   try {
     const decoded = jwt.verify(token, secretKey);
-    const newToken = jwt.sign(
-      { username: decoded.username, ID: decoded.ID, role: decoded.role },
-      secretKey,
-      {
-        expiresIn: "15d",
-      }
-    );
+    let option = {
+      username: decoded.username,
+      ID: decoded.ID,
+      role: decoded.role,
+    };
+    if (decoded.role === "members") {
+      option = { ...option, activate: decoded.activate };
+    }
+    const newToken = jwt.sign(option, secretKey, {
+      expiresIn: "15d",
+    });
     usePooledConnectionAsync(async (db) => {
       db.query(
         `UPDATE ${decoded.role} SET lastLogin = NOW() WHERE username = ?`,
@@ -1150,7 +1252,7 @@ app.post("/categories", checkAdmin, async (req, res) => {
 
     // find if category_id is exist on database
 
-    const query = "SELECT * FROM categories WHERE category_id = ?";
+    const query = "SELECT * FROM categories WHERE available = 1";
     let result = await new Promise((resolve, reject) => {
       db.query(query, [category_id], (err, result) => {
         if (err) {
@@ -1160,7 +1262,6 @@ app.post("/categories", checkAdmin, async (req, res) => {
         }
       });
     });
-
     if (result.length > 0) {
       db.query(
         "UPDATE categories SET category_name = ?, bgcolor = ? WHERE category_id = ?",
@@ -2080,7 +2181,7 @@ app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
       : null;
     const decoded = jwt.verify(token, secretKey);
     if (role === "farmers" || decoded.role === "tamboons") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}"`;
     } else if (role === "members") {
       query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
     } else {
@@ -2153,6 +2254,7 @@ app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
 
 app.post(
   "/checkout",
+  checkActivated,
   upload.fields([{ name: "image", maxCount: 1 }]),
   async (req, res) => {
     let { cartList, shippingcost } = req.body;
@@ -4515,7 +4617,7 @@ app.get("/reserve", checkFarmer, async (req, res) => {
   }
 });
 
-app.post("/reserve", async (req, res) => {
+app.post("/reserve", checkActivated, async (req, res) => {
   try {
     const { product_id, lineid, quantity } = req.body;
     const token = req.headers.authorization
