@@ -200,7 +200,6 @@ const checkFarmer = (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, secretKey);
-    console.log(decoded);
     if (
       decoded.role !== "farmers" &&
       decoded.role !== "admins" &&
@@ -394,7 +393,6 @@ async function insertFarmer(
   tel,
   certificateList
 ) {
-  console.log(certificateList);
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
       const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, role, farmerstorename, createAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
@@ -538,7 +536,6 @@ app.get("/users/:roleParams", async (req, res) => {
     ? req.headers.authorization.split(" ")[1]
     : null;
   const { roleParams } = req.params;
-  console.log(roleParams);
 
   try {
     const decoded = jwt.verify(token, secretKey);
@@ -929,8 +926,6 @@ app.post("/login", async (req, res) => {
         expiresIn: "15d",
       }
     );
-
-    console.log("Generated token:", token);
 
     res.status(200).send({
       status: true,
@@ -1415,7 +1410,6 @@ const notifyFollowersAddproduct = async (
   farmerId,
   farmerstorename
 ) => {
-  console.log("notifyFollowersAddproduct");
   return await usePooledConnectionAsync(async (db) => {
     try {
       const followers = await new Promise((resolve, reject) => {
@@ -1426,7 +1420,6 @@ const notifyFollowersAddproduct = async (
             if (err) {
               reject(err);
             } else {
-              console.log(result);
               resolve(result);
             }
           }
@@ -1496,7 +1489,6 @@ app.post("/notification", async (req, res) => {
               console.log(err);
               reject(err);
             } else {
-              console.log(result);
               resolve(result);
             }
           }
@@ -1532,7 +1524,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     ? req.headers.authorization.split(" ")[1]
     : null;
   try {
-    console.log(req.body);
     await usePooledConnectionAsync(async (db) => {
       const decoded = jwt.verify(token, secretKey);
       let farmerId = null;
@@ -1586,7 +1577,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
                 console.error("Error updating product:", err);
                 reject(err);
               } else {
-                console.log("Product updated successfully");
                 resolve(result);
               }
             }
@@ -1688,7 +1678,6 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          console.log(result[0]);
           res.header("charset", "utf-8").json(result[0]);
         }
       }
@@ -1764,7 +1753,6 @@ app.get("/getproducts", async (req, res) => {
         console.log(err);
         res.status(500).send({ exist: false, error: "Internal Server Error" });
       } else {
-        console.log(result);
         res.json({
           products: result,
           maxPage:
@@ -1940,7 +1928,6 @@ app.get("/getinfo", async (req, res) => {
     } else {
       query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
     }
-    console.log(query);
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
         if (err) {
@@ -1949,7 +1936,6 @@ app.get("/getinfo", async (req, res) => {
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          console.log(result);
           res.json(result[0]);
         }
       });
@@ -2011,7 +1997,6 @@ app.post("/updateinfo", async (req, res) => {
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          console.log(result);
           res.json(result[0]);
         }
       });
@@ -2075,7 +2060,6 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          console.log(result);
           res.json(result[0]);
         }
       });
@@ -2110,7 +2094,6 @@ app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          console.log(result);
           res.json(result[0]);
         }
       });
@@ -2423,7 +2406,6 @@ app.post(
             if (err) {
               reject(err);
             } else {
-              console.log("Transaction rolled back.");
               resolve();
             }
           });
@@ -2543,7 +2525,6 @@ app.get("/orderlist", async (req, res) => {
                   if (err) {
                     reject(err);
                   } else {
-                    console.log(result);
                     Promise.all(
                       result.map(async (product) => {
                         return await new Promise((resolve, reject) => {
@@ -2701,8 +2682,6 @@ app.post(
       const token = req.headers.authorization
         ? req.headers.authorization.split(" ")[1]
         : null;
-      console.log(req.headers);
-      console.log(req.body);
       const decoded = jwt.verify(token, secretKey);
       if (!req.files["image"]) {
         return res
@@ -2720,16 +2699,11 @@ app.post(
                 if (err) {
                   reject(err);
                 } else {
-                  console.log(result);
                   let nextimageId = "IMG000000001";
                   if (result[0].maxId) {
                     const currentId = result[0].maxId;
                     const numericPart =
                       parseInt(currentId.substring(3), 10) + 1 + index;
-                    console.log(
-                      numericPart,
-                      numericPart.toString().padStart(9, "0")
-                    );
                     nextimageId =
                       "IMG" + numericPart.toString().padStart(9, "0");
                   }
@@ -3632,7 +3606,6 @@ app.post("/changepassword", async (req, res) => {
       if (
         !(await checkMatchPssword(roleDecoded, usernameDecoded, oldpassword))
       ) {
-        console.log("Password not match");
         return res
           .status(400)
           .json({ success: false, message: "Password not match" });
@@ -3939,7 +3912,6 @@ const followerMileStone = async (farmer_id) => {
                 console.log(err);
                 return;
               }
-              console.log(result);
               if (result.length > 0) {
                 return;
               }
@@ -4688,7 +4660,6 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
 app.get("/certifarmer/:username", async (req, res) => {
   try {
     const { username } = req.params;
-    console.log(username);
     const results = await usePooledConnectionAsync(async (db) => {
       let farmer_id = await new Promise((resolve, reject) => {
         db.query(
@@ -4698,7 +4669,6 @@ app.get("/certifarmer/:username", async (req, res) => {
             if (err) {
               reject(err);
             } else {
-              console.log(result);
               resolve(result[0].id);
             }
           }
@@ -4731,7 +4701,6 @@ app.post(
   async (req, res) => {
     try {
       const { standard_id, name, certificate_number, username } = req.body;
-      console.log(req.body);
       if (!standard_id) {
         return res
           .status(400)
@@ -4782,7 +4751,6 @@ app.post(
           );
         });
       });
-      console.log(results);
       res.status(200).json({ success: true, data: results });
     } catch (error) {
       console.error(error);
