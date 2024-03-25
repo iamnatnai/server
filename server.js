@@ -1308,7 +1308,7 @@ app.put("/categories", checkAdmin, async (req, res) => {
       ) {
         return res.status(409).json({
           success: false,
-          message: "ประเภทสินค้าที่แก้ไขเข้ามามีอยู่ในระบบอยู่แล้ว",
+          message: "หมวดหมู่สินค้าที่แก้ไขเข้ามามีอยู่ในระบบอยู่แล้ว",
         });
       }
 
