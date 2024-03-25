@@ -3785,7 +3785,7 @@ app.post("/changepassword", async (req, res) => {
 app.post("/certificate", checkAdmin, async (req, res) => {
   try {
     return await usePooledConnectionAsync(async (db) => {
-      let { id, name } = req.body;
+      let { name } = req.body;
       //check if name exist
       const checkNameQuery =
         "SELECT standard_name FROM standard_products WHERE standard_name = ? and available = 1";
@@ -3798,39 +3798,33 @@ app.post("/certificate", checkAdmin, async (req, res) => {
           }
         });
       });
-      if (existingName && !id) {
+      if (existingName) {
         return res.status(400).json({
           success: false,
           message: "มาตรฐานสินค้าที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว",
         });
       }
 
-      let query;
-      if (id) {
-        query = `UPDATE standard_products SET standard_name = "${name}" WHERE standard_id = "${id}"`;
-      }
-      if (!id) {
-        id = await new Promise(async (resolve, reject) => {
-          db.query(
-            "SELECT MAX(standard_id) as maxId FROM standard_products",
-            (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                let nextId = "ST000";
-                if (result[0].maxId) {
-                  const currentId = result[0].maxId;
-                  const numericPart = parseInt(currentId.substring(2), 10) + 1;
+      id = await new Promise(async (resolve, reject) => {
+        db.query(
+          "SELECT MAX(standard_id) as maxId FROM standard_products",
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let nextId = "ST000";
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                const numericPart = parseInt(currentId.substring(2), 10) + 1;
 
-                  nextId = "ST" + numericPart.toString().padStart(3, "0");
-                }
-                resolve(nextId);
+                nextId = "ST" + numericPart.toString().padStart(3, "0");
               }
+              resolve(nextId);
             }
-          );
-        });
-        query = `INSERT INTO standard_products (standard_id, standard_name) VALUES ("${id}", "${name}")`;
-      }
+          }
+        );
+      });
+      let query = `INSERT INTO standard_products (standard_id, standard_name) VALUES ("${id}", "${name}")`;
 
       db.query(query, (err, result) => {
         if (err) {
@@ -3843,6 +3837,55 @@ app.post("/certificate", checkAdmin, async (req, res) => {
             success: true,
             message: "Certificate added successfully",
             id,
+          });
+        }
+      });
+    });
+  } catch (error) {
+    console.error("Error adding certificate:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.put("/certificate", checkAdmin, async (req, res) => {
+  try {
+    return await usePooledConnectionAsync(async (db) => {
+      let { id, name } = req.body;
+      //check if name exist
+      const checkNameQuery =
+        "SELECT standard_name, standard_id FROM standard_products WHERE standard_name = ? and available = 1";
+      const result = await new Promise((resolve, reject) => {
+        db.query(checkNameQuery, [name], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+      let standard_nameResult = result.find(
+        (item) => item.standard_name === name
+      );
+      if (standard_nameResult && standard_nameResult.standard_id !== id) {
+        return res.status(400).json({
+          success: false,
+          message: "มาตรฐานสินค้าที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว",
+        });
+      }
+
+      let query = `UPDATE standard_products SET standard_name = "${name}" WHERE standard_id = "${id}"`;
+      db.query(query, (err, result) => {
+        if (err) {
+          console.error("Error adding certificate:", err);
+          return res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
+        } else {
+          return res.status(200).json({
+            success: true,
+            message: "Certificate added successfully",
           });
         }
       });
