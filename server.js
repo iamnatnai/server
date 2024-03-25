@@ -1311,7 +1311,7 @@ app.put("/categories", checkAdmin, async (req, res) => {
       ) {
         return res.status(409).json({
           success: false,
-          message: "Category name already exists",
+          message: "ประเภทสินค้าที่แก้ไขเข้ามามีอยู่ในระบบอยู่แล้ว",
         });
       }
 
@@ -1325,12 +1325,10 @@ app.put("/categories", checkAdmin, async (req, res) => {
               .status(500)
               .json({ success: false, message: "Internal Server Error" });
           } else {
-            return res
-              .status(200)
-              .json({
-                success: true,
-                message: "Category updated successfully",
-              });
+            return res.status(200).json({
+              success: true,
+              message: "Category updated successfully",
+            });
           }
         }
       );
