@@ -1174,10 +1174,7 @@ app.delete("/categories", checkAdmin, async (req, res) => {
       .status(400)
       .json({ success: false, message: "Missing required fields" });
   }
-  return res.status(200).json({
-    success: true,
-    message: req.body,
-  });
+
   await usePooledConnectionAsync(async (db) => {
     //soft delete
     const query = "UPDATE categories SET available = 0 WHERE category_id = ?";
