@@ -1174,6 +1174,10 @@ app.delete("/categories", checkAdmin, async (req, res) => {
       .status(400)
       .json({ success: false, message: "Missing required fields" });
   }
+  return res.status(200).json({
+    success: true,
+    message: req.body,
+  });
   await usePooledConnectionAsync(async (db) => {
     //soft delete
     const query = "UPDATE categories SET available = 0 WHERE category_id = ?";
@@ -1185,6 +1189,7 @@ app.delete("/categories", checkAdmin, async (req, res) => {
           .status(500)
           .json({ success: false, message: "Internal Server Error" });
       } else {
+        console.log(result.affectedRows);
         return res
           .status(200)
           .json({ success: true, message: "Category deleted successfully" });
@@ -1194,34 +1199,35 @@ app.delete("/categories", checkAdmin, async (req, res) => {
 });
 
 app.post("/categories", checkAdmin, async (req, res) => {
-  let { category_id = null, category_name, bgcolor } = req.body;
+  let { category_name, bgcolor } = req.body;
+  console.log(req.body);
   if (!category_name || !bgcolor) {
     return res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
   }
   //check if category_name is exist
-  await usePooledConnectionAsync(async (db) => {
-    let queryCategory_name =
-      "SELECT * FROM categories WHERE category_name = ? and available = 1";
-    let category_nameResult = await new Promise((resolve, reject) => {
-      db.query(queryCategory_name, [category_name], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
 
-    if (category_nameResult.length > 0 && !category_id) {
-      return res.status(409).json({
-        success: false,
-        message: "หมวดหมู่ที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว",
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      let queryCategory_name =
+        "SELECT * FROM categories WHERE category_name = ? and available = 1";
+      let category_nameResult = await new Promise((resolve, reject) => {
+        db.query(queryCategory_name, [category_name], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
       });
-    }
 
-    if (!category_id) {
+      if (category_nameResult.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "หมวดหมู่ที่เพิ่มเข้ามามีอยู่ในระบบอยู่แล้ว",
+        });
+      }
       category_id = await new Promise((resolve, reject) => {
         db.query(
           "SELECT MAX(category_id) as maxId FROM categories",
@@ -1248,21 +1254,67 @@ app.post("/categories", checkAdmin, async (req, res) => {
           }
         );
       });
-    }
 
-    // find if category_id is exist on database
+      let query = `INSERT INTO categories (category_id, category_name, bgcolor, available) VALUES (?, ?, ?, 1)`;
 
-    const query = "SELECT * FROM categories WHERE available = 1";
-    let result = await new Promise((resolve, reject) => {
-      db.query(query, [category_id], (err, result) => {
+      db.query(query, [category_id, category_name, bgcolor], (err, result) => {
         if (err) {
-          reject(err);
+          console.error("Error adding category:", err);
+          return res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
         } else {
-          resolve(result);
+          return res
+            .status(200)
+            .json({ success: true, message: "Category added successfully" });
         }
       });
     });
-    if (result.length > 0) {
+  } catch (error) {
+    console.error("Error adding category:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.put("/categories", checkAdmin, async (req, res) => {
+  const { category_id, category_name, bgcolor } = req.body;
+  if (!category_id || !category_name || !bgcolor) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing required fields" });
+  }
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      let allcategories = await new Promise((resolve, reject) => {
+        db.query(
+          "SELECT * FROM categories WHERE available = 1",
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+
+      //find if category_name is exist
+      let category_nameResult = allcategories.find(
+        (category) => category.category_name === category_name
+      );
+
+      if (
+        category_nameResult &&
+        category_nameResult.category_id !== category_id
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: "Category name already exists",
+        });
+      }
+
       db.query(
         "UPDATE categories SET category_name = ?, bgcolor = ? WHERE category_id = ?",
         [category_name, bgcolor, category_id],
@@ -1273,32 +1325,22 @@ app.post("/categories", checkAdmin, async (req, res) => {
               .status(500)
               .json({ success: false, message: "Internal Server Error" });
           } else {
-            return res.status(200).json({
-              success: true,
-              message: "Category updated successfully",
-            });
+            return res
+              .status(200)
+              .json({
+                success: true,
+                message: "Category updated successfully",
+              });
           }
         }
       );
-    } else {
-      db.query(
-        "INSERT INTO categories (category_id, category_name, bgcolor) VALUES (?, ?, ?)",
-        [category_id, category_name, bgcolor],
-        (err, result) => {
-          if (err) {
-            console.error("Error adding category:", err);
-            return res
-              .status(500)
-              .json({ success: false, message: "Internal Server Error" });
-          } else {
-            return res
-              .status(201)
-              .json({ success: true, message: "Category added successfully" });
-          }
-        }
-      );
-    }
-  });
+    });
+  } catch (error) {
+    console.error("Error updating category:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
+  }
 });
 
 app.get("/producttypes", async (req, res) => {
