@@ -383,7 +383,6 @@ app.post("/register", async (req, res) => {
 app.get("/confirm/:email/:hashed", async (req, res) => {
   const email = req.params.email;
   const hashed = req.params.hashed;
-  console.log(email, hashed);
   if (!email || !hashed) {
     return res
       .status(400)
@@ -733,7 +732,6 @@ app.get("/users/:roleParams", async (req, res) => {
                     };
                   })
                 );
-                console.log(compiledResult);
                 res.json(compiledResult);
               } catch (error) {
                 console.error(error);
@@ -1186,7 +1184,6 @@ app.delete("/categories", checkAdmin, async (req, res) => {
           .status(500)
           .json({ success: false, message: "Internal Server Error" });
       } else {
-        console.log(result.affectedRows);
         return res
           .status(200)
           .json({ success: true, message: "Category deleted successfully" });
@@ -1197,7 +1194,6 @@ app.delete("/categories", checkAdmin, async (req, res) => {
 
 app.post("/categories", checkAdmin, async (req, res) => {
   let { category_name, bgcolor } = req.body;
-  console.log(req.body);
   if (!category_name || !bgcolor) {
     return res
       .status(400)
@@ -4447,7 +4443,19 @@ app.get("/allcategories", checkTambonProvider, async (req, res) => {
               .status(500)
               .json({ success: false, error: "Internal Server Error" });
           }
-          res.json({ success: true, categories: result });
+          // add percentage to each category
+          let total = result.reduce((acc, curr) => acc + curr.data, 0);
+          result = result.map((category) => {
+            return {
+              ...category,
+              label:
+                category.label +
+                " " +
+                ((category.data / total) * 100).toFixed(2) +
+                "%",
+            };
+          });
+          return res.json({ success: true, categories: result });
         }
       );
     } catch (error) {
