@@ -3748,6 +3748,7 @@ app.post("/changepassword", async (req, res) => {
     }
 
     const newHashedPassword = await bcrypt.hash(newpassword, 10);
+    console.log(newHashedPassword);
     await usePooledConnectionAsync(async (db) => {
       return await new Promise((resolve, reject) => {
         db.query(
