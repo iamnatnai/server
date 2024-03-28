@@ -2101,7 +2101,7 @@ app.post("/updateinfo", async (req, res) => {
   if (!token) {
     return res.status(400).json({ error: "Token not provided" });
   }
-  const {
+  let {
     email = null,
     firstname = null,
     lastname = null,
@@ -2119,21 +2119,50 @@ app.post("/updateinfo", async (req, res) => {
     tambon = null,
     shippingcost = null,
   } = req.body;
+
+  if (!email || !firstname || !lastname || !phone || !farmerstorename) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing required fields" });
+  }
   try {
     let decoded = jwt.verify(token, secretKey);
     const { username, role } = decoded;
     if (role === "farmers") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", shippingcost='${JSON.stringify(
-        shippingcost
-      )}', address = "${address}", facebooklink = "${facebooklink}", lineid = "${lineid}", lat = ${
-        lat ? `${lat}` : null
-      }, lng = ${
-        lng ? `${lng}` : null
-      }, zipcode = "${zipcode}", payment = "${payment}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`;
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      farmerstorename = farmerstorename
+        ? `farmerstorename = "${farmerstorename}"`
+        : "";
+      address = address ? `,address = "${address}"` : "";
+      facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
+      lineid = lineid ? `,lineid = "${lineid}"` : "";
+      zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
+      payment = payment ? `,payment = "${payment}"` : "";
+      province = province
+        ? `,province = "${province}"`
+        : `,province = ${province}`;
+      amphure = amphure ? `,amphure = "${amphure}"` : "";
+      tambon = tambon ? `,tambon = "${tambon}"` : "";
+      shippingcost = shippingcost
+        ? `,shippingcost='${JSON.stringify(shippingcost)}'`
+        : null;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} WHERE username = "${username}"`;
     } else if (role === "members") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" , address = "${address}" WHERE username = "${username}"`;
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      address = address ? `,address = "${address}"` : "";
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} WHERE username = "${username}"`;
     } else {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`;
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
     }
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
@@ -2156,7 +2185,7 @@ app.post("/updateinfo", async (req, res) => {
 });
 
 app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
-  const {
+  let {
     email = null,
     firstname = null,
     lastname = null,
@@ -2188,15 +2217,40 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     var query;
     if (role === "farmers" || decoded.role === "tambons") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}", facebooklink = "${facebooklink}" , lineid = "${lineid}", payment = "${payment}", shippingcost='${JSON.stringify(
-        shippingcost
-      )}', lat = ${lat ? `${lat}` : null}, lng = ${
-        lng ? `${lng}` : null
-      }, zipcode = "${zipcode}", farmerstorename = "${farmerstorename}", province = "${province}", amphure="${amphure}", tambon="${tambon}" WHERE username = "${username}"`;
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      farmerstorename = farmerstorename
+        ? `farmerstorename = "${farmerstorename}"`
+        : "";
+      address = address ? `,address = "${address}"` : "";
+      facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
+      lineid = lineid ? `,lineid = "${lineid}"` : "";
+      zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
+      payment = payment ? `,payment = "${payment}"` : "";
+      province = province
+        ? `,province = "${province}"`
+        : `,province = ${province}`;
+      amphure = amphure ? `,amphure = "${amphure}"` : "";
+      tambon = tambon ? `,tambon = "${tambon}"` : "";
+      shippingcost = shippingcost
+        ? `,shippingcost='${JSON.stringify(shippingcost)}'`
+        : null;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} WHERE username = "${username}"`;
     } else if (role === "members") {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", address = "${address}" WHERE username = "${username}"`;
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      address = address ? `,address = "${address}"` : "";
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} WHERE username = "${username}"`;
     } else {
-      query = `UPDATE ${role} SET email = "${email}", firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}" WHERE username = "${username}"`;
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
     }
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
