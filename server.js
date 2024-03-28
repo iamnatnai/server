@@ -1931,7 +1931,19 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
     if (decoded.role === "farmers") {
       farmerId = decoded.ID;
     } else {
-      farmerId = req.body.farmerId;
+      farmerId = await new Promise((resolve, reject) => {
+        db.query(
+          "SELECT id FROM farmers WHERE username = ?",
+          [req.body.username],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0].id);
+            }
+          }
+        );
+      });
     }
     db.query(
       `UPDATE products SET available = 0 WHERE product_id = "${id}" and farmer_id = "${farmerId}"`,
