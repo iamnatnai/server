@@ -4332,7 +4332,12 @@ app.get("/farmerregister", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
-        `SELECT count(*) as register_count, date(createAt) as createAt FROM farmers group by date(createAt) order by date(createAt) desc limit 30;`,
+        `SELECT COUNT(*) AS register_count, DATE(createAt) AS createAt 
+        FROM farmers 
+        WHERE available = 1 
+        GROUP BY DATE(createAt) 
+        ORDER BY DATE(createAt) DESC 
+        LIMIT 30;`,
         (err, result) => {
           if (err) {
             console.error(err);
