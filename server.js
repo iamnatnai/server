@@ -2148,6 +2148,8 @@ app.post("/updateinfo", async (req, res) => {
         : `,province = ${province}`;
       amphure = amphure ? `,amphure = "${amphure}"` : "";
       tambon = tambon ? `,tambon = "${tambon}"` : "";
+      lat = lat ? `, lat = "${lat}"` : "";
+      lng = lng ? `, lng = "${lng}"` : "";
       shippingcost = shippingcost
         ? `,shippingcost='${JSON.stringify(shippingcost)}'`
         : null;
@@ -2227,6 +2229,8 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
         ? `farmerstorename = "${farmerstorename}"`
         : "";
       address = address ? `,address = "${address}"` : "";
+      lat = lat ? `, lat = "${lat}"` : "";
+      lng = lng ? `, lng = "${lng}"` : "";
       facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
       lineid = lineid ? `,lineid = "${lineid}"` : "";
       zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
