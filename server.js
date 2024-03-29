@@ -625,7 +625,7 @@ app.get("/users/:roleParams", async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     const role = decoded.role;
 
-    if (role !== "admins" && role !== "tambons") {
+    if (role !== "admins" && role !== "tambons" && role !== "providers") {
       return res.status(401).json({ error: "Unauthorized" });
     }
     if (role === "tambons" && roleParams !== "farmers") {
