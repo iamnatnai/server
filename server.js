@@ -18,6 +18,7 @@ const moment = require("moment");
 const momentz = require("moment-timezone");
 
 require("dotenv").config();
+//ดึงตัวแปรมาใช้
 
 app.use(
   cors({
@@ -31,7 +32,8 @@ var db_config = {
   // port: "18574",
   socketPath:
     process.env.production == "true"
-      ? "/var/run/mysqld/mysqld.sock"
+      ? //Server: Localhost via UNIX socket(ดูใน php myadmin)
+        "/var/run/mysqld/mysqld.sock"
       : undefined,
   user: process.env.production == "true" ? "thebestkasetnont" : "root",
   password: process.env.production == "true" ? "xGHYb$#34f2RIGhJc" : "",
