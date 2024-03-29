@@ -3803,11 +3803,10 @@ app.post("/changepassword", async (req, res) => {
   try {
     // ถ้าไม่ใช่ admin ต้องเช็คว่า password เดิมตรงกับที่อยู่ใน database หรือไม่
     if (
-      // roleDecoded !== "admins" &&
-      // !(roleDecoded === "tambons" && roleBody === "farmers")
-
       roleDecoded !== "admins" &&
-      !(roleDecoded === "tambons" && roleBody !== "farmers")
+      !(roleDecoded === "tambons" && roleBody === "farmers")
+      // roleDecoded !== "admins" &&
+      // !(roleDecoded === "tambons" && roleBody !== "farmers")
     ) {
       if (
         !(await checkMatchPssword(roleDecoded, usernameDecoded, oldpassword))
