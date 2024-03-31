@@ -16,6 +16,7 @@ const secretKey = "pifOvrart4";
 const excel = require("exceljs");
 const moment = require("moment");
 const momentz = require("moment-timezone");
+const { log } = require("console");
 
 require("dotenv").config();
 //ดึงตัวแปรมาใช้
@@ -3825,19 +3826,33 @@ app.post("/changepassword", async (req, res) => {
     console.log(newHashedPassword);
     await usePooledConnectionAsync(async (db) => {
       return await new Promise((resolve, reject) => {
+        if (roleDecoded === "tambons" && roleBody === "farmers") {
+          roleDecoded = "farmers";
+          usernameDecoded = usernameBody;
+        }
         db.query(
           `UPDATE ${
             roleDecoded !== "admins" ? roleDecoded : roleBody
           } SET password = "${newHashedPassword}" WHERE username = "${
             roleDecoded !== "admins" ? usernameDecoded : usernameBody
           }"`,
+
           (err, result) => {
+            console.log(err);
+            console.log(result);
             if (err) {
               reject(err);
             } else {
               resolve(result);
             }
           }
+        );
+        console.log(
+          `UPDATE ${
+            roleDecoded !== "admins" ? roleDecoded : roleBody
+          } SET password = "${newHashedPassword}" WHERE username = "${
+            roleDecoded !== "admins" ? usernameDecoded : usernameBody
+          }"`
         );
       });
     });
