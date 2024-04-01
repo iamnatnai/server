@@ -4615,20 +4615,45 @@ async function checkReservationToday(product_id) {
 }
 async function checkReservestatus(product_id) {
   return await usePooledConnectionAsync(async (db) => {
-    return new Promise((resolve, reject) => {
-      db.query(
-        `SELECT COUNT(*) AS count
-        FROM products
-        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND NOW() BETWEEN date_reserve_start AND date_reserve_end`,
-        [product_id],
-        (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result[0].count > 0);
+    return new Promise(async (resolve, reject) => {
+      let typeOfReserve = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT selectedStatus
+          FROM products
+          WHERE product_id = ? and selectedType = "จองสินค้าผ่านเว็บไซต์"`,
+          [product_id],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0].selectedStatus);
+            }
           }
-        }
-      );
+        );
+      });
+      if (typeOfReserve === "ปิดรับจอง") {
+        // กรณีปิดรับจอง จะไม่สามารถจองได้ จะ return false เสมอ
+        resolve(false);
+      } else if (typeOfReserve === "เปิดรับจองตลอด") {
+        // กรณีเปิดรับจองตลอด จะสามารถจองได้เสมอ
+        resolve(true);
+      } else {
+        // กรณีเปิดรับจองตามช่วงเวลา จะต้องเช็คว่าเวลาปัจจุบันอยู่ในช่วงเวลาที่เปิดรับจองหรือไม่
+        db.query(
+          `SELECT COUNT(*) AS count
+          FROM products
+          WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND NOW() BETWEEN date_reserve_start AND date_reserve_end`,
+          [product_id],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              console.log(result);
+              resolve(result[0].count > 0);
+            }
+          }
+        );
+      }
     });
   });
 }
@@ -4816,6 +4841,7 @@ app.post("/reserve", checkActivated, async (req, res) => {
     const nextId = await getNextResId();
     const isProductReservable = await checkReservestatus(product_id);
     const pendingplswait = await checkPendingStatus(product_id, decoded.ID);
+    console.log(product_id, isProductReservable);
     if (!isProductReservable) {
       return res.status(400).json({
         success: false,
