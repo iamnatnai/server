@@ -341,35 +341,6 @@ app.post("/register", async (req, res) => {
         .send({ exist: false, error: "Email already exists" });
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "thebestkasetnont@gmail.com",
-        pass: "ggtf brgm brip mqvq",
-      },
-    });
-    let url =
-      process.env.production == "true"
-        ? process.env.url
-        : "http://localhost:3000";
-    const mailOptions = {
-      from: "thebestkasetnont@gmail.com",
-      to: email,
-      subject: "ยืนยันตัวตน",
-      text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
-        email + secretKey,
-        10
-      )}`,
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error sending email:", error);
-      } else {
-        console.log("Email sent:", info.response);
-      }
-    });
-
     const nextId = await getNextId();
 
     await insertMember(
@@ -583,6 +554,16 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         lastName,
         tel,
         certificateList
+      );
+    } else if (role === "members") {
+      await insertMember(
+        nextUserId,
+        username,
+        email,
+        hashedPassword,
+        firstName,
+        lastName,
+        tel
       );
     } else {
       await insertUser(
@@ -897,6 +878,35 @@ async function insertMember(
   lastName,
   tel
 ) {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: "thebestkasetnont@gmail.com",
+      pass: "ggtf brgm brip mqvq",
+    },
+  });
+  let url =
+    process.env.production == "true"
+      ? process.env.url
+      : "http://localhost:3000";
+  const mailOptions = {
+    from: "thebestkasetnont@gmail.com",
+    to: email,
+    subject: "ยืนยันตัวตน",
+    text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
+      email + secretKey,
+      10
+    )}`,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Error sending email:", error);
+    } else {
+      console.log("Email sent:", info.response);
+    }
+  });
+
   return await usePooledConnectionAsync(async (db) => {
     new Promise(async (resolve, reject) => {
       db.query(
