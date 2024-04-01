@@ -220,18 +220,24 @@ const checkActivated = (req, res, next) => {
     ? req.headers.authorization.split(" ")[1]
     : null;
   if (!token) {
-    return res.status(400).json({ error: "Token not provided" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Token not provided" });
   }
   try {
     const decoded = jwt.verify(token, secretKey);
     console.log(decoded, "decoded");
     if (decoded.role === "members" && !decoded.activate) {
-      return res.status(401).json({ error: "กรุณายืนยันตัวตน" });
+      return res
+        .status(401)
+        .json({ success: false, message: "กรุณายืนยันตัวตน" });
     }
     next();
   } catch (error) {
     console.error("Error decoding token:4", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
   }
 };
 
