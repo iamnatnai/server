@@ -4813,7 +4813,7 @@ app.post("/reserve", checkActivated, async (req, res) => {
     if (!isProductReservable) {
       return res.status(400).json({
         success: false,
-        message: "This product cannot be reserved via website",
+        message: "สินค้านี้ไม่สามารถจองได้ในขณะนี้",
       });
     }
     if (pendingplswait) {
