@@ -129,7 +129,7 @@ const checkAdmin = (req, res, next) => {
     next();
   } catch (error) {
     console.error("Error decoding token:1", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error 1234" });
   }
 };
 const checkAdminTambon = (req, res, next) => {
@@ -2294,40 +2294,48 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
   }
 });
 
-app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
-  const { role, username } = req.params;
-  var query;
-  try {
-    const token = req.headers.authorization
-      ? req.headers.authorization.split(" ")[1]
-      : null;
-    const decoded = jwt.verify(token, secretKey);
-    if (role === "farmers" || decoded.role === "tamboons") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}"`;
-    } else if (role === "members") {
-      query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
-    } else {
-      query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
-    }
-    await usePooledConnectionAsync(async (db) => {
-      db.query(query, (err, result) => {
-        if (err) {
-          console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
-        } else {
-          res.json(result[0]);
-        }
+app.get(
+  "/getuseradmin/:role/:username",
+  checkTambonProvider,
+  async (req, res) => {
+    const { role, username } = req.params;
+    var query;
+    try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      if (
+        role === "farmers" ||
+        decoded.role === "tamboons" ||
+        decoded.role === "providers"
+      ) {
+        query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}"`;
+      } else if (role === "members") {
+        query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
+      } else {
+        query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
+      }
+      await usePooledConnectionAsync(async (db) => {
+        db.query(query, (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result[0]);
+          }
+        });
       });
-    });
 
-    return res.status(200);
-  } catch (error) {
-    console.error("Error fetching user:", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+      return res.status(200);
+    } catch (error) {
+      console.error("Error fetching user:", error.message);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
   }
-});
+);
 
 // app.post('/checkout', async (req, res) => {
 //   const { cartList } = req.body;
@@ -2732,7 +2740,7 @@ app.get("/orderlist", async (req, res) => {
 
       const decoded = jwt.verify(token, secretKey);
       const orderQuery =
-        "SELECT os.*, m.address, m.firstname, m.lastname, m.phone FROM order_sumary os INNER JOIN members m on m.id = os.member_id WHERE member_id = ?";
+        "SELECT os.*, os.address, m.firstname, m.lastname, m.phone FROM order_sumary os INNER JOIN members m on m.id = os.member_id WHERE member_id = ?";
       const orders = await new Promise((resolve, reject) => {
         db.query(orderQuery, [decoded.ID], async (err, result) => {
           if (err) {
@@ -3933,7 +3941,7 @@ app.post("/certificate", checkAdmin, async (req, res) => {
           console.error("Error adding certificate:", err);
           return res
             .status(500)
-            .json({ success: false, message: "Internal Server Error" });
+            .json({ success: false, message: JSON.stringify(err) });
         } else {
           return res.status(200).json({
             success: true,
@@ -3947,7 +3955,7 @@ app.post("/certificate", checkAdmin, async (req, res) => {
     console.error("Error adding certificate:", error);
     return res
       .status(500)
-      .json({ success: false, message: "Internal Server Error" });
+      .json({ success: false, message: JSON.stringify(error) });
   }
 });
 
@@ -5028,6 +5036,7 @@ app.post(
   async (req, res) => {
     try {
       const { standard_id, name, certificate_number, username } = req.body;
+      console.log(req.body);
       if (!standard_id) {
         return res
           .status(400)
@@ -5038,7 +5047,7 @@ app.post(
         : null;
       const decoded = jwt.verify(token, secretKey);
       let pathName = null;
-      if (req.files.image) {
+      if (req.files && req.files.image) {
         let image = req.files.image[0].filename;
         pathName = "/uploads/" + image;
       }
@@ -5245,4 +5254,4 @@ app.get("/getadmincertificate", checkAdmin, async (req, res) => {
   });
 });
 
-app.listen(3006, () => console.log("Avalable 3006"));
+app.listen(3006, () => console.log("hi Avalable 3006"));
