@@ -555,7 +555,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
     role,
     certificateList,
   } = req.body;
-  if (!email || !username || !password || !role) {
+  if (!username || !password || !role) {
     return res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
@@ -579,7 +579,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         .status(409)
         .json({ success: false, message: "Username already exists" });
     }
-    if (emailExists) {
+    if (emailExists && email != "") {
       return res
         .status(409)
         .json({ success: false, message: "Email already exists" });
@@ -2157,7 +2157,6 @@ app.get("/myproducts/:username", async (req, res) => {
 });
 
 app.get("/getinfo", async (req, res) => {
-  S;
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
