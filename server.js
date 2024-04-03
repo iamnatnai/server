@@ -129,7 +129,7 @@ const checkAdmin = (req, res, next) => {
     next();
   } catch (error) {
     console.error("Error decoding token:1", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error 1234" });
   }
 };
 const checkAdminTambon = (req, res, next) => {
@@ -335,36 +335,6 @@ app.post("/register", async (req, res) => {
         .send({ exist: false, error: "Email already exists" });
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "thebestkasetnont@gmail.com",
-        pass: "ggtf brgm brip mqvq",
-      },
-    });
-    let url =
-      process.env.production == "true"
-        ? process.env.url
-        : "http://localhost:3000";
-    const mailOptions = {
-      from: "thebestkasetnont@gmail.com",
-      to: email,
-      subject: "ยืนยันตัวตน",
-      text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
-      กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
-        email + secretKey,
-        10
-      )}`,
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error sending email:", error);
-      } else {
-        console.log("Email sent:", info.response);
-      }
-    });
-
     const nextId = await getNextId();
 
     await insertMember(
@@ -532,6 +502,46 @@ async function insertFarmer(
     return;
   });
 }
+async function insertTambon(
+  nextUserId,
+  username,
+  email,
+  amphure,
+  hashedPassword,
+  firstName,
+  lastName,
+  tel
+) {
+  return await usePooledConnectionAsync(async (db) => {
+    await new Promise((resolve, reject) => {
+      const query = `INSERT INTO tambons 
+      (id, username, email, password, firstname, lastname, phone, role,amphure, createAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      db.query(
+        query,
+        [
+          nextUserId,
+          username,
+          email,
+          hashedPassword,
+          firstName,
+          lastName,
+          tel,
+          "tambons",
+          amphure,
+        ],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        }
+      );
+    });
+    return;
+  });
+}
 
 app.post("/adduser", checkAdminTambon, async (req, res) => {
   const {
@@ -586,6 +596,27 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         lastName,
         tel,
         certificateList
+      );
+    } else if (role === "tambons") {
+      await insertTambon(
+        nextUserId,
+        username,
+        email,
+        amphure,
+        hashedPassword,
+        firstName,
+        lastName,
+        tel
+      );
+    } else if (role === "members") {
+      await insertMember(
+        nextUserId,
+        username,
+        email,
+        hashedPassword,
+        firstName,
+        lastName,
+        tel
       );
     } else {
       await insertUser(
@@ -900,6 +931,35 @@ async function insertMember(
   lastName,
   tel
 ) {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: "thebestkasetnont@gmail.com",
+      pass: "ggtf brgm brip mqvq",
+    },
+  });
+  let url =
+    process.env.production == "true"
+      ? process.env.url
+      : "http://localhost:3000";
+  const mailOptions = {
+    from: "thebestkasetnont@gmail.com",
+    to: email,
+    subject: "ยืนยันตัวตน",
+    text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
+      email + secretKey,
+      10
+    )}`,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Error sending email:", error);
+    } else {
+      console.log("Email sent:", info.response);
+    }
+  });
+
   return await usePooledConnectionAsync(async (db) => {
     new Promise(async (resolve, reject) => {
       db.query(
@@ -1031,8 +1091,30 @@ app.post("/login", async (req, res) => {
           );
         });
       });
+
       option = { ...option, activate: activation };
     }
+
+    if (user.role === "tambons") {
+      let tambonamphure = await usePooledConnectionAsync(async (db) => {
+        return new Promise((resolve, reject) => {
+          db.query(
+            "SELECT amphure FROM tambons WHERE username = ?",
+            [user.uze_name],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result[0].amphure);
+              }
+            }
+          );
+        });
+      });
+
+      option = { ...option, amphure: tambonamphure };
+    }
+
     const token = jwt.sign(option, secretKey, {
       expiresIn: rememberMe ? "15d" : "1d",
     });
@@ -1068,7 +1150,7 @@ app.get("/login", async (req, res) => {
     if (decoded.role === "members") {
       option = { ...option, activate: decoded.activate };
     }
-    if (decoded.role === "farmers") {
+    if (decoded.role === "tambons") {
       option = { ...option, amphure: decoded.amphure };
     }
     const newToken = jwt.sign(option, secretKey, {
@@ -2294,40 +2376,48 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
   }
 });
 
-app.get("/getuseradmin/:role/:username", checkAdminTambon, async (req, res) => {
-  const { role, username } = req.params;
-  var query;
-  try {
-    const token = req.headers.authorization
-      ? req.headers.authorization.split(" ")[1]
-      : null;
-    const decoded = jwt.verify(token, secretKey);
-    if (role === "farmers" || decoded.role === "tamboons") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}"`;
-    } else if (role === "members") {
-      query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
-    } else {
-      query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
-    }
-    await usePooledConnectionAsync(async (db) => {
-      db.query(query, (err, result) => {
-        if (err) {
-          console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
-        } else {
-          res.json(result[0]);
-        }
+app.get(
+  "/getuseradmin/:role/:username",
+  checkTambonProvider,
+  async (req, res) => {
+    const { role, username } = req.params;
+    var query;
+    try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      if (
+        role === "farmers" ||
+        decoded.role === "tamboons" ||
+        decoded.role === "providers"
+      ) {
+        query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}"`;
+      } else if (role === "members") {
+        query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
+      } else {
+        query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
+      }
+      await usePooledConnectionAsync(async (db) => {
+        db.query(query, (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result[0]);
+          }
+        });
       });
-    });
 
-    return res.status(200);
-  } catch (error) {
-    console.error("Error fetching user:", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+      return res.status(200);
+    } catch (error) {
+      console.error("Error fetching user:", error.message);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
   }
-});
+);
 
 // app.post('/checkout', async (req, res) => {
 //   const { cartList } = req.body;
@@ -2732,7 +2822,7 @@ app.get("/orderlist", async (req, res) => {
 
       const decoded = jwt.verify(token, secretKey);
       const orderQuery =
-        "SELECT os.*, m.address, m.firstname, m.lastname, m.phone FROM order_sumary os INNER JOIN members m on m.id = os.member_id WHERE member_id = ?";
+        "SELECT os.*, os.address, m.firstname, m.lastname, m.phone FROM order_sumary os INNER JOIN members m on m.id = os.member_id WHERE member_id = ?";
       const orders = await new Promise((resolve, reject) => {
         db.query(orderQuery, [decoded.ID], async (err, result) => {
           if (err) {
@@ -3928,7 +4018,7 @@ app.post("/certificate", checkAdmin, async (req, res) => {
           console.error("Error adding certificate:", err);
           return res
             .status(500)
-            .json({ success: false, message: "Internal Server Error" });
+            .json({ success: false, message: JSON.stringify(err) });
         } else {
           return res.status(200).json({
             success: true,
@@ -3942,7 +4032,7 @@ app.post("/certificate", checkAdmin, async (req, res) => {
     console.error("Error adding certificate:", error);
     return res
       .status(500)
-      .json({ success: false, message: "Internal Server Error" });
+      .json({ success: false, message: JSON.stringify(error) });
   }
 });
 
@@ -4997,6 +5087,7 @@ app.post(
   async (req, res) => {
     try {
       const { standard_id, name, certificate_number, username } = req.body;
+      console.log(req.body);
       if (!standard_id) {
         return res
           .status(400)
@@ -5007,7 +5098,7 @@ app.post(
         : null;
       const decoded = jwt.verify(token, secretKey);
       let pathName = null;
-      if (req.files.image) {
+      if (req.files && req.files.image) {
         let image = req.files.image[0].filename;
         pathName = "/uploads/" + image;
       }
@@ -5214,4 +5305,4 @@ app.get("/getadmincertificate", checkAdmin, async (req, res) => {
   });
 });
 
-app.listen(3006, () => console.log("Avalable 3006"));
+app.listen(3006, () => console.log("hi Avalable 3006"));
