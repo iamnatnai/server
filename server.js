@@ -220,24 +220,18 @@ const checkActivated = (req, res, next) => {
     ? req.headers.authorization.split(" ")[1]
     : null;
   if (!token) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Token not provided" });
+    return res.status(400).json({ error: "Token not provided" });
   }
   try {
     const decoded = jwt.verify(token, secretKey);
     console.log(decoded, "decoded");
     if (decoded.role === "members" && !decoded.activate) {
-      return res
-        .status(401)
-        .json({ success: false, message: "กรุณายืนยันตัวตน" });
+      return res.status(401).json({ error: "กรุณายืนยันตัวตน" });
     }
     next();
   } catch (error) {
     console.error("Error decoding token:4", error.message);
-    return res
-      .status(500)
-      .json({ success: false, message: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -356,7 +350,8 @@ app.post("/register", async (req, res) => {
       from: "thebestkasetnont@gmail.com",
       to: email,
       subject: "ยืนยันตัวตน",
-      text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
+      text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
+      กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
         email + secretKey,
         10
       )}`,
@@ -478,6 +473,7 @@ async function insertFarmer(
   nextUserId,
   username,
   email,
+  amphure,
   hashedPassword,
   firstName,
   lastName,
@@ -486,7 +482,9 @@ async function insertFarmer(
 ) {
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
-      const query = `INSERT INTO farmers (id, username, email, password, firstname, lastname, phone, role, farmerstorename, createAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      const query = `INSERT INTO farmers 
+      (id, username, email, password, firstname, lastname, phone, role,amphure, farmerstorename, createAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
       db.query(
         query,
         [
@@ -498,6 +496,7 @@ async function insertFarmer(
           lastName,
           tel,
           "farmers",
+          amphure,
           username,
         ],
         (err, result) => {
@@ -513,7 +512,9 @@ async function insertFarmer(
       certificateList.map(async (certificate, index) => {
         let nextCertId = await getNextCertId(index);
         await new Promise((resolve, reject) => {
-          const query = `INSERT INTO certificate_link_farmer  (id, farmer_id, standard_id, status) VALUES (?,?, ?, "complete")`;
+          const query = `INSERT INTO certificate_link_farmer 
+          (id, farmer_id, standard_id, status) 
+          VALUES (?,?, ?, "complete")`;
           db.query(
             query,
             [nextCertId, nextUserId, certificate],
@@ -539,6 +540,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
     password,
     firstName,
     lastName,
+    amphure,
     tel,
     role,
     certificateList,
@@ -578,6 +580,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         nextUserId,
         username,
         email,
+        amphure,
         hashedPassword,
         firstName,
         lastName,
@@ -937,7 +940,9 @@ async function insertUser(
   return await usePooledConnectionAsync(async (db) => {
     return new Promise((resolve, reject) => {
       db.query(
-        `INSERT INTO ${role} (id,username,email,password,firstname,lastName,phone,role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ${role} 
+        (id,username,email,password,firstname,lastName,phone,role) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [memberId, username, email, password, firstName, lastName, tel, role],
         (err, result) => {
           if (err) {
@@ -1062,6 +1067,9 @@ app.get("/login", async (req, res) => {
     };
     if (decoded.role === "members") {
       option = { ...option, activate: decoded.activate };
+    }
+    if (decoded.role === "farmers") {
+      option = { ...option, amphure: decoded.amphure };
     }
     const newToken = jwt.sign(option, secretKey, {
       expiresIn: "15d",
@@ -1257,7 +1265,8 @@ app.post("/categories", checkAdmin, async (req, res) => {
         );
       });
 
-      let query = `INSERT INTO categories (category_id, category_name, bgcolor, available) VALUES (?, ?, ?, 1)`;
+      let query = `INSERT INTO categories (category_id, category_name, bgcolor, available) 
+      VALUES (?, ?, ?, 1)`;
 
       db.query(query, [category_id, category_name, bgcolor], (err, result) => {
         if (err) {
@@ -2066,6 +2075,7 @@ app.get("/myproducts/:username", async (req, res) => {
 });
 
 app.get("/getinfo", async (req, res) => {
+  S;
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
@@ -3177,21 +3187,16 @@ app.post("/comment", async (req, res) => {
       });
     }
 
-    // Check if all necessary data is provided
     if (!decoded.ID || !product_id || !rating) {
       return res
         .status(400)
         .json({ success: false, message: "Incomplete comment data" });
     }
-
-    // Check if rating is valid
     if (rating < 1 || rating > 5) {
       return res
         .status(400)
         .json({ success: false, message: "Rating must be between 1 and 5" });
     }
-
-    // Check if the member has purchased the product
 
     await usePooledConnectionAsync(async (db) => {
       const checkOrderQuery =
@@ -4615,45 +4620,20 @@ async function checkReservationToday(product_id) {
 }
 async function checkReservestatus(product_id) {
   return await usePooledConnectionAsync(async (db) => {
-    return new Promise(async (resolve, reject) => {
-      let typeOfReserve = await new Promise((resolve, reject) => {
-        db.query(
-          `SELECT selectedStatus
-          FROM products
-          WHERE product_id = ? and selectedType = "จองสินค้าผ่านเว็บไซต์"`,
-          [product_id],
-          (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result[0].selectedStatus);
-            }
+    return new Promise((resolve, reject) => {
+      db.query(
+        `SELECT COUNT(*) AS count
+        FROM products
+        WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND NOW() BETWEEN date_reserve_start AND date_reserve_end`,
+        [product_id],
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0].count > 0);
           }
-        );
-      });
-      if (typeOfReserve === "ปิดรับจอง") {
-        // กรณีปิดรับจอง จะไม่สามารถจองได้ จะ return false เสมอ
-        resolve(false);
-      } else if (typeOfReserve === "เปิดรับจองตลอด") {
-        // กรณีเปิดรับจองตลอด จะสามารถจองได้เสมอ
-        resolve(true);
-      } else {
-        // กรณีเปิดรับจองตามช่วงเวลา จะต้องเช็คว่าเวลาปัจจุบันอยู่ในช่วงเวลาที่เปิดรับจองหรือไม่
-        db.query(
-          `SELECT COUNT(*) AS count
-          FROM products
-          WHERE product_id = ? AND selectedType = 'จองสินค้าผ่านเว็บไซต์' AND NOW() BETWEEN date_reserve_start AND date_reserve_end`,
-          [product_id],
-          (err, result) => {
-            if (err) {
-              reject(err);
-            } else {
-              console.log(result);
-              resolve(result[0].count > 0);
-            }
-          }
-        );
-      }
+        }
+      );
     });
   });
 }
@@ -4841,11 +4821,10 @@ app.post("/reserve", checkActivated, async (req, res) => {
     const nextId = await getNextResId();
     const isProductReservable = await checkReservestatus(product_id);
     const pendingplswait = await checkPendingStatus(product_id, decoded.ID);
-    console.log(product_id, isProductReservable);
     if (!isProductReservable) {
       return res.status(400).json({
         success: false,
-        message: "สินค้านี้ไม่สามารถจองได้ในขณะนี้",
+        message: "This product cannot be reserved via website",
       });
     }
     if (pendingplswait) {
