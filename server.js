@@ -4510,10 +4510,17 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
 app.get("/farmerregister", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      const { role } = decoded;
       db.query(
         `SELECT COUNT(*) AS register_count, DATE(createAt) AS createAt 
         FROM farmers 
-        WHERE available = 1 
+        WHERE available = 1 ${
+          role === "tambons" ? `AND amphure = "${decoded.amphure}"` : ""
+        }
         GROUP BY DATE(createAt) 
         ORDER BY DATE(createAt) DESC 
         LIMIT 30;`,
@@ -4631,7 +4638,9 @@ app.get("/allcategories", checkTambonProvider, async (req, res) => {
         `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor 
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.category_id 
-        WHERE p.available = 1 
+        WHERE p.available = 1 ${
+          role === "tambons" ? `AND amphure = "${decoded.amphure}"` : ""
+        }
         GROUP BY c.category_name, c.bgcolor;`,
         (err, result) => {
           if (err) {
