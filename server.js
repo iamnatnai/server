@@ -948,7 +948,8 @@ async function insertMember(
     from: "thebestkasetnont@gmail.com",
     to: email,
     subject: "ยืนยันตัวตน",
-    text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
+    text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
+    กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
       email + secretKey,
       10
     )}`,
@@ -965,7 +966,8 @@ async function insertMember(
   return await usePooledConnectionAsync(async (db) => {
     new Promise(async (resolve, reject) => {
       db.query(
-        "INSERT INTO members (id, username, email, password, firstname, lastname, phone, member_follows, role) VALUES (?, ?, ?, ?, ?, ?, ?,?,?)",
+        `INSERT INTO members (id, username, email, password, firstname, lastname, phone, member_follows, role) 
+        VALUES (?, ?, ?, ?, ?, ?, ?,?,?)`,
         [
           memberId,
           username,
@@ -1785,7 +1787,9 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         });
       }
       if (product_id) {
-        const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?, product_description = ?, category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?, additional_image = ?, selectedType = ?, certificate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
+        const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
+         product_description = ?,category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?,
+          additional_image = ?,selectedType = ?, certificate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
         let result = await new Promise((resolve, reject) => {
           db.query(
             query,
@@ -1827,7 +1831,9 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       const nextProductId = await getNextProductId();
 
       const query = `
-        INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id, product_name, product_description, category_id, stock, price, weight, unit, product_image, product_video, additional_image,selectedType,certificate, last_modified)
+        INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
+           product_name, product_description, category_id, stock, price, weight, unit, product_image, 
+           product_video, additional_image,selectedType,certificate, last_modified)
         VALUES (?, ?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
       `;
       db.query(
@@ -1891,21 +1897,23 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       .send({ success: false, message: "Internal Server Error" });
   }
 });
-
-app.get("/getimage/:image", (req, res) => {
-  const image = req.params.image;
-  res.sendFile(path.join(__dirname, "uploads", image));
-});
 // app.get("/getproduct/:urlToShorten(*)", (req, res) => {
 //   console.log(req.originalUrl);
 //   console.log(req.params.urlToShorten);
 //   return res.status(200).send({ success: true });
 // });
+app.get("/getimage/:image", (req, res) => {
+  const image = req.params.image;
+  res.sendFile(path.join(__dirname, "uploads", image));
+});
+
 app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   const { product_id, shopname } = req.params;
   await usePooledConnectionAsync(async (db) => {
     db.query(
-      "SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng, f.facebooklink, f.lineid FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;",
+      `SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng,
+       f.facebooklink, f.lineid FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
+       WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;`,
       [product_id, shopname],
       (err, result) => {
         if (err) {
@@ -2172,6 +2180,8 @@ app.get("/getinfo", async (req, res) => {
     var query;
     if (role === "farmers") {
       query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
+    } else if (role === "tambons") {
+      query = `SELECT username, email, firstname, lastname, phone,amphure, address from ${role} where username = "${username}"`;
     } else if (role === "members") {
       query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
     } else {
@@ -2254,20 +2264,33 @@ app.post("/updateinfo", async (req, res) => {
       shippingcost = shippingcost
         ? `,shippingcost='${JSON.stringify(shippingcost)}'`
         : null;
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} WHERE username = "${username}"`;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} 
+      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost}
+       WHERE username = "${username}"`;
     } else if (role === "members") {
       email = email ? `email = "${email}"` : "";
       firstname = firstname ? `firstname = "${firstname}"` : "";
       lastname = lastname ? `lastname = "${lastname}"` : "";
       phone = phone ? `phone = "${phone}"` : "";
       address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} WHERE username = "${username}"`;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address}
+       WHERE username = "${username}"`;
+    } else if (role === "tambons") {
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      amphure = amphure ? `amphure = "${amphure}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      address = address ? `,address = "${address}"` : "";
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address},${amphure}
+       WHERE username = "${username}"`;
     } else {
       email = email ? `email = "${email}"` : "";
       firstname = firstname ? `firstname = "${firstname}"` : "";
       lastname = lastname ? `lastname = "${lastname}"` : "";
       phone = phone ? `phone = "${phone}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone}
+       WHERE username = "${username}"`;
     }
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
@@ -2344,20 +2367,35 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
       shippingcost = shippingcost
         ? `,shippingcost='${JSON.stringify(shippingcost)}'`
         : null;
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} WHERE username = "${username}"`;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, 
+      ${farmerstorename}, ${phone} ${address} 
+      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} 
+      ${payment} ${province} ${amphure} ${tambon} ${shippingcost}
+       WHERE username = "${username}"`;
+    } else if (role === "tambons") {
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      amphure = amphure ? `amphure = "${amphure}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      address = address ? `,address = "${address}"` : "";
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address},${amphure}
+       WHERE username = "${username}"`;
     } else if (role === "members") {
       email = email ? `email = "${email}"` : "";
       firstname = firstname ? `firstname = "${firstname}"` : "";
       lastname = lastname ? `lastname = "${lastname}"` : "";
       phone = phone ? `phone = "${phone}"` : "";
       address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} WHERE username = "${username}"`;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} 
+      WHERE username = "${username}"`;
     } else {
       email = email ? `email = "${email}"` : "";
       firstname = firstname ? `firstname = "${firstname}"` : "";
       lastname = lastname ? `lastname = "${lastname}"` : "";
       phone = phone ? `phone = "${phone}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} 
+      WHERE username = "${username}"`;
     }
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
@@ -4553,6 +4591,7 @@ app.get("/farmerregister", checkTambonProvider, async (req, res) => {
               register_count: 0,
             };
           });
+
           res.json({ success: true, farmers: days30.reverse() });
         }
       );
