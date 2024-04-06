@@ -453,8 +453,8 @@ async function insertFarmer(
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
       const query = `INSERT INTO farmers 
-      (id, username, email, password, firstname, lastname, phone, role,amphure, farmerstorename, createAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      (id, username, email, password, firstname, lastname, phone, role, amphure, farmerstorename, createAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
       db.query(
         query,
         [
