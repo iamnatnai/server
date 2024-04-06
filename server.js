@@ -643,7 +643,9 @@ app.get("/users/:roleParams", async (req, res) => {
         });
       } else if (roleParams === "farmers") {
         db.query(
-          "SELECT * FROM farmers WHERE available = 1",
+          `SELECT * FROM farmers WHERE available = 1 ${
+            role === "tambons" ? "AND amphure = " + decoded.amphure : ""
+          } ORDER BY createAt DESC`,
           async (err, result) => {
             if (err) {
               console.log(err);
