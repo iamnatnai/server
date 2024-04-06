@@ -2113,42 +2113,43 @@ app.get("/myproducts/:username", async (req, res) => {
             .send({ exist: false, error: "Internal Server Error" });
         } else {
           try {
-            let results = await Promise.all(
-              result.map(async (product) => {
-                let certificate = JSON.parse(product.certificate);
-                let allStandardName = await Promise.all(
-                  certificate.map(async (cert, index) => {
-                    try {
-                      let standardName = await new Promise(
-                        (resolve, reject) => {
-                          db.query(
-                            "SELECT sn.standard_name FROM certificate_link_farmer clf join standard_products sn on clf.standard_id = sn.standard_id WHERE clf.id = ?",
-                            [cert],
-                            (err, result) => {
-                              if (err) {
-                                console.log(err);
-                                reject(err);
-                              } else {
-                                resolve(result[0].standard_name);
-                              }
-                            }
-                          );
-                        }
-                      );
-                      return standardName;
-                    } catch (error) {
-                      console.error(error);
-                      throw error;
-                    }
-                  })
-                );
-                return { ...product, certification: allStandardName };
-              })
-            );
-            res.json({ result: results });
+            // let results = await Promise.all(
+            //   result.map(async (product) => {
+            //     let certificate = JSON.parse(product.certificate);
+            //     let allStandardName = await Promise.all(
+            //       certificate.map(async (cert, index) => {
+            //         try {
+            //           let standardName = await new Promise(
+            //             (resolve, reject) => {
+            //               db.query(
+            //                 "SELECT sn.standard_name FROM certificate_link_farmer clf join standard_products sn on clf.standard_id = sn.standard_id WHERE clf.id = ?",
+            //                 [cert],
+            //                 (err, result) => {
+            //                   if (err) {
+            //                     console.log(err);
+            //                     reject(err);
+            //                   } else {
+            //                     resolve(result[0].standard_name);
+            //                   }
+            //                 }
+            //               );
+            //             }
+            //           );
+            //           return standardName;
+            //         } catch (error) {
+            //           console.error(error);
+            //           throw error;
+            //         }
+            //       })
+            //     );
+            //     return { ...product, certification: allStandardName };
+            //   })
+            // );
+            // res.json({ result: results });
+            return res.json({ result: result });
           } catch (error) {
             console.error(error);
-            res
+            return res
               .status(500)
               .send({ exist: false, error: "Internal Server Error" });
           }
