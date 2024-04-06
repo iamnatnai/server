@@ -2274,14 +2274,14 @@ app.post("/updateinfo", async (req, res) => {
       address = address ? `,address = "${address}"` : "";
       query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address}
        WHERE username = "${username}"`;
-    } else if (role === "tambon") {
+    } else if (role === "tambons") {
       email = email ? `email = "${email}"` : "";
       firstname = firstname ? `firstname = "${firstname}"` : "";
       lastname = lastname ? `lastname = "${lastname}"` : "";
-      amphure = amphure ? `,amphure = "${amphure}"` : "";
+      amphure = amphure ? `amphure = "${amphure}"` : "";
       phone = phone ? `phone = "${phone}"` : "";
       address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address}
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address},${amphure}
        WHERE username = "${username}"`;
     } else {
       email = email ? `email = "${email}"` : "";
@@ -2370,6 +2370,15 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
       ${farmerstorename}, ${phone} ${address} 
       ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} 
       ${payment} ${province} ${amphure} ${tambon} ${shippingcost}
+       WHERE username = "${username}"`;
+    } else if (role === "tambons") {
+      email = email ? `email = "${email}"` : "";
+      firstname = firstname ? `firstname = "${firstname}"` : "";
+      lastname = lastname ? `lastname = "${lastname}"` : "";
+      amphure = amphure ? `amphure = "${amphure}"` : "";
+      phone = phone ? `phone = "${phone}"` : "";
+      address = address ? `,address = "${address}"` : "";
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address},${amphure}
        WHERE username = "${username}"`;
     } else if (role === "members") {
       email = email ? `email = "${email}"` : "";
