@@ -4637,9 +4637,10 @@ app.get("/allcategories", checkTambonProvider, async (req, res) => {
       db.query(
         `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor 
         FROM products p 
-        LEFT JOIN categories c ON p.category_id = c.category_id 
+        LEFT JOIN categories c ON p.category_id = c.category_id
+        LEFT JOIN farmers f ON p.farmer_id = f.id
         WHERE p.available = 1 ${
-          role === "tambons" ? `AND amphure = "${decoded.amphure}"` : ""
+          role === "tambons" ? `AND f.amphure = "${decoded.amphure}"` : ""
         }
         GROUP BY c.category_name, c.bgcolor;`,
         (err, result) => {
