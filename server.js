@@ -453,8 +453,8 @@ async function insertFarmer(
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
       const query = `INSERT INTO farmers 
-      (id, username, email, password, firstname, lastname, phone, role,amphure, farmerstorename, createAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      (id, username, email, password, firstname, lastname, phone, role, amphure, farmerstorename, createAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
       db.query(
         query,
         [
@@ -697,7 +697,7 @@ app.get("/users/:roleParams", async (req, res) => {
       } else if (roleParams === "farmers") {
         db.query(
           `SELECT * FROM farmers WHERE available = 1 ${
-            role === "tambons" ? "AND amphure = " + decoded.amphure : ""
+            role === "tambons" ? `AND amphure = "${decoded.amphure}"` : ""
           } ORDER BY createAt DESC`,
           async (err, result) => {
             if (err) {
@@ -4539,10 +4539,17 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
 app.get("/farmerregister", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      const { role } = decoded;
       db.query(
         `SELECT COUNT(*) AS register_count, DATE(createAt) AS createAt 
         FROM farmers 
-        WHERE available = 1 
+        WHERE available = 1 ${
+          role === "tambons" ? `AND amphure = "${decoded.amphure}"` : ""
+        }
         GROUP BY DATE(createAt) 
         ORDER BY DATE(createAt) DESC 
         LIMIT 30;`,
@@ -4657,11 +4664,19 @@ app.get("/allfollowers", checkFarmer, async (req, res) => {
 app.get("/allcategories", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      const { role } = decoded;
       db.query(
         `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor 
         FROM products p 
-        LEFT JOIN categories c ON p.category_id = c.category_id 
-        WHERE p.available = 1 
+        LEFT JOIN categories c ON p.category_id = c.category_id
+        LEFT JOIN farmers f ON p.farmer_id = f.id
+        WHERE p.available = 1 ${
+          role === "tambons" ? `AND f.amphure = "${decoded.amphure}"` : ""
+        }
         GROUP BY c.category_name, c.bgcolor;`,
         (err, result) => {
           if (err) {
@@ -5077,6 +5092,11 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
 app.get("/certifarmer/:username", async (req, res) => {
   try {
     const { username } = req.params;
+    if (!username) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid username" });
+    }
     const results = await usePooledConnectionAsync(async (db) => {
       let farmer_id = await new Promise((resolve, reject) => {
         db.query(
