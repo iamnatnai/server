@@ -4634,6 +4634,11 @@ app.get("/allfollowers", checkFarmer, async (req, res) => {
 app.get("/allcategories", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      const { role } = decoded;
       db.query(
         `SELECT c.category_name as label, COUNT(*) as data, c.bgcolor 
         FROM products p 
