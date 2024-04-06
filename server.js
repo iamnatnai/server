@@ -5062,6 +5062,11 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
 app.get("/certifarmer/:username", async (req, res) => {
   try {
     const { username } = req.params;
+    if (!username) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid username" });
+    }
     const results = await usePooledConnectionAsync(async (db) => {
       let farmer_id = await new Promise((resolve, reject) => {
         db.query(
