@@ -1954,7 +1954,8 @@ app.get("/getproducts", async (req, res) => {
       ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}') and`
       : ""
   } category_id = '${category}'`;
-  let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${
+  let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename FROM products p 
+  INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${
     search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
   } 
   ${
@@ -1972,7 +1973,8 @@ app.get("/getproducts", async (req, res) => {
         ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}') `
         : ""
     }`;
-    query = `SELECT p.*, f.lat, f.lng, f.farmerstorename FROM products p INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${
+    query = `SELECT p.*, f.lat, f.lng, f.farmerstorename FROM products p 
+    INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${
       search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
     } ${groupby ? "group by p.farmer_id" : ""} ${
       shopname
@@ -2206,110 +2208,120 @@ app.get("/getinfo", async (req, res) => {
   }
 });
 
-app.post("/updateinfo", async (req, res) => {
-  const token = req.headers.authorization
-    ? req.headers.authorization.split(" ")[1]
-    : null;
-  if (!token) {
-    return res.status(400).json({ error: "Token not provided" });
-  }
-  let {
-    email = null,
-    firstname = null,
-    lastname = null,
-    phone = null,
-    address = null,
-    facebooklink = null,
-    lineid = null,
-    lat = null,
-    lng = null,
-    zipcode = null,
-    farmerstorename = null,
-    payment = null,
-    province = null,
-    amphure = null,
-    tambon = null,
-    shippingcost = null,
-  } = req.body;
+app.post(
+  "/updateinfo",
+  upload.fields([{ name: "image", maxCount: 1 }]),
+  async (req, res) => {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    if (!token) {
+      return res.status(400).json({ error: "Token not provided" });
+    }
+    let {
+      email = null,
+      firstname = null,
+      lastname = null,
+      phone = null,
+      address = null,
+      facebooklink = null,
+      lineid = null,
+      lat = null,
+      lng = null,
+      zipcode = null,
+      farmerstorename = null,
+      payment = null,
+      province = null,
+      amphure = null,
+      tambon = null,
+      shippingcost = null,
+    } = req.body;
 
-  if (!email || !firstname || !lastname || !phone || !farmerstorename) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
-  try {
-    let decoded = jwt.verify(token, secretKey);
-    const { username, role } = decoded;
-    if (role === "farmers") {
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      farmerstorename = farmerstorename
-        ? `farmerstorename = "${farmerstorename}"`
-        : "";
-      address = address ? `,address = "${address}"` : "";
-      facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
-      lineid = lineid ? `,lineid = "${lineid}"` : "";
-      zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
-      payment = payment ? `,payment = "${payment}"` : "";
-      province = province
-        ? `,province = "${province}"`
-        : `,province = ${province}`;
-      amphure = amphure ? `,amphure = "${amphure}"` : "";
-      tambon = tambon ? `,tambon = "${tambon}"` : "";
-      lat = lat ? `, lat = "${lat}"` : "";
-      lng = lng ? `, lng = "${lng}"` : "";
-      shippingcost = shippingcost
-        ? `,shippingcost='${JSON.stringify(shippingcost)}'`
-        : null;
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} 
+    if (!email || !firstname || !lastname || !phone || !farmerstorename) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
+    }
+    try {
+      let decoded = jwt.verify(token, secretKey);
+      const { username, role } = decoded;
+      if (role === "farmers") {
+        let pathName;
+        if (req.files && req.files.image) {
+          let image = req.files.image[0].filename;
+          pathName = "/uploads/" + image;
+        }
+        pathName = pathName ? `,qrcode = "${pathName}"` : "";
+        email = email ? `email = "${email}"` : "";
+        firstname = firstname ? `firstname = "${firstname}"` : "";
+        lastname = lastname ? `lastname = "${lastname}"` : "";
+        phone = phone ? `phone = "${phone}"` : "";
+        farmerstorename = farmerstorename
+          ? `farmerstorename = "${farmerstorename}"`
+          : "";
+        address = address ? `,address = "${address}"` : "";
+        facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
+        lineid = lineid ? `,lineid = "${lineid}"` : "";
+        zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
+        payment = payment ? `,payment = "${payment}"` : "";
+        province = province
+          ? `,province = "${province}"`
+          : `,province = ${province}`;
+        amphure = amphure ? `,amphure = "${amphure}"` : "";
+        tambon = tambon ? `,tambon = "${tambon}"` : "";
+        lat = lat ? `, lat = "${lat}"` : "";
+        lng = lng ? `, lng = "${lng}"` : "";
+        shippingcost = shippingcost
+          ? `,shippingcost='${JSON.stringify(shippingcost)}'`
+          : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${pathName} 
       ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost}
        WHERE username = "${username}"`;
-    } else if (role === "members") {
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address}
+      } else if (role === "members") {
+        email = email ? `email = "${email}"` : "";
+        firstname = firstname ? `firstname = "${firstname}"` : "";
+        lastname = lastname ? `lastname = "${lastname}"` : "";
+        phone = phone ? `phone = "${phone}"` : "";
+        address = address ? `,address = "${address}"` : "";
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address}
        WHERE username = "${username}"`;
-    } else if (role === "tambons") {
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      amphure = amphure ? `amphure = "${amphure}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address},${amphure}
+      } else if (role === "tambons") {
+        email = email ? `email = "${email}"` : "";
+        firstname = firstname ? `firstname = "${firstname}"` : "";
+        lastname = lastname ? `lastname = "${lastname}"` : "";
+        amphure = amphure ? `,amphure = "${amphure}"` : "";
+        phone = phone ? `phone = "${phone}"` : "";
+        address = address ? `,address = "${address}"` : "";
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} ${amphure}
        WHERE username = "${username}"`;
-    } else {
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone}
+      } else {
+        email = email ? `email = "${email}"` : "";
+        firstname = firstname ? `firstname = "${firstname}"` : "";
+        lastname = lastname ? `lastname = "${lastname}"` : "";
+        phone = phone ? `phone = "${phone}"` : "";
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone}
        WHERE username = "${username}"`;
-    }
-    await usePooledConnectionAsync(async (db) => {
-      db.query(query, (err, result) => {
-        if (err) {
-          console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
-        } else {
-          res.json(result[0]);
-        }
+      }
+      await usePooledConnectionAsync(async (db) => {
+        db.query(query, (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result[0]);
+          }
+        });
       });
-    });
 
-    return res.status(200);
-  } catch (error) {
-    console.error("Error decoding token:6", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+      return res.status(200);
+    } catch (error) {
+      console.error("Error decoding token:6", error.message);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
   }
-});
+);
 
 app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
   let {
@@ -2344,6 +2356,12 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
     const decoded = jwt.verify(token, secretKey);
     var query;
     if (role === "farmers" || decoded.role === "tambons") {
+      let pathName;
+      if (req.files && req.files.image) {
+        let image = req.files.image[0].filename;
+        pathName = "/uploads/" + image;
+      }
+      pathName = pathName ? `,qrcode = "${pathName}"` : "";
       email = email ? `email = "${email}"` : "";
       firstname = firstname ? `firstname = "${firstname}"` : "";
       lastname = lastname ? `lastname = "${lastname}"` : "";
@@ -2365,20 +2383,20 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
       tambon = tambon ? `,tambon = "${tambon}"` : "";
       shippingcost = shippingcost
         ? `,shippingcost='${JSON.stringify(shippingcost)}'`
-        : null;
+        : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
       query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, 
       ${farmerstorename}, ${phone} ${address} 
       ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} 
-      ${payment} ${province} ${amphure} ${tambon} ${shippingcost}
+      ${payment} ${province} ${amphure} ${tambon} ${shippingcost} ${pathName}
        WHERE username = "${username}"`;
     } else if (role === "tambons") {
       email = email ? `email = "${email}"` : "";
       firstname = firstname ? `firstname = "${firstname}"` : "";
       lastname = lastname ? `lastname = "${lastname}"` : "";
-      amphure = amphure ? `amphure = "${amphure}"` : "";
+      amphure = amphure ? `,amphure = "${amphure}"` : "";
       phone = phone ? `phone = "${phone}"` : "";
       address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address},${amphure}
+      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} ${amphure}
        WHERE username = "${username}"`;
     } else if (role === "members") {
       email = email ? `email = "${email}"` : "";
@@ -2576,8 +2594,9 @@ app.post(
           });
         }
         const ORDNXT = await getNextORDID();
-        const insertOrderVB =
-          "INSERT INTO order_sumary (id,status,total_amount,member_id,transaction_confirm,address,shippingcost,date_buys) VALUES (?,?,?,?,?,?,?,NOW())";
+        const insertOrderVB = `INSERT INTO order_sumary (id,status,total_amount,member_id,
+            transaction_confirm,address,shippingcost,date_buys) 
+          VALUES (?,?,?,?,?,?,?,NOW())`;
         await new Promise((resolve, reject) => {
           db.query(
             insertOrderVB,
@@ -2614,10 +2633,6 @@ app.post(
               }
             });
           });
-          // console.log("idoffarmer");
-          // console.log(idoffarmer);
-          // console.log(product.farmer_id);
-          // console.log(product.selectedType);
           if (!idoffarmer) {
             idoffarmer = product.farmer_id;
           } else if (idoffarmer != product.farmer_id) {
@@ -2704,8 +2719,8 @@ app.post(
             });
           }
           const nextitemId = await getNextItemId();
-          const insertOrderItemQuery =
-            "INSERT INTO order_items (item_id,product_id,order_id,price, quantity) VALUES (?,?,?,?,?)";
+          const insertOrderItemQuery = `INSERT INTO order_items (item_id,product_id,order_id,price, quantity) 
+            VALUES (?,?,?,?,?)`;
           await new Promise((resolve, reject) => {
             db.query(
               insertOrderItemQuery,
@@ -3328,8 +3343,8 @@ app.post("/comment", async (req, res) => {
     }
 
     await usePooledConnectionAsync(async (db) => {
-      const checkOrderQuery =
-        "SELECT os.id AS order_id FROM order_sumary os INNER JOIN order_items oi ON os.id = oi.order_id WHERE os.member_id = ? AND oi.product_id = ?";
+      const checkOrderQuery = `SELECT os.id AS order_id FROM order_sumary os INNER JOIN order_items oi ON os.id = oi.order_id 
+        WHERE os.member_id = ? AND oi.product_id = ?`;
       const [orderResult] = await new Promise(async (resolve, reject) => {
         db.query(checkOrderQuery, [decoded.ID, product_id], (err, result) => {
           if (err) {
@@ -3373,8 +3388,8 @@ app.post("/comment", async (req, res) => {
 
       const nextReviewId = await getNextReviewId();
 
-      const insertCommentQuery =
-        "INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id,date_comment) VALUES (?, ?, ?, ?, ?, ?,NOW())";
+      const insertCommentQuery = `INSERT INTO product_reviews (review_id, member_id, rating, comment, product_id,order_id,date_comment) 
+        VALUES (?, ?, ?, ?, ?, ?,NOW())`;
 
       db.query(
         insertCommentQuery,
@@ -3406,7 +3421,10 @@ app.get("/getcomment/:id", async (req, res) => {
   }
   await usePooledConnectionAsync(async (db) => {
     db.query(
-      'SELECT pr.review_id, pr.member_id, m.username AS member_username, pr.product_id, pr.order_id, pr.rating, pr.comment, DATE_FORMAT(pr.date_comment, "%Y-%m-%d %H:%i:%s") AS date_comment FROM product_reviews pr LEFT JOIN members m ON pr.member_id = m.id WHERE pr.product_id = ? AND pr.available = 1',
+      `SELECT pr.review_id, pr.member_id, m.username AS member_username, pr.product_id, pr.order_id, pr.rating, pr.comment,
+       DATE_FORMAT(pr.date_comment, "%Y-%m-%d %H:%i:%s") AS date_comment
+       FROM product_reviews pr LEFT JOIN members m ON pr.member_id = m.id 
+      WHERE pr.product_id = ? AND pr.available = 1`,
       [id],
       (err, result) => {
         if (err) {
