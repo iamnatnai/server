@@ -1210,15 +1210,20 @@ async function getUserByUsername(username) {
     return await new Promise((resolve, reject) => {
       db.query(
         `
-    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins WHERE username = ? and available = 1
+    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins 
+    WHERE username = ? and available = 1
     UNION
-    SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers WHERE username = ? and available = 1
+    SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers 
+    WHERE username = ? and available = 1
     UNION
-    SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members WHERE username = ? and available = 1
+    SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members 
+    WHERE username = ? and available = 1
     UNION
-    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers WHERE username = ? and available = 1
+    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers 
+    WHERE username = ? and available = 1
     UNION
-    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons WHERE username = ? and available = 1
+    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons 
+    WHERE username = ? and available = 1
     `,
         [username, username, username, username, username],
         (err, result) => {
@@ -2238,7 +2243,7 @@ app.post(
       shippingcost = null,
     } = req.body;
 
-    if (!email || !firstname || !lastname || !phone || !farmerstorename) {
+    if (!firstname || !lastname || !phone || !farmerstorename) {
       return res
         .status(400)
         .json({ success: false, message: "Missing required fields" });
@@ -2276,7 +2281,7 @@ app.post(
           ? `,shippingcost='${JSON.stringify(shippingcost)}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
         query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename} ${phone} ${address} ${pathName} 
-      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost}${email}
+      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} ${email}
        WHERE username = "${username}"`;
       } else if (role === "members") {
         email = email ? `email = "${email}"` : "";
