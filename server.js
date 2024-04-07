@@ -2123,42 +2123,43 @@ app.get("/myproducts/:username", async (req, res) => {
             .send({ exist: false, error: "Internal Server Error" });
         } else {
           try {
-            let results = await Promise.all(
-              result.map(async (product) => {
-                let certificate = JSON.parse(product.certificate);
-                let allStandardName = await Promise.all(
-                  certificate.map(async (cert, index) => {
-                    try {
-                      let standardName = await new Promise(
-                        (resolve, reject) => {
-                          db.query(
-                            "SELECT sn.standard_name FROM certificate_link_farmer clf join standard_products sn on clf.standard_id = sn.standard_id WHERE clf.id = ?",
-                            [cert],
-                            (err, result) => {
-                              if (err) {
-                                console.log(err);
-                                reject(err);
-                              } else {
-                                resolve(result[0].standard_name);
-                              }
-                            }
-                          );
-                        }
-                      );
-                      return standardName;
-                    } catch (error) {
-                      console.error(error);
-                      throw error;
-                    }
-                  })
-                );
-                return { ...product, certification: allStandardName };
-              })
-            );
-            res.json({ result: results });
+            // let results = await Promise.all(
+            //   result.map(async (product) => {
+            //     let certificate = JSON.parse(product.certificate);
+            //     let allStandardName = await Promise.all(
+            //       certificate.map(async (cert, index) => {
+            //         try {
+            //           let standardName = await new Promise(
+            //             (resolve, reject) => {
+            //               db.query(
+            //                 "SELECT sn.standard_name FROM certificate_link_farmer clf join standard_products sn on clf.standard_id = sn.standard_id WHERE clf.id = ?",
+            //                 [cert],
+            //                 (err, result) => {
+            //                   if (err) {
+            //                     console.log(err);
+            //                     reject(err);
+            //                   } else {
+            //                     resolve(result[0].standard_name);
+            //                   }
+            //                 }
+            //               );
+            //             }
+            //           );
+            //           return standardName;
+            //         } catch (error) {
+            //           console.error(error);
+            //           throw error;
+            //         }
+            //       })
+            //     );
+            //     return { ...product, certification: allStandardName };
+            //   })
+            // );
+            // res.json({ result: results });
+            return res.json({ result: result });
           } catch (error) {
             console.error(error);
-            res
+            return res
               .status(500)
               .send({ exist: false, error: "Internal Server Error" });
           }
@@ -4783,7 +4784,29 @@ async function checkReservationToday(product_id) {
 }
 async function checkReservestatus(product_id) {
   return await usePooledConnectionAsync(async (db) => {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      let selectedStatus = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT selectedStatus
+          FROM products
+          WHERE product_id = ? and available = 1 and selectedType = 'จองสินค้าผ่านเว็บไซต์'`,
+          [product_id],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0].selectedStatus);
+            }
+          }
+        );
+      });
+
+      if (selectedStatus === "เปิดรับจองตลอด") {
+        resolve("เปิดรับจอง");
+      } else if (selectedStatus === "ปิดรับจอง") {
+        resolve("ปิดรับจอง");
+      }
+
       db.query(
         `SELECT COUNT(*) AS count
         FROM products
@@ -4793,7 +4816,7 @@ async function checkReservestatus(product_id) {
           if (err) {
             reject(err);
           } else {
-            resolve(result[0].count > 0);
+            resolve(result[0].count > 0 ? "เปิดรับจอง" : "ปิดรับจอง");
           }
         }
       );
@@ -4984,10 +5007,10 @@ app.post("/reserve", checkActivated, async (req, res) => {
     const nextId = await getNextResId();
     const isProductReservable = await checkReservestatus(product_id);
     const pendingplswait = await checkPendingStatus(product_id, decoded.ID);
-    if (!isProductReservable) {
+    if (isProductReservable === "ปิดรับจอง") {
       return res.status(400).json({
         success: false,
-        message: "This product cannot be reserved via website",
+        message: "สินค้านี้ปิดรับจองแล้ว ขออภัยในความไม่สะดวก",
       });
     }
     if (pendingplswait) {
