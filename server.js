@@ -2256,7 +2256,7 @@ app.post(
         email = email ? `,email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
-        phone = phone ? `phone = "${phone}"` : "";
+        phone = phone ? `,phone = "${phone}"` : "";
         farmerstorename = farmerstorename
           ? `farmerstorename = "${farmerstorename}"`
           : "";
@@ -2275,7 +2275,7 @@ app.post(
         shippingcost = shippingcost
           ? `,shippingcost='${JSON.stringify(shippingcost)}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
-        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${pathName} 
+        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename} ${phone} ${address} ${pathName} 
       ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost}${email}
        WHERE username = "${username}"`;
       } else if (role === "members") {
