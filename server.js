@@ -2253,7 +2253,7 @@ app.post(
           pathName = "/uploads/" + image;
         }
         pathName = pathName ? `,qrcode = "${pathName}"` : "";
-        email = email ? `email = "${email}"` : "";
+        email = email ? `,email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
@@ -2275,8 +2275,8 @@ app.post(
         shippingcost = shippingcost
           ? `,shippingcost='${JSON.stringify(shippingcost)}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
-        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${pathName} 
-      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost}
+        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename}, ${phone} ${address} ${pathName} 
+      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost}${email}
        WHERE username = "${username}"`;
       } else if (role === "members") {
         email = email ? `email = "${email}"` : "";
