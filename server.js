@@ -2020,7 +2020,7 @@ app.get("/getpayment/:id", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     const id = req.params.id;
     db.query(
-      "SELECT payment FROM farmers WHERE id = (select farmer_id from products where product_id = ?)",
+      "SELECT payment , qrcode FROM farmers WHERE id = (select farmer_id from products where product_id = ?)",
       [id],
       (err, result) => {
         if (err) {
