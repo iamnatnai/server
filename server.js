@@ -2190,7 +2190,7 @@ app.get("/getinfo", async (req, res) => {
     if (role === "farmers") {
       query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
     } else if (role === "tambons") {
-      query = `SELECT username, email, firstname, lastname, phone,amphure from ${role} where username = "${username}"`;
+      query = `SELECT username, email, firstname, lastname, phone, amphure from ${role} where username = "${username}"`;
     } else if (role === "members") {
       query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
     } else {
@@ -2294,13 +2294,13 @@ app.post(
         query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address}
        WHERE username = "${username}"`;
       } else if (role === "tambons") {
-        email = email ? `email = "${email}"` : "";
+        email = email ? `,email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
         amphure = amphure ? `,amphure = "${amphure}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} ${amphure}
+        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email}
        WHERE username = "${username}"`;
       } else {
         email = email ? `email = "${email}"` : "";
