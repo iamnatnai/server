@@ -5387,11 +5387,18 @@ app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
   });
 });
 
-app.get("/getadmincertificate", checkAdmin, async (req, res) => {
+app.get("/getadmincertificate", checkAdminTambon, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
+      let token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      let decoded = jwt.verify(token, secretKey);
+      let tambonamphure =
+        decoded.role === "tambons" ? `and f.amphure = ${role.amphure}` : "";
+
       db.query(
-        `SELECT cf.*, f.firstname, f.lastname, s.standard_name FROM certificate_link_farmer cf join farmers f on f.id = cf.farmer_id join standard_products s on s.standard_id = cf.standard_id where cf.status = "pending"`,
+        `SELECT cf.*, f.firstname, f.lastname, s.standard_name FROM certificate_link_farmer cf join farmers f on f.id = cf.farmer_id join standard_products s on s.standard_id = cf.standard_id where cf.status = "pending" ${tambonamphure}`,
         (err, result) => {
           if (err) {
             console.error(err);
