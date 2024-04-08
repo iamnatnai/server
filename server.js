@@ -5411,4 +5411,75 @@ app.get("/getadmincertificate", checkAdmin, async (req, res) => {
   });
 });
 
+app.get("/repeatactivate", async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+
+    const decoded = jwt.verify(token, secretKey);
+
+    const results = await usePooledConnectionAsync(async (db) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          `SELECT email, firstname, lastname
+          FROM members
+          WHERE id = ?`,
+          [decoded.ID],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { email, firstname, lastname } = results[0];
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "thebestkasetnont@gmail.com",
+        pass: "ggtf brgm brip mqvq",
+      },
+    });
+
+    let url =
+      process.env.production == "true"
+        ? process.env.url
+        : "http://localhost:3000";
+
+    const mailOptions = {
+      from: "thebestkasetnont@gmail.com",
+      to: email,
+      subject: "ยืนยันตัวตน",
+      text: `สวัสดีคุณ ${firstname} ${lastname} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
+      กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
+        email + secretKey,
+        10
+      )}`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Error sending email:", error);
+        return res.status(500).json({ error: "Error sending email" });
+      } else {
+        console.log("Email sent:", info.response);
+        return res.status(200).json({ message: "Email sent successfully" });
+      }
+    });
+  } catch (error) {
+    console.error("Error verifying email:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 app.listen(3006, () => console.log("hi Avalable 3006"));
