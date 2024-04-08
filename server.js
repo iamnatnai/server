@@ -2245,7 +2245,7 @@ app.post(
       shippingcost = null,
     } = req.body;
 
-    if (!firstname || !lastname || !phone || !farmerstorename) {
+    if (!firstname || !lastname || !phone) {
       return res
         .status(400)
         .json({ success: false, message: "Missing required fields" });
