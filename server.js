@@ -2278,7 +2278,7 @@ app.post(
         lat = lat ? `, lat = "${lat}"` : "";
         lng = lng ? `, lng = "${lng}"` : "";
         shippingcost = shippingcost
-          ? `,shippingcost='${JSON.stringify(shippingcost)}'`
+          ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
         query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename} ${phone} ${address} ${pathName} 
       ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} ${email}
@@ -2388,7 +2388,7 @@ app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
       amphure = amphure ? `,amphure = "${amphure}"` : "";
       tambon = tambon ? `,tambon = "${tambon}"` : "";
       shippingcost = shippingcost
-        ? `,shippingcost='${JSON.stringify(shippingcost)}'`
+        ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
         : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
       query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, 
       ${farmerstorename}, ${phone} ${address} 
