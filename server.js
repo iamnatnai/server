@@ -1612,8 +1612,8 @@ const storage = multer.diskStorage({
   filename: function (req, file, cb) {
     const originalname = file.originalname.split(".")[0];
     const extension = file.originalname.split(".")[1];
-    const hash = bcrypt.hashSync(originalname, 3);
-    cb(null, `${hash}-${uniqueSuffix}.${extension}`);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
   },
 });
 async function getNextProductId() {
