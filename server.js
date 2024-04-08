@@ -3069,21 +3069,28 @@ app.post(
         async function getNextImageId(index) {
           return await usePooledConnectionAsync(async (db) => {
             return await new Promise(async (resolve, reject) => {
-              db.query("SELECT MAX(id) as maxId FROM image", (err, result) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  let nextimageId = "IMG000000001";
-                  if (result[0].maxId) {
-                    const currentId = result[0].maxId;
-                    const numericPart =
-                      parseInt(currentId.substring(3), 10) + 1 + index;
-                    nextimageId =
-                      "IMG" + numericPart.toString().padStart(9, "0");
+              try {
+                db.query(
+                  "SELECT MAX(id) as maxId FROM image",
+                  (err, result) => {
+                    if (err) {
+                      reject(err);
+                    } else {
+                      let nextimageId = "IMG000000001";
+                      if (result[0].maxId) {
+                        const currentId = result[0].maxId;
+                        const numericPart =
+                          parseInt(currentId.substring(3), 10) + 1 + index;
+                        nextimageId =
+                          "IMG" + numericPart.toString().padStart(9, "0");
+                      }
+                      resolve(nextimageId);
+                    }
                   }
-                  resolve(nextimageId);
-                }
-              });
+                );
+              } catch (error) {
+                reject(error);
+              }
             });
           });
         }
@@ -3091,18 +3098,22 @@ app.post(
         const insertImageQuery =
           "INSERT INTO image (id, imagepath, farmer_id) VALUES (?,?, ?)";
         await usePooledConnectionAsync(async (db) => {
-          await new Promise(async (resolve, reject) => {
-            db.query(
-              insertImageQuery,
-              [nextimageId, imagePath, decoded.ID],
-              (err, result) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  resolve(result);
+          return await new Promise(async (resolve, reject) => {
+            try {
+              db.query(
+                insertImageQuery,
+                [nextimageId, imagePath, decoded.ID],
+                (err, result) => {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    resolve(result);
+                  }
                 }
-              }
-            );
+              );
+            } catch (error) {
+              reject(error);
+            }
           });
         });
       });
@@ -3113,9 +3124,7 @@ app.post(
     } catch (error) {
       // Handle errors
       console.error("Error uploading images:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      res.status(500).json({ success: false, message: error });
     }
   }
 );
