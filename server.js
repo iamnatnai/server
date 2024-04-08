@@ -224,14 +224,16 @@ const checkActivated = (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, secretKey);
-    console.log(decoded, "decoded");
     if (decoded.role === "members" && !decoded.activate) {
-      return res.status(401).json({ error: "กรุณายืนยันตัวตน" });
+      return res
+        .status(401)
+        .json({ success: false, message: "กรุณายืนยันตัวตนก่อนใช้งาน" });
     }
     next();
   } catch (error) {
-    console.error("Error decoding token:4", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
   }
 };
 
