@@ -1610,10 +1610,9 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const originalname = file.originalname.split(".")[0];
     const extension = file.originalname.split(".")[1];
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
+    const uuid = crypto.randomUUID();
+    cb(null, `${uuid}.${extension}`);
   },
 });
 async function getNextProductId() {
