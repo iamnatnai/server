@@ -5599,7 +5599,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
   }
 });
 
-app.get("/festivals", (req, res) => {
+app.get("/festival", (req, res) => {
   pool.getConnection((err, connection) => {
     if (err) {
       console.error("Error connecting to database:", err);
