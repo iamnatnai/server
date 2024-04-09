@@ -5594,4 +5594,111 @@ app.post("/festival", async (req, res) => {
   }
 });
 
+app.get("/festivals", (req, res) => {
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.error("Error connecting to database:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+
+    const query = "SELECT name,start_date,end_date FROM festivals";
+
+    connection.query(query, (err, results) => {
+      connection.release();
+
+      if (err) {
+        console.error("Error fetching festival data:", err);
+        return res.status(500).json({ error: "Error fetching festival data" });
+      }
+
+      res.status(200).json(results);
+    });
+  });
+});
+
+// Function to check if a festival with the given ID exists
+async function checkFestivalExists(id) {
+  return await usePooledConnectionAsync(async (db) => {
+    return await new Promise(async (resolve, reject) => {
+      db.query("SELECT id FROM festivals WHERE id = ?", [id], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result.length > 0);
+        }
+      });
+    });
+  });
+}
+
+app.patch("/festivals", (req, res) => {
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.error("Error connecting to database:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+
+    const query = "SELECT name,start_date,end_date FROM festivals";
+
+    connection.query(query, (err, results) => {
+      connection.release();
+
+      if (err) {
+        console.error("Error fetching festival data:", err);
+        return res.status(500).json({ error: "Error fetching festival data" });
+      }
+
+      res.status(200).json(results);
+    });
+  });
+});
+
+app.patch("/festivals/:id", checkAdmin, async (req, res) => {
+  try {
+    const festivalId = req.params.id;
+    const { name, keyword, start_date, end_date } = req.body;
+
+    // Check if the festival exists
+    const festivalExists = await checkFestivalExists(festivalId);
+    if (!festivalExists) {
+      return res.status(404).json({ error: "Festival not found" });
+    }
+
+    // Update or insert festival data into the database
+    pool.getConnection((err, connection) => {
+      if (err) {
+        console.error("Error connecting to database:", err);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+
+      const query = festivalExists
+        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? WHERE id = ?"
+        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+
+      const values = festivalExists
+        ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
+        : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
+
+      connection.query(query, values, (err, results) => {
+        connection.release(); // Release the connection
+
+        if (err) {
+          console.error("Error updating/inserting festival data:", err);
+          return res
+            .status(500)
+            .json({ error: "Error updating/inserting festival data" });
+        }
+
+        console.log("Festival data updated/inserted successfully");
+        res
+          .status(200)
+          .json({ message: "Festival data updated/inserted successfully" });
+      });
+    });
+  } catch (error) {
+    console.error("Error updating/inserting festival data:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 app.listen(3006, () => console.log("hi Avalable 3006"));
