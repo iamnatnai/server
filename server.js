@@ -5704,7 +5704,9 @@ app.delete("/festival/:id", checkAdmin, async (req, res) => {
         }
 
         console.log("Festival deleted successfully");
-        res.status(200).json({ message: "Festival deleted successfully" });
+        res
+          .status(200)
+          .json({ message: "Festival deleted successfully", festivalId });
       });
     });
   } catch (error) {
