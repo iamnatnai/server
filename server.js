@@ -5661,31 +5661,34 @@ app.patch("/festivals", (req, res) => {
 app.patch("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
-    const { name, keyword, start_date, end_date } = req.body;
+    const { name, keyword, start_date, end_date, available } = req.body;
 
-    // Check if the festival exists
     const festivalExists = await checkFestivalExists(festivalId);
     if (!festivalExists) {
       return res.status(404).json({ error: "Festival not found" });
     }
-
-    // Update or insert festival data into the database
     pool.getConnection((err, connection) => {
       if (err) {
         console.error("Error connecting to database:", err);
         return res.status(500).json({ error: "Internal server error" });
       }
 
-      const query = festivalExists
-        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? WHERE id = ?"
-        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
-
-      const values = festivalExists
-        ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
-        : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
+      let query;
+      let values;
+      if (available !== undefined) {
+        query = "UPDATE festivals SET available = ? WHERE id = ?";
+        values = [available, festivalId];
+      } else {
+        query = festivalExists
+          ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? WHERE id = ?"
+          : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+        values = festivalExists
+          ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
+          : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
+      }
 
       connection.query(query, values, (err, results) => {
-        connection.release(); // Release the connection
+        connection.release();
 
         if (err) {
           console.error("Error updating/inserting festival data:", err);
