@@ -5606,7 +5606,7 @@ app.get("/festival", (req, res) => {
       return res.status(500).json({ error: "Internal server error" });
     }
 
-    const query = "SELECT name,start_date,end_date FROM festivals";
+    const query = "SELECT id,name,start_date,end_date FROM festivals";
 
     connection.query(query, (err, results) => {
       connection.release();
@@ -5658,7 +5658,7 @@ app.patch("/festivals", (req, res) => {
   });
 });
 
-app.patch("/festivals/:id", checkAdmin, async (req, res) => {
+app.patch("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
     const { name, keyword, start_date, end_date } = req.body;
