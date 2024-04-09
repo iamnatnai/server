@@ -27,7 +27,6 @@ app.use(
   })
 );
 app.use(express.json());
-
 var db_config = {
   host: "localhost",
   // port: "18574",
@@ -2337,115 +2336,137 @@ app.post(
   }
 );
 
-app.post("/updateinfoadmin", checkAdminTambon, async (req, res) => {
-  let {
-    email = null,
-    firstname = null,
-    lastname = null,
-    phone = null,
-    address = null,
-    facebooklink = null,
-    lineid = null,
-    lat = null,
-    lng = null,
-    zipcode = null,
-    farmerstorename = null,
-    province = null,
-    amphure = null,
-    tambon = null,
-    username = null,
-    payment = null,
-    role = null,
-    shippingcost = null,
-  } = req.body;
-  if (!email || !firstname || !lastname || !phone || !role || !username) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
-  try {
-    const token = req.headers.authorization
-      ? req.headers.authorization.split(" ")[1]
-      : null;
-    const decoded = jwt.verify(token, secretKey);
-    var query;
-    if (role === "farmers" || decoded.role === "tambons") {
-      let pathName;
-      if (req.files && req.files.image) {
-        let image = req.files.image[0].filename;
-        pathName = "/uploads/" + image;
-      }
-      pathName = pathName ? `,qrcode = "${pathName}"` : "";
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      farmerstorename = farmerstorename
-        ? `farmerstorename = "${farmerstorename}"`
-        : "";
-      address = address ? `,address = "${address}"` : "";
-      lat = lat ? `, lat = "${lat}"` : "";
-      lng = lng ? `, lng = "${lng}"` : "";
-      facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
-      lineid = lineid ? `,lineid = "${lineid}"` : "";
-      zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
-      payment = payment ? `,payment = "${payment}"` : "";
-      province = province
-        ? `,province = "${province}"`
-        : `,province = ${province}`;
-      amphure = amphure ? `,amphure = "${amphure}"` : "";
-      tambon = tambon ? `,tambon = "${tambon}"` : "";
-      shippingcost = shippingcost
-        ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
-        : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, 
-      ${farmerstorename}, ${phone} ${address} 
-      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} 
-      ${payment} ${province} ${amphure} ${tambon} ${shippingcost} ${pathName}
-       WHERE username = "${username}"`;
-    } else if (role === "tambons") {
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      amphure = amphure ? `,amphure = "${amphure}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} ${amphure}
-       WHERE username = "${username}"`;
-    } else if (role === "members") {
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      address = address ? `,address = "${address}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} 
-      WHERE username = "${username}"`;
-    } else {
-      email = email ? `email = "${email}"` : "";
-      firstname = firstname ? `firstname = "${firstname}"` : "";
-      lastname = lastname ? `lastname = "${lastname}"` : "";
-      phone = phone ? `phone = "${phone}"` : "";
-      query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} 
-      WHERE username = "${username}"`;
+app.post(
+  "/updateinfoadmin",
+  upload.none(),
+  checkAdminTambon,
+  async (req, res) => {
+    let {
+      email = null,
+      firstname = null,
+      lastname = null,
+      phone = null,
+      address = null,
+      facebooklink = null,
+      lineid = null,
+      lat = null,
+      lng = null,
+      zipcode = null,
+      farmerstorename = null,
+      province = null,
+      amphure = null,
+      tambon = null,
+      username = null,
+      payment = null,
+      role = null,
+      shippingcost = null,
+    } = req.body;
+    if (!role || !username) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
-    await usePooledConnectionAsync(async (db) => {
-      db.query(query, (err, result) => {
-        if (err) {
-          console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
-        } else {
-          res.json(result[0]);
+    try {
+      if (!amphure || !lat || !lng) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Missing required fields" });
+      }
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      var query;
+      if (role === "farmers" || decoded.role === "tambons") {
+        let pathName;
+        if (req.files && req.files.image) {
+          let image = req.files.image[0].filename;
+          pathName = "/uploads/" + image;
         }
+        pathName = pathName ? `,qrcode = "${pathName}"` : "";
+        email = email ? `,email = "${email}"` : "";
+        firstname = firstname ? `,firstname = "${firstname}"` : "";
+        lastname = lastname ? `,lastname = "${lastname}"` : "";
+        phone = phone ? `,phone = "${phone}"` : "";
+        farmerstorename = farmerstorename
+          ? `,farmerstorename = "${farmerstorename}"`
+          : "";
+        address = address ? `,address = "${address}"` : "";
+        lat = lat ? `lat = "${lat}"` : "";
+        lng = lng ? `lng = "${lng}"` : "";
+        facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
+        lineid = lineid ? `,lineid = "${lineid}"` : "";
+        zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
+        payment = payment ? `,payment = "${payment}"` : "";
+        province = province
+          ? `,province = "${province}"`
+          : `,province = ${province}`;
+        amphure = amphure ? `amphure = "${amphure}"` : "";
+        tambon = tambon ? `,tambon = "${tambon}"` : "";
+        shippingcost = shippingcost
+          ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
+          : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
+        query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} 
+      ${farmerstorename} ${phone} ${address} 
+      ${facebooklink} ${lineid} ${zipcode} 
+      ${payment} ${province} ${tambon} ${shippingcost} ${pathName}
+       WHERE username = "${username}"`;
+      } else if (role === "tambons") {
+        if (!amphure) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields" });
+        }
+        email = email ? `,email = "${email}"` : "";
+        firstname = firstname ? `,firstname = "${firstname}"` : "";
+        lastname = lastname ? `,lastname = "${lastname}"` : "";
+        amphure = amphure ? `amphure = "${amphure}"` : "";
+        phone = phone ? `,phone = "${phone}"` : "";
+        address = address ? `,address = "${address}"` : "";
+        query = `UPDATE ${role} SET ${amphure} ${email} ${firstname} ${lastname} ${phone} ${address} 
+       WHERE username = "${username}"`;
+      } else if (role === "members") {
+        if (!email || !firstname || !lastname || !phone) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields" });
+        }
+        email = email ? `email = "${email}"` : "";
+        firstname = firstname ? `firstname = "${firstname}"` : "";
+        lastname = lastname ? `lastname = "${lastname}"` : "";
+        phone = phone ? `phone = "${phone}"` : "";
+        address = address ? `,address = "${address}"` : "";
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} 
+      WHERE username = "${username}"`;
+      } else {
+        email = email ? `email = "${email}"` : "";
+        firstname = firstname ? `firstname = "${firstname}"` : "";
+        lastname = lastname ? `lastname = "${lastname}"` : "";
+        phone = phone ? `phone = "${phone}"` : "";
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} 
+      WHERE username = "${username}"`;
+      }
+      await usePooledConnectionAsync(async (db) => {
+        db.query(query, (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result[0]);
+          }
+        });
       });
-    });
-    return res.status(200);
-  } catch (error) {
-    console.error("Error updating user:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+      return res.status(200);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
   }
-});
+);
 
 app.get(
   "/getuseradmin/:role/:username",
