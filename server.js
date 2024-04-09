@@ -5791,8 +5791,9 @@ app.get("/todayreserve", checkFarmer, (req, res) => {
     const day = String(today.getDate()).padStart(2, "0");
     const formattedDate = `${year}-${month}-${day}`;
     const query = `
-    SELECT r.member_id, r.product_id,r.contact, r.quantity AS total_quantity, p.product_name, c.category_name
+    SELECT r.member_id,m.username, r.product_id,r.contact, r.quantity AS total_quantity, p.product_name, c.category_name
 FROM reserve_products r
+JOIN members m ON r.member_id = m.id
 JOIN products p ON r.product_id = p.product_id
 JOIN farmers f ON p.farmer_id = f.id
 JOIN categories c ON c.category_id = p.category_id
