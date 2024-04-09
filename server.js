@@ -5508,32 +5508,69 @@ app.get("/repeatactivate", async (req, res) => {
   }
 });
 
-app.post("/festival", (req, res) => {
-  const { id, name, keyword, start_date, end_date } = req.body;
+app.post("/festival", async (req, res) => {
+  try {
+    const { name, keyword, start_date, end_date } = req.body;
 
-  // Insert festival data into the database
-  pool.getConnection((err, connection) => {
-    if (err) {
-      console.error("Error connecting to database:", err);
-      return res.status(500).json({ error: "Internal server error" });
+    async function getNextId() {
+      return await usePooledConnectionAsync(async (db) => {
+        return await new Promise(async (resolve, reject) => {
+          db.query("SELECT MAX(id) as maxId FROM festivals", (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let nextId = "FEST0001";
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+                nextId = "FEST" + numericPart.toString().padStart(4, "0");
+              }
+              resolve(nextId);
+            }
+          });
+        });
+      });
     }
 
-    const query =
-      "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
-    const values = [id, name, JSON.stringify(keyword), start_date, end_date];
+    const nextId = await getNextId();
 
-    connection.query(query, values, (err, results) => {
-      connection.release(); // Release the connection
-
+    pool.getConnection((err, connection) => {
       if (err) {
-        console.error("Error inserting festival data:", err);
-        return res.status(500).json({ error: "Error inserting festival data" });
+        console.error("Error connecting to database:", err);
+        return res.status(500).json({ error: "Internal server error" });
       }
 
-      console.log("Festival data inserted successfully");
-      res.status(200).json({ message: "Festival data inserted successfully" });
+      const query =
+        "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+      const values = [
+        nextId,
+        name,
+        JSON.stringify(keyword),
+        start_date,
+        end_date,
+      ];
+
+      connection.query(query, values, (err, results) => {
+        connection.release();
+
+        if (err) {
+          console.error("Error inserting festival data:", err);
+          return res
+            .status(500)
+            .json({ error: "Error inserting festival data" });
+        }
+
+        console.log("Festival data inserted successfully");
+        res
+          .status(200)
+          .json({ message: "Festival data inserted successfully" });
+      });
     });
-  });
+  } catch (error) {
+    console.error("Error inserting festival data:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.listen(3006, () => console.log("hi Avalable 3006"));
