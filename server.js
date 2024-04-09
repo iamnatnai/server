@@ -5529,7 +5529,7 @@ app.get("/repeatactivate", async (req, res) => {
   }
 });
 
-app.post("/festival", async (req, res) => {
+app.post("/festival", checkAdmin, async (req, res) => {
   try {
     const { name, keyword, start_date, end_date } = req.body;
 
@@ -5594,7 +5594,7 @@ app.post("/festival", async (req, res) => {
   }
 });
 
-app.get("/festival", checkAdmin, (req, res) => {
+app.get("/festival", (req, res) => {
   pool.getConnection((err, connection) => {
     if (err) {
       console.error("Error connecting to database:", err);
