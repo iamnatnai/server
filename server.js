@@ -17,6 +17,7 @@ const excel = require("exceljs");
 const moment = require("moment");
 const momentz = require("moment-timezone");
 const { log } = require("console");
+const { decode } = require("punycode");
 
 require("dotenv").config();
 //ดึงตัวแปรมาใช้
@@ -5717,6 +5718,54 @@ app.get("/festival/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching festival data:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/todays-buyers", checkFarmer, (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+
+    const decoded = jwt.verify(token, secretKey);
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const formattedDate = `${year}-${month}-${day}`;
+
+    const query = `
+    SELECT DISTINCT member_id
+    FROM order_sumary os
+          JOIN order_items oi ON os.id = oi.order_id
+          JOIN products p ON oi.product_id = p.product_id
+          JOIN farmers f ON p.farmer_id = f.id
+    WHERE DATE(date_buys) = ? AND f.id = ?
+  `;
+
+    pool.getConnection((err, connection) => {
+      if (err) {
+        console.error("Error connecting to database:", err);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+
+      connection.query(query, [formattedDate, decode.id], (err, results) => {
+        connection.release();
+
+        if (err) {
+          console.error("Error fetching today's buyers:", err);
+          return res
+            .status(500)
+            .json({ error: "Error fetching today's buyers" });
+        }
+
+        console.log("Today's buyers fetched successfully");
+        res.status(200).json({ buyers: results });
+      });
+    });
+  } catch (error) {
+    console.error("Error deleting festival:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
