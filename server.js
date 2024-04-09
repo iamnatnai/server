@@ -5741,7 +5741,7 @@ app.get("/todaybuy", checkFarmer, (req, res) => {
     JOIN products p ON oi.product_id = p.product_id
     JOIN farmers f ON p.farmer_id = f.id
     JOIN categories c ON c.category_id = p.category_id
-    WHERE DATE(os.date_buys) = ? AND f.id = ?
+    WHERE DATE(os.date_buys) = ? AND f.id = ? AND p.available = 1
     GROUP BY oi.product_id;
   `;
     console.log(decoded.ID);
@@ -5784,14 +5784,13 @@ app.get("/todayreserve", checkFarmer, (req, res) => {
     const day = String(today.getDate()).padStart(2, "0");
     const formattedDate = `${year}-${month}-${day}`;
     const query = `
-    SELECT os.member_id,oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name, c.category_name
-    FROM order_sumary os
-    JOIN order_items oi ON os.id = oi.order_id
-    JOIN products p ON oi.product_id = p.product_id
-    JOIN farmers f ON p.farmer_id = f.id
-    JOIN categories c ON c.category_id = p.category_id
-    WHERE DATE(os.date_buys) = ? AND f.id = ?
-    GROUP BY oi.product_id;
+    SELECT r.member_id, r.product_id,r.contact, r.quantity AS total_quantity, p.product_name, c.category_name
+FROM reserve_products r
+JOIN products p ON r.product_id = p.product_id
+JOIN farmers f ON p.farmer_id = f.id
+JOIN categories c ON c.category_id = p.category_id
+WHERE DATE(r.dates) = ? AND f.id = ? AND p.available = 1
+GROUP BY r.product_id;
   `;
     console.log(decoded.ID);
     pool.getConnection((err, connection) => {
