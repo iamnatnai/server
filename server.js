@@ -1924,7 +1924,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     db.query(
       `SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng,
-       f.facebooklink, f.lineid FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
+       f.facebooklink, f.lineid, f.lastLogin FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
        WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;`,
       [product_id, shopname],
       (err, result) => {
@@ -1966,7 +1966,7 @@ app.get("/getproducts", async (req, res) => {
       ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}') and`
       : ""
   } category_id = '${category}'`;
-  let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost FROM products p 
+  let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
   INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${
     search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
   } 
@@ -1985,7 +1985,7 @@ app.get("/getproducts", async (req, res) => {
         ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}') `
         : ""
     }`;
-    query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost FROM products p 
+    query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
     INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${
       search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
     } ${groupby ? "group by p.farmer_id" : ""} ${
