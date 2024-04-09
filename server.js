@@ -5529,9 +5529,14 @@ app.get("/repeatactivate", async (req, res) => {
   }
 });
 
-app.post("/festival", async (req, res) => {
+app.post("/festival", checkAdmin, async (req, res) => {
   try {
     const { name, keyword, start_date, end_date } = req.body;
+
+    const formattedStartDate = moment(start_date, "D/M/YYYY").format(
+      "YYYY-MM-DD"
+    );
+    const formattedEndDate = moment(end_date, "D/M/YYYY").format("YYYY-MM-DD");
 
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
@@ -5543,9 +5548,11 @@ app.post("/festival", async (req, res) => {
               let nextId = "FEST0001";
               if (result[0].maxId) {
                 const currentId = result[0].maxId;
-                const numericPart = parseInt(currentId.substring(4), 10) + 1;
-
-                nextId = "FEST" + numericPart.toString().padStart(4, "0");
+                const numericPart = parseInt(currentId.substring(4), 10);
+                if (!isNaN(numericPart)) {
+                  const nextNumericPart = numericPart + 1;
+                  nextId = "FEST" + nextNumericPart.toString().padStart(4, "0");
+                }
               }
               resolve(nextId);
             }
@@ -5555,7 +5562,7 @@ app.post("/festival", async (req, res) => {
     }
 
     const nextId = await getNextId();
-
+    console.log(nextId);
     pool.getConnection((err, connection) => {
       if (err) {
         console.error("Error connecting to database:", err);
@@ -5568,8 +5575,8 @@ app.post("/festival", async (req, res) => {
         nextId,
         name,
         JSON.stringify(keyword),
-        start_date,
-        end_date,
+        formattedStartDate,
+        formattedEndDate,
       ];
 
       connection.query(query, values, (err, results) => {
