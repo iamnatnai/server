@@ -5529,12 +5529,9 @@ app.get("/repeatactivate", async (req, res) => {
   }
 });
 
-app.post("/festival", checkAdmin, async (req, res) => {
+app.post("/festival", async (req, res) => {
   try {
     const { name, keyword, start_date, end_date } = req.body;
-
-    const formattedStartDate = moment(start_date).format("YYYY-MM-DD");
-    const formattedEndDate = moment(end_date).format("YYYY-MM-DD");
 
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
@@ -5546,11 +5543,9 @@ app.post("/festival", checkAdmin, async (req, res) => {
               let nextId = "FEST0001";
               if (result[0].maxId) {
                 const currentId = result[0].maxId;
-                const numericPart = parseInt(currentId.substring(4), 10);
-                if (!isNaN(numericPart)) {
-                  const nextNumericPart = numericPart + 1;
-                  nextId = "FEST" + nextNumericPart.toString().padStart(4, "0");
-                }
+                const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+                nextId = "FEST" + numericPart.toString().padStart(4, "0");
               }
               resolve(nextId);
             }
@@ -5560,7 +5555,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
     }
 
     const nextId = await getNextId();
-    console.log(nextId);
+
     pool.getConnection((err, connection) => {
       if (err) {
         console.error("Error connecting to database:", err);
@@ -5573,8 +5568,8 @@ app.post("/festival", checkAdmin, async (req, res) => {
         nextId,
         name,
         JSON.stringify(keyword),
-        formattedStartDate,
-        formattedEndDate,
+        start_date,
+        end_date,
       ];
 
       connection.query(query, values, (err, results) => {
@@ -5595,116 +5590,6 @@ app.post("/festival", checkAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Error inserting festival data:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-app.get("/festival", (req, res) => {
-  pool.getConnection((err, connection) => {
-    if (err) {
-      console.error("Error connecting to database:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
-    const query = "SELECT id,name,start_date,end_date FROM festivals";
-
-    connection.query(query, (err, results) => {
-      connection.release();
-
-      if (err) {
-        console.error("Error fetching festival data:", err);
-        return res.status(500).json({ error: "Error fetching festival data" });
-      }
-
-      res.status(200).json(results);
-    });
-  });
-});
-
-// Function to check if a festival with the given ID exists
-async function checkFestivalExists(id) {
-  return await usePooledConnectionAsync(async (db) => {
-    return await new Promise(async (resolve, reject) => {
-      db.query("SELECT id FROM festivals WHERE id = ?", [id], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result.length > 0);
-        }
-      });
-    });
-  });
-}
-
-app.patch("/festivals", (req, res) => {
-  pool.getConnection((err, connection) => {
-    if (err) {
-      console.error("Error connecting to database:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
-    const query = "SELECT name,start_date,end_date FROM festivals";
-
-    connection.query(query, (err, results) => {
-      connection.release();
-
-      if (err) {
-        console.error("Error fetching festival data:", err);
-        return res.status(500).json({ error: "Error fetching festival data" });
-      }
-
-      res.status(200).json(results);
-    });
-  });
-});
-
-app.patch("/festival/:id", checkAdmin, async (req, res) => {
-  try {
-    const festivalId = req.params.id;
-    const { name, keyword, start_date, end_date, available } = req.body;
-
-    const festivalExists = await checkFestivalExists(festivalId);
-    if (!festivalExists) {
-      return res.status(404).json({ error: "Festival not found" });
-    }
-    pool.getConnection((err, connection) => {
-      if (err) {
-        console.error("Error connecting to database:", err);
-        return res.status(500).json({ error: "Internal server error" });
-      }
-
-      let query;
-      let values;
-      if (available !== undefined) {
-        query = "UPDATE festivals SET available = ? WHERE id = ?";
-        values = [available, festivalId];
-      } else {
-        query = festivalExists
-          ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? WHERE id = ?"
-          : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
-        values = festivalExists
-          ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
-          : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
-      }
-
-      connection.query(query, values, (err, results) => {
-        connection.release();
-
-        if (err) {
-          console.error("Error updating/inserting festival data:", err);
-          return res
-            .status(500)
-            .json({ error: "Error updating/inserting festival data" });
-        }
-
-        console.log("Festival data updated/inserted successfully");
-        res
-          .status(200)
-          .json({ message: "Festival data updated/inserted successfully" });
-      });
-    });
-  } catch (error) {
-    console.error("Error updating/inserting festival data:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
