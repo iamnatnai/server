@@ -5741,7 +5741,7 @@ app.get("/todaybuy", checkFarmer, (req, res) => {
     const day = String(today.getDate()).padStart(2, "0");
     const formattedDate = `${year}-${month}-${day}`;
     const query = `
-    SELECT os.member_id,m.username,oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name, c.category_name
+    SELECT os.member_id,m.username,oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name,os.status, c.category_name
     FROM order_sumary os
     JOIN members m ON os.member_id = m.id
     JOIN order_items oi ON os.id = oi.order_id
@@ -5791,7 +5791,7 @@ app.get("/todayreserve", checkFarmer, (req, res) => {
     const day = String(today.getDate()).padStart(2, "0");
     const formattedDate = `${year}-${month}-${day}`;
     const query = `
-    SELECT r.member_id,m.username, r.product_id,r.contact, r.quantity AS total_quantity, p.product_name, c.category_name
+    SELECT r.member_id,m.username, r.status,r.product_id,r.contact, r.quantity AS total_quantity, p.product_name, c.category_name
 FROM reserve_products r
 JOIN members m ON r.member_id = m.id
 JOIN products p ON r.product_id = p.product_id
