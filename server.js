@@ -5745,7 +5745,7 @@ app.get("/todaybuy", checkFarmer, (req, res) => {
     const day = String(today.getDate()).padStart(2, "0");
     const formattedDate = `${year}-${month}-${day}`;
     const query = `
-    SELECT os.member_id,m.username,oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name, c.category_name
+    SELECT os.member_id,m.username,oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name, c.category_name, p.price
     FROM order_sumary os
     JOIN members m ON os.member_id = m.id
     JOIN order_items oi ON os.id = oi.order_id
@@ -5882,15 +5882,17 @@ app.get("/reserveproduct/:selectedStatus", checkFarmer, async (req, res) => {
   }
 });
 
-app.get("/reserveyearly", checkFarmer, async (req, res) => {
+app.get("/reserveyearly/:productId", checkFarmer, async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
+      let productId = req.params.productId;
       let token = req.headers.authorization
         ? req.headers.authorization.split(" ")[1]
         : null;
       let decoded = jwt.verify(token, secretKey);
-      let query = `select YEAR(dates) as year, SUM(quantity) as count from reserve_products rp join products p on p.product_id = rp.product_id where p.farmer_id = ? and rp.status = "complete" group by year(rp.dates);`;
-      db.query(query, [decoded.ID], (err, result) => {
+      console.log(decoded.ID, productId);
+      let query = `select YEAR(dates) as year, SUM(quantity) as count from reserve_products rp join products p on p.product_id = rp.product_id where p.farmer_id = ? and p.product_id = ? and rp.status = "complete" group by year(rp.dates);`;
+      db.query(query, [productId, decoded.ID], (err, result) => {
         if (err) {
           console.error("Error fetching reserve yearly:", err);
           return res
