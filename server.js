@@ -5532,7 +5532,7 @@ app.get("/repeatactivate", async (req, res) => {
 
 app.post("/festival", checkAdmin, async (req, res) => {
   try {
-    const { name, keyword, start_date, end_date } = req.body;
+    const { name, keyword, start_date, end_date, color } = req.body;
 
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
@@ -5559,13 +5559,14 @@ app.post("/festival", checkAdmin, async (req, res) => {
 
     await usePooledConnectionAsync(async (db) => {
       const query =
-        "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+        "INSERT INTO festivals (id, name, keywords, start_date, end_date, color) VALUES (?, ?, ?, ?, ?, ?)";
       const values = [
         nextId,
         name,
         JSON.stringify(keyword),
         start_date,
         end_date,
+        color,
       ];
 
       db.query(query, values, (err, results) => {
@@ -5588,8 +5589,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
 
 app.get("/festival", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
-    const query =
-      "SELECT id,name,start_date,end_date FROM festivals WHERE available = 1";
+    const query = "SELECT * FROM festivals WHERE available = 1";
 
     db.query(query, (err, results) => {
       if (err) {
