@@ -5892,7 +5892,7 @@ app.get("/reserveyearly/:productId", checkFarmer, async (req, res) => {
       let decoded = jwt.verify(token, secretKey);
       console.log(decoded.ID, productId);
       let query = `select YEAR(dates) as year, SUM(quantity) as count from reserve_products rp join products p on p.product_id = rp.product_id where p.farmer_id = ? and p.product_id = ? and rp.status = "complete" group by year(rp.dates);`;
-      db.query(query, [productId, decoded.ID], (err, result) => {
+      db.query(query, [decoded.ID, productId], (err, result) => {
         if (err) {
           console.error("Error fetching reserve yearly:", err);
           return res
