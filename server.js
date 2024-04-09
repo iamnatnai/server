@@ -1924,7 +1924,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     db.query(
       `SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng,
-       f.facebooklink, f.lineid FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
+       f.facebooklink, f.lineid, f.lastLogin FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
        WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;`,
       [product_id, shopname],
       (err, result) => {
@@ -1966,7 +1966,7 @@ app.get("/getproducts", async (req, res) => {
       ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}') and`
       : ""
   } category_id = '${category}'`;
-  let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost FROM products p 
+  let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
   INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${
     search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
   } 
@@ -1985,7 +1985,7 @@ app.get("/getproducts", async (req, res) => {
         ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}') `
         : ""
     }`;
-    query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost FROM products p 
+    query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
     INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${
       search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
     } ${groupby ? "group by p.farmer_id" : ""} ${
@@ -5529,12 +5529,9 @@ app.get("/repeatactivate", async (req, res) => {
   }
 });
 
-app.post("/festival", checkAdmin, async (req, res) => {
+app.post("/festival", async (req, res) => {
   try {
     const { name, keyword, start_date, end_date } = req.body;
-
-    const formattedStartDate = moment(start_date).format("YYYY-MM-DD");
-    const formattedEndDate = moment(end_date).format("YYYY-MM-DD");
 
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
@@ -5546,11 +5543,9 @@ app.post("/festival", checkAdmin, async (req, res) => {
               let nextId = "FEST0001";
               if (result[0].maxId) {
                 const currentId = result[0].maxId;
-                const numericPart = parseInt(currentId.substring(4), 10);
-                if (!isNaN(numericPart)) {
-                  const nextNumericPart = numericPart + 1;
-                  nextId = "FEST" + nextNumericPart.toString().padStart(4, "0");
-                }
+                const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+                nextId = "FEST" + numericPart.toString().padStart(4, "0");
               }
               resolve(nextId);
             }
@@ -5560,7 +5555,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
     }
 
     const nextId = await getNextId();
-    console.log(nextId);
+
     pool.getConnection((err, connection) => {
       if (err) {
         console.error("Error connecting to database:", err);
@@ -5573,8 +5568,8 @@ app.post("/festival", checkAdmin, async (req, res) => {
         nextId,
         name,
         JSON.stringify(keyword),
-        formattedStartDate,
-        formattedEndDate,
+        start_date,
+        end_date,
       ];
 
       connection.query(query, values, (err, results) => {
