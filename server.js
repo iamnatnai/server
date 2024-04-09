@@ -1612,10 +1612,16 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const originalname = file.originalname.split(".")[0];
-    const extension = file.originalname.split(".")[1];
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
+    try {
+      const originalname = file.originalname.split(".")[0];
+      const extension = file.originalname.split(".")[1];
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
+    } catch (error) {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, `${uniqueSuffix}.jpg`);
+      console.error("Error uploading file:", error);
+    }
   },
 });
 async function getNextProductId() {
