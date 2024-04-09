@@ -4523,7 +4523,7 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
             : "CONCAT(MONTH(os.date_buys),'/', YEAR(os.date_buys))"
         } as date 
         , c.category_name, c.bgcolor
-        FROM order_sumary os LEFT JOIN order_items oi on oi.order_id = os.id LEFT JOIN products p on p.product_id = oi.product_id LEFT JOIN categories c on c.category_id = p.category_id where p.farmer_id = ? group by ${peroid}(os.date_buys), c.category_name order by os.date_buys desc limit 30;`,
+        FROM order_sumary os LEFT JOIN order_items oi on oi.order_id = os.id LEFT JOIN products p on p.product_id = oi.product_id LEFT JOIN categories c on c.category_id = p.category_id where p.farmer_id = ? and os.status = "complete" group by ${peroid}(os.date_buys), c.category_name order by os.date_buys desc limit 30;`,
         [ID],
         (err, result) => {
           if (err) {
