@@ -5687,4 +5687,49 @@ app.delete("/festival/:id", checkAdmin, async (req, res) => {
   }
 });
 
+app.get("/festival/:id", (req, res) => {
+  const festivalId = req.params.id;
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.error("Error connecting to database:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+
+    // Query to retrieve keywords from festivals
+    const query1 = "SELECT keywords FROM festivals WHERE id = ?";
+    connection.query(query1, [festivalId], (err, results) => {
+      if (err) {
+        connection.release();
+        console.error("Error fetching keywords:", err);
+        return res.status(500).json({ error: "Error fetching keywords" });
+      }
+
+      const keywordsJson = results.length > 0 ? results[0].keywords : "[]";
+      const keywords = JSON.parse(keywordsJson);
+      console.log(keywords);
+      const query2 = `
+        SELECT product_name
+        FROM products
+        WHERE product_name LIKE CONCAT('%', ?, '%')
+      `;
+      const result = keywords.map((item) => {
+        connection.query;
+      });
+      connection.query(query2, [keywords], (err, results) => {
+        connection.release();
+
+        if (err) {
+          console.error("Error searching for products:", err);
+          return res
+            .status(500)
+            .json({ error: "Error searching for products" });
+        }
+
+        console.log("Products found successfully");
+        res.status(200).json({ products: results });
+      });
+    });
+  });
+});
+
 app.listen(3006, () => console.log("hi Avalable 3006"));
