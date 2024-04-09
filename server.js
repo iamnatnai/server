@@ -4535,10 +4535,10 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
           if (peroid === "month") {
             let j = 0;
             let months = Array.from({ length: 12 }, (_, i) => {
-              let monthago = moment()
-                .subtract(i, "months")
-                .toDate()
-                .toLocaleDateString();
+              var today = new Date();
+              var monthago = new Date(
+                new Date().setDate(today.getDate() - i * 30)
+              ).toLocaleDateString();
               monthago = monthago.split("/")[0] + "/" + monthago.split("/")[2];
               let categories = [];
               for (k = j; k < result.length; k++) {
@@ -4570,10 +4570,14 @@ app.get("/getordersale/:peroid", checkFarmer, async (req, res) => {
           }
           let j = 0;
           let days30 = Array.from({ length: 30 }, (_, i) => {
-            let dayago = moment()
-              .subtract(i, "days")
-              .toDate()
-              .toLocaleDateString();
+            var today = new Date();
+            var dayago = new Date(
+              new Date().setDate(today.getDate() - i)
+            ).toLocaleDateString();
+            // let dayago = moment()
+            //   .subtract(i, "days")
+            //   .toDate()
+            //   .toLocaleDateString();
 
             let categories = [];
             for (k = j; k < result.length; k++) {
@@ -5829,7 +5833,7 @@ app.get("/reservetable/:productId", async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
       let productId = req.params.productId;
-      let query = `select rp.id, rp.member_id, rp.status, rp.quantity, rp.dates, rp.dates_complete, rp.contact, m.firstname, m.lastname, m.phone from reserve_products rp join members m on rp.member_id = m.id where rp.product_id = ? order by rp.dates desc;`;
+      let query = `select rp.id, rp.member_id, rp.status, rp.quantity, rp.dates, rp.dates_complete, rp.contact, m.firstname, m.lastname, m.phone from reserve_products rp join members m on rp.member_id = m.id join products p on p.product_id = rp.product_id where rp.product_id = ? and rp.dates >= DATE_SUB(p.period, INTERVAL 1 YEAR) and rp.dates <= p.period order by rp.dates desc;`;
       db.query(query, [productId], (err, result) => {
         if (err) {
           console.error("Error fetching reserve table:", err);
@@ -5884,7 +5888,7 @@ app.get("/reserveyearly", checkFarmer, async (req, res) => {
         ? req.headers.authorization.split(" ")[1]
         : null;
       let decoded = jwt.verify(token, secretKey);
-      let query = `select YEAR(dates) as year, SUM(quantity) as count from reserve_products rp join products p where p.product_id = rp.product_id and p.farmer_id = ? and rp.status = "complete" group by year(rp.dates);`;
+      let query = `select YEAR(dates) as year, SUM(quantity) as count from reserve_products rp join products p on p.product_id = rp.product_id where p.farmer_id = ? and rp.status = "complete" group by year(rp.dates);`;
       db.query(query, [decoded.ID], (err, result) => {
         if (err) {
           console.error("Error fetching reserve yearly:", err);
