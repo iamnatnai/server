@@ -5577,9 +5577,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
         }
 
         console.log("Festival data inserted successfully");
-        res
-          .status(200)
-          .json({ message: "Festival data inserted successfully" });
+        res.status(200).json({ id: nextId });
       });
     });
   } catch (error) {
@@ -5688,49 +5686,40 @@ app.delete("/festival/:id", checkAdmin, async (req, res) => {
   }
 });
 
-app.get("/festival/:id", (req, res) => {
-  const festivalId = req.params.id;
-  pool.getConnection((err, connection) => {
-    if (err) {
-      console.error("Error connecting to database:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
-    // Query to retrieve keywords from festivals
-    const query1 = "SELECT keywords FROM festivals WHERE id = ?";
-    connection.query(query1, [festivalId], (err, results) => {
-      if (err) {
-        connection.release();
-        console.error("Error fetching keywords:", err);
-        return res.status(500).json({ error: "Error fetching keywords" });
-      }
-
-      const keywordsJson = results.length > 0 ? results[0].keywords : "[]";
-      const keywords = JSON.parse(keywordsJson);
-      console.log(keywords);
-      const query2 = `
-        SELECT product_name
-        FROM products
-        WHERE product_name LIKE CONCAT('%', ?, '%')
+app.get("/festival/:id", async (req, res) => {
+  try {
+    const festivalId = req.params.id;
+    await usePooledConnectionAsync(async (db) => {
+      // Query to retrieve keywords from festivals
+      const query1 = "SELECT keywords FROM festivals WHERE id = ?";
+      db.query(query1, [festivalId], (err, results) => {
+        const keywordsJson = results.length > 0 ? results[0].keywords : "[]";
+        const keywords = JSON.parse(keywordsJson);
+        let query2 = `
+        SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
+        INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 
       `;
-      const result = keywords.map((item) => {
-        connection.query;
-      });
-      connection.query(query2, [keywords], (err, results) => {
-        connection.release();
+        keywords.forEach((keyword, index) => {
+          query2 += ` ${
+            index == 0 ? "and" : "or"
+          } p.product_name LIKE '%${keyword}%'`;
+        });
 
-        if (err) {
-          console.error("Error searching for products:", err);
-          return res
-            .status(500)
-            .json({ error: "Error searching for products" });
-        }
-
-        console.log("Products found successfully");
-        res.status(200).json({ products: results });
+        db.query(query2, (err, results) => {
+          if (err) {
+            console.error("Error fetching festival data:", err);
+            return res
+              .status(500)
+              .json({ error: "Error fetching festival data" });
+          }
+          return res.status(200).json(results);
+        });
       });
     });
-  });
+  } catch (error) {
+    console.error("Error fetching festival data:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.get("/todaybuy", checkFarmer, (req, res) => {
