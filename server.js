@@ -5508,4 +5508,32 @@ app.get("/repeatactivate", async (req, res) => {
   }
 });
 
+app.post("/festival", (req, res) => {
+  const { id, name, keyword, start_date, end_date } = req.body;
+
+  // Insert festival data into the database
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.error("Error connecting to database:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+
+    const query =
+      "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+    const values = [id, name, JSON.stringify(keyword), start_date, end_date];
+
+    connection.query(query, values, (err, results) => {
+      connection.release(); // Release the connection
+
+      if (err) {
+        console.error("Error inserting festival data:", err);
+        return res.status(500).json({ error: "Error inserting festival data" });
+      }
+
+      console.log("Festival data inserted successfully");
+      res.status(200).json({ message: "Festival data inserted successfully" });
+    });
+  });
+});
+
 app.listen(3006, () => console.log("hi Avalable 3006"));
