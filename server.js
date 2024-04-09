@@ -1770,6 +1770,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     additional_images,
     certificate,
     weight,
+    period,
+    forecastDate,
   } = req.body;
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
@@ -1802,7 +1804,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       if (product_id) {
         const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
          product_description = ?,category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?,
-          additional_image = ?,selectedType = ?, certificate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
+          additional_image = ?, selectedType = ?, certificate = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
         let result = await new Promise((resolve, reject) => {
           db.query(
             query,
@@ -1822,6 +1824,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               additional_images,
               selectedType,
               certificate,
+              period,
+              forecastDate,
               product_id,
               farmerId,
             ],
@@ -1846,8 +1850,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       const query = `
         INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
            product_name, product_description, category_id, stock, price, weight, unit, product_image, 
-           product_video, additional_image,selectedType,certificate, last_modified)
-        VALUES (?, ?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+           product_video, additional_image, selectedType, certificate, period, forecastDate, last_modified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
       `;
       db.query(
         query,
@@ -1869,6 +1873,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           additional_images,
           selectedType,
           certificate,
+          period,
+          forecastDate,
         ],
         async (err, result) => {
           if (err) {
@@ -5812,6 +5818,83 @@ app.get("/todayreserve", checkFarmer, (req, res) => {
 
         console.log("Today's buyers fetched successfully");
         res.status(200).json(results);
+      });
+    });
+  } catch (error) {
+    console.error("Error deleting festival:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/reservetable/:productId", async (req, res) => {
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      let productId = req.params.productId;
+      let query = `select rp.id, rp.member_id, rp.status, rp.quantity, rp.dates, rp.dates_complete, rp.contact, m.firstname, m.lastname, m.phone from reserve_products rp join members m on rp.member_id = m.id where rp.product_id = ? order by rp.dates desc;`;
+      db.query(query, [productId], (err, result) => {
+        if (err) {
+          console.error("Error fetching reserve table:", err);
+          return res
+            .status(500)
+            .json({ error: "Error fetching reserve table" });
+        }
+        console.log("Reserve table fetched successfully");
+        res.status(200).json(result);
+      });
+    });
+  } catch (error) {
+    console.error("Error deleting festival:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/reserveproduct/:selectedStatus", checkFarmer, async (req, res) => {
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      let selectedStatus = req.params.selectedStatus;
+      let token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      let decoded = jwt.verify(token, secretKey);
+      let injectStatus =
+        selectedStatus === "all"
+          ? ""
+          : `and selectedStatus = "${selectedStatus}"`;
+      let query = `select product_id, product_name from products where farmer_id = ? and selectedType = 'จองสินค้าผ่านเว็บไซต์' ${injectStatus} and available = 1`;
+      db.query(query, [decoded.ID], (err, result) => {
+        if (err) {
+          console.error("Error fetching reserve product:", err);
+          return res
+            .status(500)
+            .json({ error: "Error fetching reserve product" });
+        }
+        console.log("Reserve product fetched successfully");
+        res.status(200).json(result);
+      });
+    });
+  } catch (error) {
+    console.error("Error deleting festival:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/reserveyearly", checkFarmer, async (req, res) => {
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      let token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      let decoded = jwt.verify(token, secretKey);
+      let query = `select YEAR(dates) as year, SUM(quantity) as count from reserve_products rp join products p where p.product_id = rp.product_id and p.farmer_id = ? and rp.status = "complete" group by year(rp.dates);`;
+      db.query(query, [decoded.ID], (err, result) => {
+        if (err) {
+          console.error("Error fetching reserve yearly:", err);
+          return res
+            .status(500)
+            .json({ error: "Error fetching reserve yearly" });
+        }
+        console.log("Reserve yearly fetched successfully");
+        res.status(200).json(result);
       });
     });
   } catch (error) {
