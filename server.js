@@ -5533,10 +5533,8 @@ app.post("/festival", checkAdmin, async (req, res) => {
   try {
     const { name, keyword, start_date, end_date } = req.body;
 
-    const formattedStartDate = moment(start_date, "D/M/YYYY").format(
-      "YYYY-MM-DD"
-    );
-    const formattedEndDate = moment(end_date, "D/M/YYYY").format("YYYY-MM-DD");
+    const formattedStartDate = moment(start_date).format("YYYY-MM-DD");
+    const formattedEndDate = moment(end_date).format("YYYY-MM-DD");
 
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
