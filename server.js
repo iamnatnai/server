@@ -5556,12 +5556,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
 
     const nextId = await getNextId();
 
-    pool.getConnection((err, connection) => {
-      if (err) {
-        console.error("Error connecting to database:", err);
-        return res.status(500).json({ error: "Internal server error" });
-      }
-
+    await usePooledConnectionAsync(async (db) => {
       const query =
         "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
       const values = [
@@ -5572,9 +5567,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
         end_date,
       ];
 
-      connection.query(query, values, (err, results) => {
-        connection.release();
-
+      db.query(query, values, (err, results) => {
         if (err) {
           console.error("Error inserting festival data:", err);
           return res
@@ -5594,19 +5587,12 @@ app.post("/festival", checkAdmin, async (req, res) => {
   }
 });
 
-app.get("/festival", (req, res) => {
-  pool.getConnection((err, connection) => {
-    if (err) {
-      console.error("Error connecting to database:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
+app.get("/festival", async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
     const query =
       "SELECT id,name,start_date,end_date FROM festivals WHERE available = 1";
 
-    connection.query(query, (err, results) => {
-      connection.release();
-
+    db.query(query, (err, results) => {
       if (err) {
         console.error("Error fetching festival data:", err);
         return res.status(500).json({ error: "Error fetching festival data" });
@@ -5641,12 +5627,7 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
     if (!festivalExists) {
       return res.status(404).json({ error: "Festival not found" });
     }
-
-    pool.getConnection((err, connection) => {
-      if (err) {
-        console.error("Error connecting to database:", err);
-        return res.status(500).json({ error: "Internal server error" });
-      }
+    await usePooledConnectionAsync(async (db) => {
       let query;
       let values;
       query = festivalExists
@@ -5656,9 +5637,7 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
         ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
         : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
 
-      connection.query(query, values, (err, results) => {
-        connection.release();
-
+      db.query(query, values, (err, results) => {
         if (err) {
           console.error("Error updating/inserting festival data:", err);
           return res
@@ -5687,17 +5666,10 @@ app.delete("/festival/:id", checkAdmin, async (req, res) => {
       return res.status(404).json({ error: "Festival not found" });
     }
 
-    pool.getConnection((err, connection) => {
-      if (err) {
-        console.error("Error connecting to database:", err);
-        return res.status(500).json({ error: "Internal server error" });
-      }
-
+    await usePooledConnectionAsync(async (db) => {
       const query = "UPDATE festivals SET available = 0 WHERE id = ?";
 
-      connection.query(query, [festivalId], (err, results) => {
-        connection.release();
-
+      db.query(query, [festivalId], (err, results) => {
         if (err) {
           console.error("Error deleting festival:", err);
           return res.status(500).json({ error: "Error deleting festival" });
