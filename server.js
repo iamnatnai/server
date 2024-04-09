@@ -5594,14 +5594,15 @@ app.post("/festival", async (req, res) => {
   }
 });
 
-app.get("/festival", (req, res) => {
+app.get("/festival", checkAdmin, (req, res) => {
   pool.getConnection((err, connection) => {
     if (err) {
       console.error("Error connecting to database:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
 
-    const query = "SELECT id,name,start_date,end_date FROM festivals";
+    const query =
+      "SELECT id,name,start_date,end_date FROM festivals WHERE available = 1";
 
     connection.query(query, (err, results) => {
       connection.release();
