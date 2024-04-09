@@ -147,7 +147,7 @@ const checkAdminTambon = (req, res, next) => {
     next();
   } catch (error) {
     console.error("Error decoding token:1", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: JSON.stringify(error) });
   }
 };
 
@@ -636,7 +636,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
     res.status(201).json({ success: true, message: "User added successfully" });
   } catch (error) {
     console.error("Error adding user:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    res.status(500).json({ success: false, message: JSON.stringify(error) });
   }
 });
 
@@ -5412,7 +5412,9 @@ app.get("/getadmincertificate", checkAdminTambon, async (req, res) => {
         : null;
       let decoded = jwt.verify(token, secretKey);
       let tambonamphure =
-        decoded.role === "tambons" ? `and f.amphure = ${role.amphure}` : "";
+        decoded.role === "tambons"
+          ? `and f.amphure = "${decoded.amphure}"`
+          : "";
 
       db.query(
         `SELECT cf.*, f.firstname, f.lastname, s.standard_name FROM certificate_link_farmer cf join farmers f on f.id = cf.farmer_id join standard_products s on s.standard_id = cf.standard_id where cf.status = "pending" ${tambonamphure}`,
@@ -5421,7 +5423,7 @@ app.get("/getadmincertificate", checkAdminTambon, async (req, res) => {
             console.error(err);
             return res
               .status(500)
-              .json({ success: false, error: "Internal Server Error" });
+              .json({ success: false, error: JSON.stringify(err) });
           }
           res.json({ success: true, certificate: result });
         }
@@ -5430,7 +5432,7 @@ app.get("/getadmincertificate", checkAdminTambon, async (req, res) => {
       console.error("Error getting farmer info:", error);
       return res
         .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+        .json({ success: false, message: JSON.stringify(error) });
     }
   });
 });
