@@ -5636,56 +5636,29 @@ async function checkFestivalExists(id) {
   });
 }
 
-app.patch("/festivals", (req, res) => {
-  pool.getConnection((err, connection) => {
-    if (err) {
-      console.error("Error connecting to database:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
-    const query = "SELECT name,start_date,end_date FROM festivals";
-
-    connection.query(query, (err, results) => {
-      connection.release();
-
-      if (err) {
-        console.error("Error fetching festival data:", err);
-        return res.status(500).json({ error: "Error fetching festival data" });
-      }
-
-      res.status(200).json(results);
-    });
-  });
-});
-
 app.patch("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
-    const { name, keyword, start_date, end_date, available } = req.body;
+    const { name, keyword, start_date, end_date } = req.body;
 
     const festivalExists = await checkFestivalExists(festivalId);
     if (!festivalExists) {
       return res.status(404).json({ error: "Festival not found" });
     }
+
     pool.getConnection((err, connection) => {
       if (err) {
         console.error("Error connecting to database:", err);
         return res.status(500).json({ error: "Internal server error" });
       }
-
       let query;
       let values;
-      if (available !== undefined) {
-        query = "UPDATE festivals SET available = ? WHERE id = ?";
-        values = [available, festivalId];
-      } else {
-        query = festivalExists
-          ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? WHERE id = ?"
-          : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
-        values = festivalExists
-          ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
-          : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
-      }
+      query = festivalExists
+        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? WHERE id = ?"
+        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+      values = festivalExists
+        ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
+        : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
 
       connection.query(query, values, (err, results) => {
         connection.release();
@@ -5705,6 +5678,41 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating/inserting festival data:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.delete("/festival/:id", checkAdmin, async (req, res) => {
+  try {
+    const festivalId = req.params.id;
+
+    const festivalExists = await checkFestivalExists(festivalId);
+    if (!festivalExists) {
+      return res.status(404).json({ error: "Festival not found" });
+    }
+
+    pool.getConnection((err, connection) => {
+      if (err) {
+        console.error("Error connecting to database:", err);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+
+      const query = "UPDATE festivals SET available = 0 WHERE id = ?";
+
+      connection.query(query, [festivalId], (err, results) => {
+        connection.release();
+
+        if (err) {
+          console.error("Error deleting festival:", err);
+          return res.status(500).json({ error: "Error deleting festival" });
+        }
+
+        console.log("Festival deleted successfully");
+        res.status(200).json({ message: "Festival deleted successfully" });
+      });
+    });
+  } catch (error) {
+    console.error("Error deleting festival:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
