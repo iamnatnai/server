@@ -5722,7 +5722,7 @@ app.get("/festival/:id", async (req, res) => {
   }
 });
 
-app.get("/todays-buyers", checkFarmer, (req, res) => {
+app.get("/todaybuy", checkFarmer, (req, res) => {
   try {
     const token = req.headers.authorization
       ? req.headers.authorization.split(" ")[1]
@@ -5734,23 +5734,24 @@ app.get("/todays-buyers", checkFarmer, (req, res) => {
     const month = String(today.getMonth() + 1).padStart(2, "0");
     const day = String(today.getDate()).padStart(2, "0");
     const formattedDate = `${year}-${month}-${day}`;
-
     const query = `
-    SELECT DISTINCT member_id
+    SELECT os.member_id,oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name, c.category_name
     FROM order_sumary os
-          JOIN order_items oi ON os.id = oi.order_id
-          JOIN products p ON oi.product_id = p.product_id
-          JOIN farmers f ON p.farmer_id = f.id
-    WHERE DATE(date_buys) = ? AND f.id = ?
+    JOIN order_items oi ON os.id = oi.order_id
+    JOIN products p ON oi.product_id = p.product_id
+    JOIN farmers f ON p.farmer_id = f.id
+    JOIN categories c ON c.category_id = p.category_id
+    WHERE DATE(os.date_buys) = ? AND f.id = ?
+    GROUP BY oi.product_id;
   `;
-
+    console.log(decoded.ID);
     pool.getConnection((err, connection) => {
       if (err) {
         console.error("Error connecting to database:", err);
         return res.status(500).json({ error: "Internal server error" });
       }
 
-      connection.query(query, [formattedDate, decode.id], (err, results) => {
+      connection.query(query, [formattedDate, decoded.ID], (err, results) => {
         connection.release();
 
         if (err) {
@@ -5761,7 +5762,56 @@ app.get("/todays-buyers", checkFarmer, (req, res) => {
         }
 
         console.log("Today's buyers fetched successfully");
-        res.status(200).json({ buyers: results });
+        res.status(200).json(results);
+      });
+    });
+  } catch (error) {
+    console.error("Error deleting festival:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/todayreserve", checkFarmer, (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+
+    const decoded = jwt.verify(token, secretKey);
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const formattedDate = `${year}-${month}-${day}`;
+    const query = `
+    SELECT os.member_id,oi.product_id, oi.quantity as total_quantity, SUM( oi.price) AS total_price,p.product_name, c.category_name
+    FROM order_sumary os
+    JOIN order_items oi ON os.id = oi.order_id
+    JOIN products p ON oi.product_id = p.product_id
+    JOIN farmers f ON p.farmer_id = f.id
+    JOIN categories c ON c.category_id = p.category_id
+    WHERE DATE(os.date_buys) = ? AND f.id = ?
+    GROUP BY oi.product_id;
+  `;
+    console.log(decoded.ID);
+    pool.getConnection((err, connection) => {
+      if (err) {
+        console.error("Error connecting to database:", err);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+
+      connection.query(query, [formattedDate, decoded.ID], (err, results) => {
+        connection.release();
+
+        if (err) {
+          console.error("Error fetching today's buyers:", err);
+          return res
+            .status(500)
+            .json({ error: "Error fetching today's buyers" });
+        }
+
+        console.log("Today's buyers fetched successfully");
+        res.status(200).json(results);
       });
     });
   } catch (error) {
