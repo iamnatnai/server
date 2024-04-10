@@ -5835,7 +5835,7 @@ app.get("/reservetable/:productId", async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
       let productId = req.params.productId;
-      let query = `select rp.id, rp.member_id, rp.status, rp.quantity, rp.dates, rp.dates_complete, rp.contact, m.firstname, m.lastname, m.phone from reserve_products rp join members m on rp.member_id = m.id join products p on p.product_id = rp.product_id where rp.product_id = ? and rp.dates >= DATE_SUB(p.period, INTERVAL 1 YEAR) and rp.dates <= p.period order by rp.dates desc;`;
+      let query = `select rp.contact, m.username, p.product_name, rp.quantity as total_quantity, rp.status from reserve_products rp join members m on rp.member_id = m.id join products p on p.product_id = rp.product_id where rp.product_id = ? and rp.dates >= DATE_SUB(p.period, INTERVAL 1 YEAR) and rp.dates <= p.period order by rp.dates desc;`;
       db.query(query, [productId], (err, result) => {
         if (err) {
           console.error("Error fetching reserve table:", err);
@@ -5865,7 +5865,7 @@ app.get("/reserveproduct/:selectedStatus", checkFarmer, async (req, res) => {
         selectedStatus === "all"
           ? ""
           : `and selectedStatus = "${selectedStatus}"`;
-      let query = `select product_id, product_name from products where farmer_id = ? and selectedType = 'จองสินค้าผ่านเว็บไซต์' ${injectStatus} and available = 1`;
+      let query = `select product_id, product_name , period from products where farmer_id = ? and selectedType = 'จองสินค้าผ่านเว็บไซต์' ${injectStatus} and available = 1`;
       db.query(query, [decoded.ID], (err, result) => {
         if (err) {
           console.error("Error fetching reserve product:", err);
