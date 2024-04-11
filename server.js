@@ -2274,6 +2274,11 @@ app.post(
       let decoded = jwt.verify(token, secretKey);
       const { username, role } = decoded;
       if (role === "farmers") {
+        if (!amphure || !lat || !lng) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields2" });
+        }
         let pathName;
         if (req.files && req.files.image) {
           let image = req.files.image[0].filename;
@@ -2281,13 +2286,15 @@ app.post(
         }
         pathName = pathName ? `,qrcode = "${pathName}"` : "";
         email = email ? `,email = "${email}"` : "";
-        firstname = firstname ? `firstname = "${firstname}"` : "";
-        lastname = lastname ? `lastname = "${lastname}"` : "";
+        firstname = firstname ? `,firstname = "${firstname}"` : "";
+        lastname = lastname ? `,lastname = "${lastname}"` : "";
         phone = phone ? `,phone = "${phone}"` : "";
         farmerstorename = farmerstorename
-          ? `farmerstorename = "${farmerstorename}"`
+          ? `,farmerstorename = "${farmerstorename}"`
           : "";
         address = address ? `,address = "${address}"` : "";
+        lat = lat ? `lat = "${lat}"` : "";
+        lng = lng ? `lng = "${lng}"` : "";
         facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
         lineid = lineid ? `,lineid = "${lineid}"` : "";
         zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
@@ -2295,14 +2302,12 @@ app.post(
         province = province
           ? `,province = "${province}"`
           : `,province = ${province}`;
-        amphure = amphure ? `,amphure = "${amphure}"` : "";
+        amphure = amphure ? `amphure = "${amphure}"` : "";
         tambon = tambon ? `,tambon = "${tambon}"` : "";
-        lat = lat ? `, lat = "${lat}"` : "";
-        lng = lng ? `, lng = "${lng}"` : "";
         shippingcost = shippingcost
           ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
-        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename} ${phone} ${address} ${pathName} ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} ${email} WHERE username = "${username}"`;
+        query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} ${farmerstorename} ${phone} ${address} ${facebooklink} ${lineid} ${zipcode} ${payment} ${province} ${tambon} ${shippingcost} ${pathName} WHERE username = "${username}"`;
       } else if (role === "members") {
         email = email ? `email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
@@ -2416,11 +2421,7 @@ app.post(
         shippingcost = shippingcost
           ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
-        query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} 
-      ${farmerstorename} ${phone} ${address} 
-      ${facebooklink} ${lineid} ${zipcode} 
-      ${payment} ${province} ${tambon} ${shippingcost} ${pathName}
-       WHERE username = "${username}"`;
+        query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} ${farmerstorename} ${phone} ${address} ${facebooklink} ${lineid} ${zipcode} ${payment} ${province} ${tambon} ${shippingcost} ${pathName} WHERE username = "${username}"`;
       } else if (role === "tambons") {
         if (!amphure) {
           return res
