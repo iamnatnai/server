@@ -2265,11 +2265,12 @@ app.post(
       shippingcost = null,
     } = req.body;
 
-    if (!firstname || !lastname || !phone) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields" });
-    }
+    // if (!firstname || !lastname || !phone) {
+    //   return res
+    //     .status(400)
+    //     .json({ success: false, message: "Missing required fields" });
+    // }
+
     try {
       let decoded = jwt.verify(token, secretKey);
       const { username, role } = decoded;
@@ -2309,6 +2310,11 @@ app.post(
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
         query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} ${farmerstorename} ${phone} ${address} ${facebooklink} ${lineid} ${zipcode} ${payment} ${province} ${tambon} ${shippingcost} ${pathName} WHERE username = "${username}"`;
       } else if (role === "members") {
+        if (!firstname || !lastname || !phone || !email) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields" });
+        }
         email = email ? `email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
