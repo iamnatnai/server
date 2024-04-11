@@ -16,7 +16,7 @@ const secretKey = "pifOvrart4";
 const excel = require("exceljs");
 const moment = require("moment");
 const momentz = require("moment-timezone");
-const { log } = require("console");
+const { log, error } = require("console");
 const { decode } = require("punycode");
 
 require("dotenv").config();
@@ -450,13 +450,16 @@ async function insertFarmer(
   firstName,
   lastName,
   tel,
-  certificateList
+  certificateList,
+  address,
+  lat,
+  lng
 ) {
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
       const query = `INSERT INTO farmers 
-      (id, username, email, password, firstname, lastname, phone, role, amphure, farmerstorename, createAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      (id, username, email, password, firstname, lastname, phone, role, amphure, farmerstorename, address, lat, lng, createAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
       db.query(
         query,
         [
@@ -470,6 +473,9 @@ async function insertFarmer(
           "farmers",
           amphure,
           username,
+          address,
+          lat,
+          lng,
         ],
         (err, result) => {
           if (err) {
@@ -517,7 +523,7 @@ async function insertTambon(
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
       const query = `INSERT INTO tambons 
-      (id, username, email, password, firstname, lastname, phone, role,amphure, createAt)
+      (id, username, email, password, firstname, lastname, phone, role, amphure, createAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
       db.query(
         query,
@@ -556,6 +562,9 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
     tel,
     role,
     certificateList,
+    address,
+    lat,
+    lng,
   } = req.body;
   if (!username || !password || !role) {
     return res
@@ -597,7 +606,10 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         firstName,
         lastName,
         tel,
-        certificateList
+        certificateList,
+        address,
+        lat,
+        lng
       );
     } else if (role === "tambons") {
       await insertTambon(
@@ -1176,7 +1188,7 @@ app.get("/login", async (req, res) => {
     return res.status(200).json({ isValid: true, newToken: newToken });
   } catch (error) {
     console.error("Error decoding token:4", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: JSON.stringify(error) });
   }
 });
 
@@ -1881,7 +1893,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             console.error("Error adding product:", err);
             return res
               .status(500)
-              .send({ success: false, message: "Internal Server Error" });
+              .send({ success: false, message: JSON.stringify(err) });
           }
           // find farmerstorename by farmer_id
           let farmerstorename = await new Promise((resolve, reject) => {
@@ -1913,7 +1925,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     console.error("Error adding product:", error);
     return res
       .status(500)
-      .send({ success: false, message: "Internal Server Error" });
+      .send({ success: false, message: JSON.stringify(error) });
   }
 });
 // app.get("/getproduct/:urlToShorten(*)", (req, res) => {
@@ -2132,14 +2144,12 @@ app.get("/myproducts/:username", async (req, res) => {
     //   }
     // );
     db.query(
-      "SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType,p.certificate, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id LEFT JOIN categories c on p.category_id = c.category_id WHERE p.farmer_id = (select id from farmers where username = ?) and p.available = 1;",
+      "SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType,p.certificate, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id LEFT JOIN categories c on p.category_id = c.category_id WHERE p.farmer_id = (select id from farmers where username = ? and available = 1) and p.available = 1;",
       [username],
       async (err, result) => {
         if (err) {
           console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
+          res.status(500).send({ exist: false, error: JSON.stringify(err) });
         } else {
           try {
             // let results = await Promise.all(
@@ -2212,9 +2222,7 @@ app.get("/getinfo", async (req, res) => {
       db.query(query, (err, result) => {
         if (err) {
           console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
+          res.status(500).send({ exist: false, error: JSON.stringify(err) });
         } else {
           res.json(result[0]);
         }
@@ -2224,7 +2232,7 @@ app.get("/getinfo", async (req, res) => {
     return res.status(200);
   } catch (error) {
     console.error("Error decoding token:5", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: JSON.stringify(error) });
   }
 });
 
@@ -2294,17 +2302,14 @@ app.post(
         shippingcost = shippingcost
           ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
-        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename} ${phone} ${address} ${pathName} 
-      ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} ${email}
-       WHERE username = "${username}"`;
+        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${farmerstorename} ${phone} ${address} ${pathName} ${facebooklink} ${lineid} ${lat} ${lng} ${zipcode} ${payment} ${province} ${amphure} ${tambon} ${shippingcost} ${email} WHERE username = "${username}"`;
       } else if (role === "members") {
         email = email ? `email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address}
-       WHERE username = "${username}"`;
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} WHERE username = "${username}"`;
       } else if (role === "tambons") {
         email = email ? `,email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
@@ -2312,15 +2317,13 @@ app.post(
         amphure = amphure ? `,amphure = "${amphure}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email}
-       WHERE username = "${username}"`;
+        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} WHERE username = "${username}"`;
       } else {
         email = email ? `email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
-        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone}
-       WHERE username = "${username}"`;
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
       }
       await usePooledConnectionAsync(async (db) => {
         db.query(query, (err, result) => {
@@ -2371,20 +2374,20 @@ app.post(
     if (!role || !username) {
       return res
         .status(400)
-        .json({ success: false, message: "Missing required fields" });
+        .json({ success: false, message: "Missing required fields1" });
     }
     try {
-      if (!amphure || !lat || !lng) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Missing required fields" });
-      }
       const token = req.headers.authorization
         ? req.headers.authorization.split(" ")[1]
         : null;
       const decoded = jwt.verify(token, secretKey);
       var query;
       if (role === "farmers" || decoded.role === "tambons") {
+        if (!amphure || !lat || !lng) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields2" });
+        }
         let pathName;
         if (req.files && req.files.image) {
           let image = req.files.image[0].filename;
@@ -2422,7 +2425,7 @@ app.post(
         if (!amphure) {
           return res
             .status(400)
-            .json({ success: false, message: "Missing required fields" });
+            .json({ success: false, message: "Missing required fields3" });
         }
         email = email ? `,email = "${email}"` : "";
         firstname = firstname ? `,firstname = "${firstname}"` : "";
@@ -2436,7 +2439,7 @@ app.post(
         if (!email || !firstname || !lastname || !phone) {
           return res
             .status(400)
-            .json({ success: false, message: "Missing required fields" });
+            .json({ success: false, message: "Missing required fields4" });
         }
         email = email ? `email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
