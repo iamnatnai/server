@@ -5716,8 +5716,10 @@ app.get("/festival/:id", async (req, res) => {
         const keywordsJson = results.length > 0 ? results[0].keywords : "[]";
         const keywords = JSON.parse(keywordsJson);
         let query2 = `
-        SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
-        INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 
+        SELECT product_id AS id, p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin 
+FROM products p 
+INNER JOIN farmers f ON p.farmer_id = f.id 
+WHERE p.available = 1 
       `;
         keywords.forEach((keyword, index) => {
           query2 += ` ${
