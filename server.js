@@ -5994,8 +5994,8 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
       let query;
       let values;
       query = festivalExists
-        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? ,is_accept WHERE id = ?"
-        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)";
+        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ?  WHERE id = ?"
+        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
       values = festivalExists
         ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
         : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
@@ -6265,5 +6265,18 @@ app.get("/reserveyearly/:productId", checkFarmer, async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+// app.delete("/campaign/:id/:product_id", async (req, res) => {
+//   await usePooledConnectionAsync(async (db) => {
+//     try {
+//       //soft delete
+//       const token = req.headers.authorization
+//         ? req.headers.authorization.split(" ")[1]
+//         : null;
+
+//       const decoded = jwt.verify(token, secretKey);
+//       if (decoded.role !== "admins" && decoded.role !== "tambons") {
+//         return res.status(401).json({ error: "Unauthorized" });
+//       }
+//       const {campaignId, username } = req.params;
 
 app.listen(3006, () => console.log("Avalable 3006"));
