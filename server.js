@@ -5953,7 +5953,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
 app.get("/festival", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     const query =
-      "SELECT f.*,ff.* FROM festivals f INNER JOIN farmerfest ff ON ff.festival_id = f.id  WHERE available = 1";
+      "SELECT f.*,ff.id AS farmerfest_id , ff.is_accept, ff.date_invite FROM festivals f INNER JOIN farmerfest ff ON ff.festival_id = f.id  WHERE available = 1";
 
     db.query(query, (err, results) => {
       if (err) {
