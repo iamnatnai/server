@@ -359,7 +359,7 @@ app.post("/register", async (req, res) => {
 
 app.get("/confirm/:email/:hashed", async (req, res) => {
   const email = req.params.email;
-  const hashed = req.params.hashed;
+  const hashed = decodeURIComponent(req.params.hashed);
   if (!email || !hashed) {
     return res
       .status(400)
@@ -847,35 +847,60 @@ app.get("/users/:roleParams", async (req, res) => {
 });
 
 app.delete("/deleteuser/:role/:username", async (req, res) => {
-  try {
-    //soft delete
-    const token = req.headers.authorization
-      ? req.headers.authorization.split(" ")[1]
-      : null;
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      //soft delete
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
 
-    const decoded = jwt.verify(token, secretKey);
-    if (decoded.role !== "admins" && decoded.role !== "tambons") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const { role, username } = req.params;
-    if (decoded.role === "tambons" && role !== "farmers") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    await usePooledConnectionAsync(async (db) => {
-      const query = `UPDATE ${role} SET available = 0 WHERE username = "${username}"`;
-      db.query(query);
-      if (role === "farmers") {
-        const query = `UPDATE products SET available = 0 WHERE farmer_id = (select id from farmers where username = "${username}")`;
-        db.query(query);
+      const decoded = jwt.verify(token, secretKey);
+      if (decoded.role !== "admins" && decoded.role !== "tambons") {
+        return res.status(401).json({ error: "Unauthorized" });
       }
-    });
-    res
-      .status(200)
-      .json({ success: true, message: "User deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
-  }
+      const { role, username } = req.params;
+      if (decoded.role === "tambons" && role !== "farmers") {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      let id = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+          [username],
+          (err, result) => {
+            if (err) {
+              throw Error(err);
+            } else {
+              resolve(result[0].id);
+            }
+          }
+        );
+      });
+      const query = `UPDATE ${role} SET available = 0 WHERE id = "${id}" and available = 1`;
+      db.query(query, async (err, result) => {
+        if (err) {
+          console.error("Error deleting user:", err);
+          throw Error(err);
+        }
+        if (role === "farmers") {
+          const query = `UPDATE products SET available = 0 WHERE farmer_id = "${id}" and available = 1`;
+          db.query(query, (err, result) => {
+            if (err) {
+              throw Error(err);
+            }
+            return res
+              .status(200)
+              .json({ success: true, message: "User deleted successfully" });
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: JSON.stringify(error) });
+    }
+  });
 });
 
 async function getNextId() {
@@ -964,9 +989,8 @@ async function insertMember(
     to: email,
     subject: "ยืนยันตัวตน",
     text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
-    กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
-      email + secretKey,
-      10
+    กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${encodeURIComponent(
+      await bcrypt.hash(email + secretKey, 10)
     )}`,
   };
 
@@ -1798,7 +1822,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       } else {
         farmerId = await new Promise((resolve, reject) => {
           db.query(
-            "SELECT ID FROM farmers WHERE username = ?",
+            "SELECT ID FROM farmers WHERE username = ? and available = 1",
             [req.body.username],
             (err, result) => {
               if (err) {
@@ -2029,7 +2053,7 @@ app.get("/getproducts", async (req, res) => {
     db.query(query, (err, result) => {
       if (err) {
         console.log(err);
-        res.status(500).send({ exist: false, error: "Internal Server Error" });
+        res.status(500).send({ exist: false, error: JSON.stringify(err) });
       } else {
         res.json({
           products: result,
@@ -2077,11 +2101,13 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
     } else {
       farmerId = await new Promise((resolve, reject) => {
         db.query(
-          "SELECT id FROM farmers WHERE username = ?",
+          "SELECT id FROM farmers WHERE username = ? and available = 1",
           [req.body.username],
           (err, result) => {
             if (err) {
-              reject(err);
+              return res
+                .status(500)
+                .send({ exist: false, error: JSON.stringify(err) });
             } else {
               resolve(result[0].id);
             }
@@ -2094,11 +2120,14 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
       (err, result) => {
         if (err) {
           console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
+          res.status(500).send({ exist: false, error: JSON.stringify(err) });
         } else {
-          res.json({ success: true });
+          res.json({
+            success: true,
+            id,
+            farmerId,
+            result: JSON.stringify(result),
+          });
         }
       }
     );
@@ -2280,6 +2309,12 @@ app.post(
           return res
             .status(400)
             .json({ success: false, message: "Missing required fields2" });
+        }
+        // validate if lat lng is number
+        if (isNaN(lat) || isNaN(lng)) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid lat or lng" });
         }
         let pathName;
         if (req.files && req.files.image) {
@@ -2502,7 +2537,7 @@ app.get(
         decoded.role === "tamboons" ||
         decoded.role === "providers"
       ) {
-        query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}"`;
+        query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}" and available = 1`;
       } else if (role === "members") {
         query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
       } else {
@@ -3112,15 +3147,18 @@ app.post(
       const imagePaths = req.files["image"]
         ? req.files["image"].map((file) => `./uploads/${file.filename}`)
         : null;
-      imagePaths.map(async (imagePath, index) => {
-        async function getNextImageId(index) {
-          return await usePooledConnectionAsync(async (db) => {
+      await usePooledConnectionAsync(async (db) => {
+        imagePaths.map(async (imagePath, index) => {
+          async function getNextImageId(index) {
             return await new Promise(async (resolve, reject) => {
               try {
                 db.query(
                   "SELECT MAX(id) as maxId FROM image",
                   (err, result) => {
                     if (err) {
+                      // return res
+                      //   .status(500)
+                      //   .json({ success: false, message: JSON.stringify(err) });
                       reject(err);
                     } else {
                       let nextimageId = "IMG000000001";
@@ -3136,15 +3174,16 @@ app.post(
                   }
                 );
               } catch (error) {
+                // return res
+                //   .status(500)
+                //   .json({ success: false, message: JSON.stringify(error) });
                 reject(error);
               }
             });
-          });
-        }
-        const nextimageId = await getNextImageId(index);
-        const insertImageQuery =
-          "INSERT INTO image (id, imagepath, farmer_id) VALUES (?,?, ?)";
-        await usePooledConnectionAsync(async (db) => {
+          }
+          const nextimageId = await getNextImageId(index);
+          const insertImageQuery =
+            "INSERT INTO image (id, imagepath, farmer_id) VALUES (?,?, ?)";
           return await new Promise(async (resolve, reject) => {
             try {
               db.query(
@@ -3152,6 +3191,9 @@ app.post(
                 [nextimageId, imagePath, decoded.ID],
                 (err, result) => {
                   if (err) {
+                    // return res
+                    //   .status(500)
+                    //   .json({ success: false, message: JSON.stringify(err) });
                     reject(err);
                   } else {
                     resolve(result);
@@ -3159,6 +3201,9 @@ app.post(
                 }
               );
             } catch (error) {
+              // return res
+              //   .status(500)
+              //   .json({ success: false, message: JSON.stringify(err) });
               reject(error);
             }
           });
@@ -3171,7 +3216,9 @@ app.post(
     } catch (error) {
       // Handle errors
       console.error("Error uploading images:", error);
-      res.status(500).json({ success: false, message: error });
+      return res
+        .status(500)
+        .json({ success: false, message: JSON.stringify(err) });
     }
   }
 );
@@ -5185,7 +5232,7 @@ app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
-        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id and p.available = 1 GROUP BY f.id;`,
+        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id and p.available = 1 and f.available = 1 GROUP BY f.id;`,
         (err, result) => {
           if (err) {
             console.error(err);
@@ -5530,9 +5577,8 @@ app.get("/repeatactivate", async (req, res) => {
       to: email,
       subject: "ยืนยันตัวตน",
       text: `สวัสดีคุณ ${firstname} ${lastname} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
-      กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${await bcrypt.hash(
-        email + secretKey,
-        10
+      กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${encodeURIComponent(
+        await bcrypt.hash(email + secretKey, 10)
       )}`,
     };
 
@@ -6219,4 +6265,4 @@ app.get("/reserveyearly/:productId", checkFarmer, async (req, res) => {
   }
 });
 
-app.listen(3006, () => console.log("hi Avalable 3006"));
+app.listen(3006, () => console.log("Avalable 3006"));
