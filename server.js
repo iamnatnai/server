@@ -2294,11 +2294,12 @@ app.post(
       shippingcost = null,
     } = req.body;
 
-    if (!firstname || !lastname || !phone) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields" });
-    }
+    // if (!firstname || !lastname || !phone) {
+    //   return res
+    //     .status(400)
+    //     .json({ success: false, message: "Missing required fields" });
+    // }
+
     try {
       let decoded = jwt.verify(token, secretKey);
       const { username, role } = decoded;
@@ -2344,6 +2345,11 @@ app.post(
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
         query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} ${farmerstorename} ${phone} ${address} ${facebooklink} ${lineid} ${zipcode} ${payment} ${province} ${tambon} ${shippingcost} ${pathName} WHERE username = "${username}"`;
       } else if (role === "members") {
+        if (!firstname || !lastname || !phone || !email) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields" });
+        }
         email = email ? `email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
@@ -5756,8 +5762,10 @@ app.get("/festival/:id", async (req, res) => {
         const keywordsJson = results.length > 0 ? results[0].keywords : "[]";
         const keywords = JSON.parse(keywordsJson);
         let query2 = `
-        SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
-        INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 
+        SELECT product_id AS id, p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin 
+FROM products p 
+INNER JOIN farmers f ON p.farmer_id = f.id 
+WHERE p.available = 1 
       `;
         keywords.forEach((keyword, index) => {
           query2 += ` ${
