@@ -5861,7 +5861,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
         INNER JOIN
           farmers f ON f.id = p.farmer_id
         WHERE 
-          f.id = ?;
+        f.id = ? AND ff.is_accept = 'waiting';
       `;
 
       const festivalsResults = await new Promise((resolve, reject) => {
