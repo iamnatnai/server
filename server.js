@@ -6060,9 +6060,10 @@ app.get("/festival/:id", async (req, res) => {
         const keywordsJson = results.length > 0 ? results[0].keywords : "[]";
         const keywords = JSON.parse(keywordsJson);
         let query2 = `
-        SELECT product_id AS id, p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin 
+        SELECT product_id AS id, p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin ,ff.is_accept
 FROM products p 
 INNER JOIN farmers f ON p.farmer_id = f.id 
+INNER JOIN farmerfest ff ON p.product_id = ff.product_id
 WHERE p.available = 1 
       `;
         keywords.forEach((keyword, index) => {
