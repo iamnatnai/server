@@ -5952,7 +5952,8 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
 
 app.get("/festival", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
-    const query = "SELECT * FROM festivals WHERE available = 1";
+    const query =
+      "SELECT f.*,ff.* FROM festivals f INNER JOIN farmerfest ff ON ff.festival_id = f.id  WHERE available = 1";
 
     db.query(query, (err, results) => {
       if (err) {
@@ -5983,7 +5984,7 @@ async function checkFestivalExists(id) {
 app.patch("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
-    const { name, keyword, start_date, end_date } = req.body;
+    const { name, keyword, start_date, end_date, is_accept } = req.body;
 
     const festivalExists = await checkFestivalExists(festivalId);
     if (!festivalExists) {
@@ -5993,8 +5994,8 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
       let query;
       let values;
       query = festivalExists
-        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? WHERE id = ?"
-        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ? ,is_accept WHERE id = ?"
+        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)";
       values = festivalExists
         ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
         : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
