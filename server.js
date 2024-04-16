@@ -6063,14 +6063,8 @@ app.get("/festival/:id", async (req, res) => {
         SELECT product_id AS id, p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin ,ff.is_accept
 FROM products p 
 INNER JOIN farmers f ON p.farmer_id = f.id 
-INNER JOIN farmerfest ff ON p.product_id = ff.product_id
 WHERE p.available = 1 
       `;
-        keywords.forEach((keyword, index) => {
-          query2 += ` ${
-            index == 0 ? "and" : "or"
-          } p.product_name LIKE '%${keyword}%'`;
-        });
 
         db.query(query2, (err, results) => {
           if (err) {
