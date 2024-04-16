@@ -6278,10 +6278,10 @@ app.put("/campaign/:id/:product_id", checkFarmer, async (req, res) => {
 
     let query, values;
     if (is_accept === "accept") {
-      query = `UPDATE farmerfest SET is_accept = "accept" WHERE id = ? AND product_id = ? `;
+      query = `UPDATE farmerfest SET is_accept = "accept" WHERE festival_id = ? AND product_id = ? `;
       values = [id, product_id];
     } else if (is_accept === "reject") {
-      query = `UPDATE farmerfest SET is_accept = "reject" WHERE id = ? AND product_id = ? `;
+      query = `UPDATE farmerfest SET is_accept = "reject" WHERE festival_id = ? AND product_id = ? `;
       values = [id, product_id];
     } else {
       return res.status(400).json({ error: "Invalid action specified" });
