@@ -6056,26 +6056,23 @@ app.get("/festival/:id", async (req, res) => {
     const festivalId = req.params.id;
     await usePooledConnectionAsync(async (db) => {
       // Query to retrieve keywords from festivals
-      const query1 = "SELECT keywords FROM festivals WHERE id = ?";
-      db.query(query1, [festivalId], (err, results) => {
-        const keywordsJson = results.length > 0 ? results[0].keywords : "[]";
-        const keywords = JSON.parse(keywordsJson);
-        let query2 = `
-        SELECT product_id AS id, p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin ,ff.is_accept
-FROM products p 
-INNER JOIN farmers f ON p.farmer_id = f.id 
-WHERE p.available = 1 
+
+      let query2 = `
+        SELECT p.product_id AS id, p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin ,ff.is_accept
+        FROM farmerfest ff
+        INNER JOIN products p ON ff.product_id = p.product_id
+        INNER JOIN farmers f ON p.farmer_id = f.id
+        where ff.festival_id = ? and p.available = 1
       `;
 
-        db.query(query2, (err, results) => {
-          if (err) {
-            console.error("Error fetching festival data:", err);
-            return res
-              .status(500)
-              .json({ error: "Error fetching festival data" });
-          }
-          return res.status(200).json(results);
-        });
+      db.query(query2, [festivalId], (err, results) => {
+        if (err) {
+          console.error("Error fetching festival data:", err);
+          return res
+            .status(500)
+            .json({ error: "Error fetching festival data" });
+        }
+        return res.status(200).json(results);
       });
     });
   } catch (error) {
