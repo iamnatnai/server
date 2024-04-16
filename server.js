@@ -5825,6 +5825,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
         SELECT 
           f.id AS farmer_id,
           f.farmerstorename,
+          p.product_id,
           p.product_name,
           p.product_description AS description,
             p.category_id,
@@ -5860,7 +5861,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
         INNER JOIN
           farmers f ON f.id = p.farmer_id
         WHERE 
-          f.id = ?;
+        f.id = ? AND ff.is_accept = 'waiting';
       `;
 
       const festivalsResults = await new Promise((resolve, reject) => {
@@ -5896,7 +5897,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
             certificate: festival.certificate,
             selectedType: festival.selectedType,
             viewCount: festival.viewCount,
-            campaignId: festival.campaignId,
+            festivalId: festivalId,
             lastModified: festival.lastModified,
             available: festival.available,
             weight: festival.weight,
@@ -5928,7 +5929,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
                 certificate: festival.certificate,
                 selectedType: festival.selectedType,
                 viewCount: festival.viewCount,
-                campaignId: festival.campaignId,
+                festivalId: festivalId,
                 lastModified: festival.lastModified,
                 available: festival.available,
                 weight: festival.weight,
@@ -6256,18 +6257,55 @@ app.get("/reserveyearly/:productId", checkFarmer, async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
-// app.delete("/campaign/:id/:product_id", async (req, res) => {
-//   await usePooledConnectionAsync(async (db) => {
-//     try {
-//       //soft delete
-//       const token = req.headers.authorization
-//         ? req.headers.authorization.split(" ")[1]
-//         : null;
+app.put("/campaign/:id/:product_id", checkFarmer, async (req, res) => {
+  try {
+    const token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
 
-//       const decoded = jwt.verify(token, secretKey);
-//       if (decoded.role !== "admins" && decoded.role !== "tambons") {
-//         return res.status(401).json({ error: "Unauthorized" });
-//       }
-//       const {campaignId, username } = req.params;
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== "farmers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { id, product_id } = req.params;
+
+    const { is_accept } = req.body;
+    if (!is_accept) {
+      return res.status(400).json({ error: "Action must be specified" });
+    }
+
+    let query, values;
+    if (is_accept === "accept") {
+      query = `UPDATE farmerfest SET is_accept = "accept" WHERE festival_id = ? AND product_id = ? `;
+      values = [id, product_id];
+    } else if (is_accept === "reject") {
+      query = `UPDATE farmerfest SET is_accept = "reject" WHERE festival_id = ? AND product_id = ? `;
+      values = [id, product_id];
+    } else {
+      return res.status(400).json({ error: "Invalid action specified" });
+    }
+
+    await usePooledConnectionAsync(async (db) => {
+      db.query(query, values, (err, results) => {
+        if (err) {
+          console.error("Error updating festival data:", err);
+          return res
+            .status(500)
+            .json({ error: "Error updating festival data" });
+        }
+
+        console.log("Festival data updated successfully");
+        res.status(200).json({
+          message: "Festival data updated successfully",
+          is_accept: is_accept,
+        });
+      });
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
 
 app.listen(3006, () => console.log("Avalable 3006"));
