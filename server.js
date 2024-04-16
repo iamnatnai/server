@@ -13,6 +13,7 @@ const ExtractJwt = require("passport-jwt").ExtractJwt;
 const JwtStrategy = require("passport-jwt").Strategy;
 const jwt = require("jsonwebtoken");
 const secretKey = "pifOvrart4";
+const util = require("util");
 const excel = require("exceljs");
 const moment = require("moment");
 const momentz = require("moment-timezone");
@@ -49,7 +50,7 @@ var db_config = {
   },
 };
 pool = mysql.createPool(db_config);
-
+pool.query = util.promisify(pool.query);
 async function usePooledConnectionAsync(actionAsync) {
   const connection = await new Promise((resolve, reject) => {
     pool.getConnection((ex, connection) => {
@@ -5550,9 +5551,93 @@ app.get("/repeatactivate", async (req, res) => {
   }
 });
 
+// app.post("/festival", checkAdmin, async (req, res) => {
+//   try {
+//     const { name, keyword, start_date, end_date, color } = req.body;
+
+//     async function getNextId() {
+//       return await usePooledConnectionAsync(async (db) => {
+//         return await new Promise(async (resolve, reject) => {
+//           db.query("SELECT MAX(id) as maxId FROM festivals", (err, result) => {
+//             if (err) {
+//               reject(err);
+//             } else {
+//               let nextId = "FEST0001";
+//               if (result[0].maxId) {
+//                 const currentId = result[0].maxId;
+//                 const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+//                 nextId = "FEST" + numericPart.toString().padStart(4, "0");
+//               }
+//               resolve(nextId);
+//             }
+//           });
+//         });
+//       });
+//     }
+
+//     const nextId = await getNextId();
+
+//     await usePooledConnectionAsync(async (db) => {
+//       const query =
+//         "INSERT INTO festivals (id, name, keywords, start_date, end_date, color) VALUES (?, ?, ?, ?, ?, ?)";
+//       const values = [
+//         nextId,
+//         name,
+//         JSON.stringify(keyword),
+//         start_date,
+//         end_date,
+//         color,
+//       ];
+
+//       db.query(query, values, (err, results) => {
+//         if (err) {
+//           console.error("Error inserting festival data:", err);
+//           return res
+//             .status(500)
+//             .json({ error: "Error inserting festival data" });
+//         }
+
+//         console.log("Festival data inserted successfully");
+//         res.status(200).json({ id: nextId });
+//       });
+//     });
+//   } catch (error) {
+//     console.error("Error inserting festival data:", error);
+//     return res.status(500).json({ error: "Internal server error" });
+//   }
+// });
+
+const notifyFarmerNewFestival = async (
+  id,
+  festname,
+  product_name,
+  start_date,
+  end_date
+) => {
+  try {
+    return await createNotification(
+      null,
+      id,
+      `คุณได้รับคำเชิญให้เข้าร่วมงานเทศกาล "${festname}"`,
+      "hi",
+      "แจ้งเตือนเข้าร่วม!"
+    );
+  } catch (error) {
+    console.error("Error notifying followers about new festival:", error);
+  }
+};
+
 app.post("/festival", checkAdmin, async (req, res) => {
   try {
-    const { name, keyword, start_date, end_date, color } = req.body;
+    const {
+      festname,
+      keyword,
+      start_date,
+      end_date,
+      color = "#50b500",
+      everyYear,
+    } = req.body;
 
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
@@ -5574,22 +5659,86 @@ app.post("/festival", checkAdmin, async (req, res) => {
         });
       });
     }
-
     const nextId = await getNextId();
+
+    async function getNextFarmfestId(index) {
+      return await usePooledConnectionAsync(async (db) => {
+        return await new Promise(async (resolve, reject) => {
+          db.query("SELECT MAX(id) as maxId FROM farmerfest", (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let nextfarmfestId = "FMF0001";
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                const numericPart =
+                  parseInt(currentId.substring(3), 10) + 1 + index;
+                console.log("HIIII" + numericPart);
+                nextfarmfestId =
+                  "FMF" + numericPart.toString().padStart(4, "0");
+              }
+              console.log(nextfarmfestId);
+              resolve(nextfarmfestId);
+            }
+          });
+        });
+      });
+    }
 
     await usePooledConnectionAsync(async (db) => {
       const query =
-        "INSERT INTO festivals (id, name, keywords, start_date, end_date, color) VALUES (?, ?, ?, ?, ?, ?)";
+        "INSERT INTO festivals (id, name, keywords, start_date, end_date, color,everyYear) VALUES (?, ?, ?, ?, ?, ?,?)";
       const values = [
         nextId,
-        name,
+        festname,
         JSON.stringify(keyword),
         start_date,
         end_date,
         color,
+        everyYear,
       ];
 
-      db.query(query, values, (err, results) => {
+      let farmerFest = await new Promise(async (resolve, reject) => {
+        let querySearch = `
+        SELECT f.id ,f.farmerstorename, p.product_name ,p.product_id
+        FROM products p 
+        INNER JOIN farmers f ON p.farmer_id = f.id 
+        WHERE p.available = 1 
+      `;
+        keyword.forEach((keyword, index) => {
+          querySearch += ` ${
+            index == 0 ? "and" : "or"
+          } p.product_name LIKE '%${keyword}%'`;
+        });
+        db.query(querySearch, (err, res) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(res);
+          }
+        });
+      });
+
+      console.log(farmerFest);
+
+      const queryFest = `INSERT INTO farmerfest (festival_id,product_id,is_accept) VALUES ?`;
+      const value = farmerFest.map((item) => [
+        nextId,
+        item.product_id,
+        "waiting",
+      ]);
+      db.query(queryFest, [value], async (err, result) => {
+        if (err) {
+          console.error("Error inserting festfarm:", err);
+          return res
+            .status(500)
+            .json({ error: "Error inserting festival fest" });
+        }
+        console.log(result);
+        console.log("FestFarm inserted successfully");
+      });
+
+      db.query(query, values, async (err, results) => {
         if (err) {
           console.error("Error inserting festival data:", err);
           return res
@@ -5599,11 +5748,159 @@ app.post("/festival", checkAdmin, async (req, res) => {
 
         console.log("Festival data inserted successfully");
         res.status(200).json({ id: nextId });
+        for (let index = 0; index < farmerFest.length; index++) {
+          const farmerFestival = farmerFest[index];
+          let FESTY = await notifyFarmerNewFestival(
+            farmerFestival.id,
+            festname,
+            farmerFest.product_name,
+            start_date,
+            end_date
+          );
+          console.log("HI1234", FESTY);
+        }
       });
     });
   } catch (error) {
     console.error("Error inserting festival data:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/festivaldetail", checkFarmer, async (req, res) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  const decoded = jwt.verify(token, secretKey);
+
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      const festivalsQuery = `
+        SELECT 
+          f.id AS farmer_id,
+          f.farmerstorename,
+          p.product_name,
+          p.product_description AS description,
+            p.category_id,
+            p.stock,
+            p.price,
+            p.unit,
+            p.product_image AS image,
+            p.product_video AS video,
+            p.additional_image AS additionalImage,
+            p.certificate,
+            p.selectedType AS selectedType,
+            p.view_count AS viewCount,
+            p.campaign_id AS campaignId,
+            p.last_modified AS lastModified,
+            p.available,
+            p.weight,
+            p.selectedStatus AS selectedStatus,
+            p.date_reserve_start AS dateReserveStart,
+            p.date_reserve_end AS dateReserveEnd,
+            p.period,
+          ft.name AS festivalName,
+          ft.start_date ,
+          ft.end_date,
+          ft.id AS festivalId,
+          ff.id AS farmerfest_id,
+          ff.is_accept
+        FROM 
+          farmerfest ff
+        INNER JOIN 
+          festivals ft ON ft.id = ff.festival_id
+        INNER JOIN 
+          products p ON p.product_id = ff.product_id
+        INNER JOIN
+          farmers f ON f.id = p.farmer_id
+        WHERE 
+          f.id = ?;
+      `;
+
+      const festivalsResults = await new Promise((resolve, reject) => {
+        db.query(festivalsQuery, [decoded.ID], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+
+      // Group festivals by festivalId
+      const festivalsGrouped = festivalsResults.reduce((acc, festival) => {
+        const { festivalId, festivalName, farmer_id, farmerstorename } =
+          festival;
+        const existingFestival = acc.find((item) => item.id === festivalId);
+
+        if (existingFestival) {
+          existingFestival.products.push({
+            id: festival.product_id,
+            name: festival.product_name,
+            farmer_id: farmer_id,
+            farmerstorename: farmerstorename,
+            description: festival.description,
+            category_id: festival.category_id,
+            stock: festival.stock,
+            price: festival.price,
+            unit: festival.unit,
+            image: festival.image,
+            video: festival.video,
+            additionalImage: festival.additionalImage,
+            certificate: festival.certificate,
+            selectedType: festival.selectedType,
+            viewCount: festival.viewCount,
+            campaignId: festival.campaignId,
+            lastModified: festival.lastModified,
+            available: festival.available,
+            weight: festival.weight,
+            selectedStatus: festival.selectedStatus,
+            dateReserveStart: festival.dateReserveStart,
+            dateReserveEnd: festival.date,
+          });
+        } else {
+          acc.push({
+            id: festivalId,
+            title: festivalName,
+            is_accept: festival.is_accept,
+            date_start: festival.start_date,
+            date_end: festival.end_date,
+            products: [
+              {
+                id: festival.product_id,
+                name: festival.product_name,
+                farmer_id: farmer_id,
+                farmerstorename: farmerstorename,
+                description: festival.description,
+                category_id: festival.category_id,
+                stock: festival.stock,
+                price: festival.price,
+                unit: festival.unit,
+                image: festival.image,
+                video: festival.video,
+                additionalImage: festival.additionalImage,
+                certificate: festival.certificate,
+                selectedType: festival.selectedType,
+                viewCount: festival.viewCount,
+                campaignId: festival.campaignId,
+                lastModified: festival.lastModified,
+                available: festival.available,
+                weight: festival.weight,
+                selectedStatus: festival.selectedStatus,
+                dateReserveStart: festival.dateReserveStart,
+                dateReserveEnd: festival.date,
+              },
+            ],
+          });
+        }
+        return acc;
+      }, []);
+
+      res.status(200).json({ success: true, festivals: festivalsGrouped });
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });
 
