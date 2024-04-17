@@ -2011,7 +2011,7 @@ app.get("/getproducts", async (req, res) => {
       : ""
   } category_id = '${category}'`;
   let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
-  INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and ${
+  INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and f.available = 1 and ${
     search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
   } 
   ${
@@ -2030,7 +2030,7 @@ app.get("/getproducts", async (req, res) => {
         : ""
     }`;
     query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
-    INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 ${
+    INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and f.available = 1  ${
       search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
     } ${groupby ? "group by p.farmer_id" : ""} ${
       shopname
