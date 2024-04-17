@@ -2007,7 +2007,7 @@ app.get("/getproducts", async (req, res) => {
     search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
   } ${
     shopname
-      ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}') and`
+      ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}' and available = 1) and`
       : ""
   } category_id = '${category}'`;
   let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
@@ -2016,7 +2016,7 @@ app.get("/getproducts", async (req, res) => {
   } 
   ${
     shopname
-      ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}') and`
+      ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}' and  available = 1) and`
       : ""
   } category_id = '${category}' ${
     groupby ? "group by p.farmer_id" : ""
@@ -2026,7 +2026,7 @@ app.get("/getproducts", async (req, res) => {
       search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
     } ${
       shopname
-        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}') `
+        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}' and available = 1) `
         : ""
     }`;
     query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
@@ -2034,7 +2034,7 @@ app.get("/getproducts", async (req, res) => {
       search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
     } ${groupby ? "group by p.farmer_id" : ""} ${
       shopname
-        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}')`
+        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}' and available = 1)`
         : ""
     }  
     ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
