@@ -113,7 +113,7 @@ const createNotification = async (
       });
     } catch (error) {
       console.error("Error creating notification:", error);
-      throw error;
+      throw Error(error);
     }
   });
 };
@@ -5744,22 +5744,18 @@ const notifyFarmerNewFestival = async (id, festname) => {
       "แจ้งเตือนเข้าร่วม!"
     );
   } catch (error) {
-    console.error("Error notifying followers about new festival:", error);
+    throw error;
   }
 };
 
 const createMysqlDate = (date) => {
-  var d = new Date(date);
-  dformat =
-    [(d.getMonth() + 1).padLeft(), d.getDate().padLeft(), d.getFullYear()].join(
-      "-"
-    ) +
-    " " +
-    [
-      d.getHours().padLeft(),
-      d.getMinutes().padLeft(),
-      d.getSeconds().padLeft(),
-    ].join(":");
+  var dt = new Date(date);
+  const padL = (nr, len = 2, chr = `0`) => `${nr}`.padStart(2, chr);
+
+  let dformat = `${dt.getFullYear()}-${padL(dt.getMonth() + 1)}-${padL(
+    dt.getDate()
+  )} ${padL(dt.getHours())}:${padL(dt.getMinutes())}:${padL(dt.getSeconds())}`;
+
   return dformat;
 };
 app.post("/festival", checkAdmin, async (req, res) => {
@@ -5829,7 +5825,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
         createMysqlDate(start_date),
         createMysqlDate(end_date),
         color,
-        everyYear,
+        everyYear === "true" ? 1 : 0,
       ];
 
       let farmerFest = await new Promise(async (resolve, reject) => {
@@ -5861,17 +5857,20 @@ app.post("/festival", checkAdmin, async (req, res) => {
         item.product_id,
         "waiting",
       ]);
-      db.query(queryFest, [value], async (err, result) => {
-        if (err) {
-          console.error("Error inserting festfarm:", err);
-          return res.status(500).json({
-            error: "Error inserting festival fest",
-            msg: JSON.stringify(err),
-          });
-        }
-        console.log(result);
-        console.log("FestFarm inserted successfully");
-      });
+
+      if (farmerFest.length > 0) {
+        db.query(queryFest, [value], async (err, result) => {
+          if (err) {
+            console.error("Error inserting festfarm:", err);
+            return res.status(500).json({
+              error: "Error inserting festival fest",
+              msg: JSON.stringify(err),
+            });
+          }
+          console.log(result);
+          console.log("FestFarm inserted successfully");
+        });
+      }
 
       db.query(query, values, async (err, results) => {
         if (err) {
@@ -6074,7 +6073,7 @@ async function checkFestivalExists(id) {
 app.patch("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
-    const { name, keyword, start_date, end_date, is_accept } = req.body;
+    const { festname, keyword, start_date, end_date, everyYear } = req.body;
 
     const festivalExists = await checkFestivalExists(festivalId);
     if (!festivalExists) {
@@ -6084,18 +6083,33 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
       let query;
       let values;
       query = festivalExists
-        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ?  WHERE id = ?"
-        : "INSERT INTO festivals (id, name, keywords, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ?, everyYear = ?  WHERE id = ?"
+        : "INSERT INTO festivals (id, name, keywords, start_date, end_date, everyYear) VALUES (?, ?, ?, ?, ?, ?)";
       values = festivalExists
-        ? [name, JSON.stringify(keyword), start_date, end_date, festivalId]
-        : [festivalId, name, JSON.stringify(keyword), start_date, end_date];
+        ? [
+            festname,
+            JSON.stringify(keyword),
+            createMysqlDate(start_date),
+            createMysqlDate(end_date),
+            everyYear === "true" ? 1 : 0,
+            festivalId,
+          ]
+        : [
+            festivalId,
+            festname,
+            JSON.stringify(keyword),
+            createMysqlDate(start_date),
+            createMysqlDate(end_date),
+            everyYear === "true" ? 1 : 0,
+          ];
 
       db.query(query, values, (err, results) => {
         if (err) {
           console.error("Error updating/inserting festival data:", err);
-          return res
-            .status(500)
-            .json({ error: "Error updating/inserting festival data" });
+          return res.status(500).json({
+            error: "Error updating/inserting festival data",
+            msg: JSON.stringify(err),
+          });
         }
 
         console.log("Festival data updated/inserted successfully");
