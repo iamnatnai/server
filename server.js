@@ -1108,7 +1108,7 @@ app.post("/login", async (req, res) => {
     }
     usePooledConnectionAsync(async (db) => {
       db.query(
-        `UPDATE ${user.role} SET lastLogin = NOW() WHERE username = ?`,
+        `UPDATE ${user.role} SET lastLogin = NOW() WHERE username = ? and available = 1`,
         [username],
         (err, result) => {
           if (err) {
@@ -1122,7 +1122,7 @@ app.post("/login", async (req, res) => {
       let activation = await usePooledConnectionAsync(async (db) => {
         return new Promise((resolve, reject) => {
           db.query(
-            "SELECT activate FROM members WHERE username = ?",
+            "SELECT activate FROM members WHERE username = ? and available = 1",
             [user.uze_name],
             (err, result) => {
               if (err) {
@@ -1142,7 +1142,7 @@ app.post("/login", async (req, res) => {
       let tambonamphure = await usePooledConnectionAsync(async (db) => {
         return new Promise((resolve, reject) => {
           db.query(
-            "SELECT amphure FROM tambons WHERE username = ?",
+            "SELECT amphure FROM tambons WHERE username = ? and available = 1",
             [user.uze_name],
             (err, result) => {
               if (err) {
@@ -1201,7 +1201,7 @@ app.get("/login", async (req, res) => {
     });
     usePooledConnectionAsync(async (db) => {
       db.query(
-        `UPDATE ${decoded.role} SET lastLogin = NOW() WHERE username = ?`,
+        `UPDATE ${decoded.role} SET lastLogin = NOW() WHERE username = ? and available = 1`,
         [decoded.username],
         (err, result) => {
           if (err) {
@@ -2376,16 +2376,28 @@ app.post(
         db.query(query, (err, result) => {
           if (err) {
             console.log(err);
-            res
+            return res
               .status(500)
               .send({ exist: false, error: "Internal Server Error" });
-          } else {
-            res.json(result[0]);
           }
         });
       });
+      let option = {
+        username: decoded.username,
+        ID: decoded.ID,
+        role: decoded.role,
+      };
+      if (role === "tamboons") {
+        option = {
+          ...option,
+          amphure: amphure,
+        };
+      }
+      let signedToken = jwt.sign(option, secretKey, {
+        expiresIn: "15d",
+      });
 
-      return res.status(200);
+      return res.status(200).send({ success: true, newToken: signedToken });
     } catch (error) {
       console.error("Error decoding token:6", error.message);
       return res.status(500).json({ error: "Internal Server Error" });
