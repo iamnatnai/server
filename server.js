@@ -1794,7 +1794,12 @@ app.post("/notification", async (req, res) => {
   }
 });
 
-const generateCertificate = async (standard_id, product_id, farmer_id) => {
+const generateCertificate = async (
+  standard_id,
+  product_id,
+  farmer_id,
+  index = 0
+) => {
   return await usePooledConnectionAsync(async (db) => {
     try {
       let certId = await new Promise(async (resolve, reject) => {
@@ -1910,7 +1915,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         });
       }
       if (product_id) {
-        JSON.parse(certificate).forEach(async (cert) => {
+        JSON.parse(certificate).forEach(async (cert, index) => {
           let certAlreadyExist = await new Promise((resolve, reject) => {
             db.query(
               "SELECT * FROM certificate_link_farmer WHERE standard_id = ? and product_id = ? and farmer_id = ?",
@@ -1925,7 +1930,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             );
           });
           if (!certAlreadyExist) {
-            await generateCertificate(cert, product_id, farmerId);
+            await generateCertificate(cert, product_id, farmerId, index);
           }
         });
         const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
@@ -1972,8 +1977,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         }
       }
       const nextProductId = await getNextProductId();
-      JSON.parse(certificate).forEach(async (cert) => {
-        await generateCertificate(cert, nextProductId, farmerId);
+      JSON.parse(certificate).forEach(async (cert, index) => {
+        await generateCertificate(cert, nextProductId, farmerId, index);
       });
       const query = `
         INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
