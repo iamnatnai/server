@@ -5498,80 +5498,16 @@ app.get("/certiconver/:product_id", async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
       // 1. Retrieve certificates from the products table using product_id
-      const certificateQuery = `
-        SELECT certificate
-        FROM products
-        WHERE product_id = ?;
-      `;
-
-      const certificateResults = await new Promise((resolve, reject) => {
-        db.query(certificateQuery, [product_id], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      });
-
-      const certificates = certificateResults.map((row) => row.certificate);
-      const certificatesArray = certificates.map((cert) => JSON.parse(cert));
-
-      const standardNames = [];
-
-      for (let i = 0; i < certificatesArray.length; i++) {
-        const certificateValues = certificatesArray[i];
-
-        for (let j = 0; j < certificateValues.length; j++) {
-          const certificateValue = certificateValues[j];
-
-          // 2. Retrieve standard_ids from the certificate_link_farmer table using the certificate obtained in step 1
-          const standardIdsQuery = `
-    SELECT clf.standard_id
-    FROM certificate_link_farmer clf
-    WHERE clf.id = ? AND clf.status = 'complete';
-`;
-
-          const standardIdsResults = await new Promise((resolve, reject) => {
-            db.query(standardIdsQuery, certificateValue, (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(result);
-              }
-            });
-          });
-
-          // Extract standardIds from the results
-          const standardIds = standardIdsResults.map((row) => row.standard_id);
-
-          if (standardIds.length === 0) {
-            res.status(200).json({ success: true, standardNames: [] });
-            return;
-          }
-
-          const standardNamesQuery = `
-    SELECT sp.standard_name
-    FROM standard_products sp
-    WHERE sp.standard_id IN (${standardIds.map((id) => `'${id}'`).join(",")});
-`;
-
-          const standardNamesResults = await new Promise((resolve, reject) => {
-            db.query(standardNamesQuery, (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(result);
-              }
-            });
-          });
-          standardNames.push(
-            standardNamesResults.map((row) => row.standard_name)
-          );
+      let query = `SELECT sp.standard_name from certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE clf.product_id = ? and clf.status = 'complete'`;
+      db.query(query, [product_id], (err, result) => {
+        if (err) {
+          console.error(err);
+          return res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
         }
-      }
-
-      res.status(200).json({ success: true, standardNames });
+        res.status(200).json({ success: true, standardNames: result });
+      });
     });
   } catch (error) {
     console.error("Error:", error);
