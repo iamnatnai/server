@@ -1910,7 +1910,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         });
       }
       if (product_id) {
-        certificate.forEach(async (cert) => {
+        JSON.parse(certificate).forEach(async (cert) => {
           let certAlreadyExist = await new Promise((resolve, reject) => {
             db.query(
               "SELECT * FROM certificate_link_farmer WHERE standard_id = ? and product_id = ? and farmer_id = ?",
@@ -1972,7 +1972,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         }
       }
       const nextProductId = await getNextProductId();
-      certificate.forEach(async (cert) => {
+      JSON.parse(certificate).forEach(async (cert) => {
         let certAlreadyExist = await new Promise((resolve, reject) => {
           db.query(
             "SELECT * FROM certificate_link_farmer WHERE standard_id = ? and product_id = ? and farmer_id = ?",
