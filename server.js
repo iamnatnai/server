@@ -6042,7 +6042,8 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
 
 app.get("/festival", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
-    const query = "SELECT f.* FROM festivals f WHERE available = 1;";
+    const query =
+      "SELECT DISTINCT *,CASE WHEN start_date < CURDATE() THEN 0 ELSE 1 END AS past_or_future ,CASE WHEN CURDATE() <= end_date and CURDATE() >= start_date THEN 1 ELSE 0 END AS is_between FROM festivals where available = 1 ORDER BY is_between DESC, past_or_future DESC , CASE WHEN past_or_future = 1 THEN start_date END ASC, CASE WHEN past_or_future = 0 THEN start_date END DESC;";
 
     db.query(query, (err, results) => {
       if (err) {
