@@ -5749,9 +5749,18 @@ const notifyFarmerNewFestival = async (id, festname) => {
 };
 
 const createMysqlDate = (date) => {
-  return new Date(date).toLocaleString("en-GB", {
-    timeZone: "Asia/Bangkok",
-  });
+  var d = new Date(date);
+  dformat =
+    [(d.getMonth() + 1).padLeft(), d.getDate().padLeft(), d.getFullYear()].join(
+      "-"
+    ) +
+    " " +
+    [
+      d.getHours().padLeft(),
+      d.getMinutes().padLeft(),
+      d.getSeconds().padLeft(),
+    ].join(":");
+  return dformat;
 };
 app.post("/festival", checkAdmin, async (req, res) => {
   try {
@@ -5867,14 +5876,14 @@ app.post("/festival", checkAdmin, async (req, res) => {
       db.query(query, values, async (err, results) => {
         if (err) {
           console.error("Error inserting festival data:", err);
-          return res.status(500).json({
+          res.status(500).json({
             error: "Error inserting festival data",
             msg: JSON.stringify(err),
           });
         }
 
         console.log("Festival data inserted successfully");
-        res.status(200).json({ id: nextId });
+
         for (let index = 0; index < farmerFest.length; index++) {
           const farmerFestival = farmerFest[index];
           let FESTY = await notifyFarmerNewFestival(
@@ -5883,11 +5892,14 @@ app.post("/festival", checkAdmin, async (req, res) => {
           );
           console.log("HI1234", FESTY);
         }
+        return res.status(200).json({ id: nextId });
       });
     });
   } catch (error) {
     console.error("Error inserting festival data:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res
+      .status(500)
+      .json({ error: "Internal server error", msg: JSON.stringify(error) });
   }
 });
 
