@@ -2511,6 +2511,13 @@ app.post(
           amphure: originalAmphure,
         };
       }
+
+      if (role === "members") {
+        option = {
+          ...option,
+          activate: decoded.activate,
+        };
+      }
       let signedToken = jwt.sign(option, secretKey, {
         expiresIn: "15d",
       });
