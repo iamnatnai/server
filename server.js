@@ -2079,7 +2079,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
         } else {
           let validCert = await new Promise((resolve, reject) => {
             db.query(
-              `SELECT standard_id, status, standard_name FROM certificate_link_farmer WHERE product_id = ? and farmer_id = ?`,
+              `SELECT clf.standard_id, clf.status, sp.standard_name FROM certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE product_id = ? and farmer_id = ? and clf.status not like "reject"`,
               [product_id, result[0].farmer_id],
               (err, result) => {
                 if (err) {
