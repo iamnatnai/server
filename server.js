@@ -5587,7 +5587,7 @@ app.get("/getadmincertificate", checkAdminTambon, async (req, res) => {
           : "";
 
       db.query(
-        `SELECT cf.*, f.firstname, f.lastname, s.standard_name FROM certificate_link_farmer cf join farmers f on f.id = cf.farmer_id join standard_products s on s.standard_id = cf.standard_id where cf.status = "pending" ${tambonamphure}`,
+        `SELECT cf.*, p.product_name, p.product_id, f.farmerstorename ,f.firstname, f.lastname, s.standard_name FROM certificate_link_farmer cf join farmers f on f.id = cf.farmer_id join standard_products s on s.standard_id = cf.standard_id join products p on p.product_id = cf.product_id where cf.status = "pending" ${tambonamphure}`,
         (err, result) => {
           if (err) {
             console.error(err);
