@@ -2387,7 +2387,7 @@ app.post(
         ID: decoded.ID,
         role: decoded.role,
       };
-      if (role === "tamboons") {
+      if (role === "tambons") {
         option = {
           ...option,
           amphure: amphure,
