@@ -443,26 +443,7 @@ async function checkIfExistsInAllTables(column, value) {
 
 async function getNextCertId(index = 0) {
   return await usePooledConnectionAsync(async (db) => {
-    return await new Promise(async (resolve, reject) => {
-      db.query(
-        "SELECT MAX(id) as maxId FROM certificate_link_farmer",
-        (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            let nextId = "CERT000001";
-            if (result[0].maxId) {
-              const currentId = result[0].maxId;
-              const numericPart =
-                parseInt(currentId.substring(4), 10) + 1 + index;
-
-              nextId = "CERT" + numericPart.toString().padStart(6, "0");
-            }
-            resolve(nextId);
-          }
-        }
-      );
-    });
+    return;
   });
 }
 
@@ -1813,6 +1794,51 @@ app.post("/notification", async (req, res) => {
   }
 });
 
+const generateCertificate = async (standard_id, product_id, farmer_id) => {
+  return await usePooledConnectionAsync(async (db) => {
+    try {
+      let certId = await new Promise(async (resolve, reject) => {
+        db.query(
+          "SELECT MAX(id) as maxId FROM certificate_link_farmer",
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let nextId = "CERT000001";
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                const numericPart =
+                  parseInt(currentId.substring(4), 10) + 1 + index;
+
+                nextId = "CERT" + numericPart.toString().padStart(6, "0");
+              }
+              resolve(nextId);
+            }
+          }
+        );
+      });
+
+      let query = `INSERT INTO certificate_link_farmer (id, standard_id, product_id, farmer_id, status)
+        VALUES (?, ?, ?, ?, "pending")
+      `;
+      db.query(
+        query,
+        [certId, standard_id, product_id, farmer_id],
+        (err, result) => {
+          if (err) {
+            throw err;
+          } else {
+            console.log("Certificate added successfully");
+          }
+        }
+      );
+      return certId;
+    } catch (error) {
+      throw error;
+    }
+  });
+};
+
 app.post("/addproduct", checkFarmer, async (req, res) => {
   let {
     product_id,
@@ -1876,6 +1902,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           }
         );
       });
+
       if (!havePaymentOrQrcode.payment && !havePaymentOrQrcode.qrcode) {
         return res.status(400).send({
           success: false,
@@ -1883,6 +1910,24 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         });
       }
       if (product_id) {
+        certificate.forEach(async (cert) => {
+          let certAlreadyExist = await new Promise((resolve, reject) => {
+            db.query(
+              "SELECT * FROM certificate_link_farmer WHERE standard_id = ? and product_id = ? and farmer_id = ?",
+              [cert, product_id, farmerId],
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  resolve(result.length > 0);
+                }
+              }
+            );
+          });
+          if (!certAlreadyExist) {
+            await generateCertificate(cert, product_id, farmerId);
+          }
+        });
         const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
          product_description = ?,category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?,
           additional_image = ?, selectedType = ?, certificate = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
@@ -1927,7 +1972,24 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         }
       }
       const nextProductId = await getNextProductId();
-
+      certificate.forEach(async (cert) => {
+        let certAlreadyExist = await new Promise((resolve, reject) => {
+          db.query(
+            "SELECT * FROM certificate_link_farmer WHERE standard_id = ? and product_id = ? and farmer_id = ?",
+            [cert, product_id, farmerId],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result.length > 0);
+              }
+            }
+          );
+        });
+        if (!certAlreadyExist) {
+          await generateCertificate(cert, product_id, farmerId);
+        }
+      });
       const query = `
         INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
            product_name, product_description, category_id, stock, price, weight, unit, product_image, 
@@ -2013,16 +2075,33 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
     db.query(
       `SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng,
        f.facebooklink, f.lineid, f.lastLogin FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
-       WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1;`,
+       WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1 and f.available = 1;`,
       [product_id, shopname],
-      (err, result) => {
+      async (err, result) => {
         if (err) {
           console.log(err);
           res
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          res.header("charset", "utf-8").json(result[0]);
+          let validCert = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT standard_id FROM certificate_link_farmer WHERE product_id = ? and farmer_id = ? and status = "complete"`,
+              [product_id, result[0].farmer_id],
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  resolve(result);
+                }
+              }
+            );
+          });
+          result = {
+            ...result[0],
+            certificate: validCert.map((cert) => cert.standard_id),
+          };
+          res.header("charset", "utf-8").json(result);
         }
       }
     );
