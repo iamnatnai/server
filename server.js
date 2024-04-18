@@ -5734,13 +5734,7 @@ app.get("/repeatactivate", async (req, res) => {
 //   }
 // });
 
-const notifyFarmerNewFestival = async (
-  id,
-  festname,
-  product_name,
-  start_date,
-  end_date
-) => {
+const notifyFarmerNewFestival = async (id, festname) => {
   try {
     return await createNotification(
       null,
@@ -5754,6 +5748,11 @@ const notifyFarmerNewFestival = async (
   }
 };
 
+const createMysqlDate = (date) => {
+  return new Date(date).toLocaleString("en-GB", {
+    timeZone: "Asia/Bangkok",
+  });
+};
 app.post("/festival", checkAdmin, async (req, res) => {
   try {
     const {
@@ -5818,8 +5817,8 @@ app.post("/festival", checkAdmin, async (req, res) => {
         nextId,
         festname,
         JSON.stringify(keyword),
-        start_date,
-        end_date,
+        createMysqlDate(start_date),
+        createMysqlDate(end_date),
         color,
         everyYear,
       ];
@@ -5880,10 +5879,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
           const farmerFestival = farmerFest[index];
           let FESTY = await notifyFarmerNewFestival(
             farmerFestival.id,
-            festname,
-            farmerFest.product_name,
-            start_date,
-            end_date
+            festname
           );
           console.log("HI1234", FESTY);
         }
