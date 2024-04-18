@@ -1826,7 +1826,7 @@ const generateCertificate = async (standard_id, product_id, farmer_id) => {
         [certId, standard_id, product_id, farmer_id],
         (err, result) => {
           if (err) {
-            throw err;
+            reject(err);
           } else {
             console.log("Certificate added successfully");
           }
@@ -1973,22 +1973,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       }
       const nextProductId = await getNextProductId();
       JSON.parse(certificate).forEach(async (cert) => {
-        let certAlreadyExist = await new Promise((resolve, reject) => {
-          db.query(
-            "SELECT * FROM certificate_link_farmer WHERE standard_id = ? and product_id = ? and farmer_id = ?",
-            [cert, product_id, farmerId],
-            (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(result.length > 0);
-              }
-            }
-          );
-        });
-        if (!certAlreadyExist) {
-          await generateCertificate(cert, product_id, farmerId);
-        }
+        await generateCertificate(cert, nextProductId, farmerId);
       });
       const query = `
         INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
