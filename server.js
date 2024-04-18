@@ -1831,7 +1831,7 @@ const generateCertificate = async (
         [certId, standard_id, product_id, farmer_id],
         (err, result) => {
           if (err) {
-            reject(err);
+            console.error("Error adding certificate:", err);
           } else {
             console.log("Certificate added successfully");
           }
