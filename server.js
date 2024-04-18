@@ -5817,7 +5817,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
 
     await usePooledConnectionAsync(async (db) => {
       const query =
-        "INSERT INTO festivals (id, name, keywords, start_date, end_date, color,everyYear) VALUES (?, ?, ?, ?, ?, ?,?)";
+        "INSERT INTO festivals (id, name, keywords, start_date, end_date, color, everyYear) VALUES (?, ?, ?, ?, ?, ?, ?)";
       const values = [
         nextId,
         festname,
@@ -5825,7 +5825,7 @@ app.post("/festival", checkAdmin, async (req, res) => {
         createMysqlDate(start_date),
         createMysqlDate(end_date),
         color,
-        everyYear === "true" ? 1 : 0,
+        everyYear ? 1 : 0,
       ];
 
       let farmerFest = await new Promise(async (resolve, reject) => {
@@ -6091,7 +6091,7 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
             JSON.stringify(keyword),
             createMysqlDate(start_date),
             createMysqlDate(end_date),
-            everyYear === "true" ? 1 : 0,
+            everyYear ? 1 : 0,
             festivalId,
           ]
         : [
@@ -6100,7 +6100,7 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
             JSON.stringify(keyword),
             createMysqlDate(start_date),
             createMysqlDate(end_date),
-            everyYear === "true" ? 1 : 0,
+            everyYear ? 1 : 0,
           ];
 
       db.query(query, values, (err, results) => {
