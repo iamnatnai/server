@@ -383,9 +383,34 @@ app.get("/confirm/:email/:hashed", async (req, res) => {
             .status(500)
             .send({ success: false, error: "Internal Server Error" });
         } else {
-          res
-            .status(200)
-            .send({ success: true, message: "Email confirmed successfully" });
+          db.query(
+            "SELECT * FROM members WHERE email = ? and available = 1",
+            [email],
+            (err, result) => {
+              if (err) {
+                console.error("Error confirming email:", err);
+                res
+                  .status(500)
+                  .send({ success: false, error: "Internal Server Error" });
+              } else {
+                const token = jwt.sign(
+                  {
+                    sub: result[0].username,
+                    role: "members",
+                    activate: true,
+                  },
+                  secretKey
+                );
+                res
+                  .status(200)
+                  .send({
+                    success: true,
+                    newToken: token,
+                    message: "Email confirmed successfully",
+                  });
+              }
+            }
+          );
         }
       }
     );
@@ -1836,6 +1861,26 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               }
             }
           );
+        });
+      }
+
+      let havePaymentOrQrcode = await new Promise((resolve, reject) => {
+        db.query(
+          "SELECT payment, qrcode FROM farmers WHERE id = ? and available = 1",
+          [farmerId],
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0]);
+            }
+          }
+        );
+      });
+      if (!havePaymentOrQrcode.payment && !havePaymentOrQrcode.qrcode) {
+        return res.status(400).send({
+          success: false,
+          message: "กรุณาเพิ่มข้อมูลการชำระเงินหรือรูป Qr code ก่อนเพิ่มสินค้า",
         });
       }
       if (product_id) {
