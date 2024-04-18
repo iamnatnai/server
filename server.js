@@ -6422,13 +6422,13 @@ app.get("/membership", checkFarmer, async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
       const membershipQuery = `
-        SELECT os.member_id AS customer_id, COUNT(*) AS purchase_count,p.product_id,m.firstname,m.lastname,m.phone
+        SELECT os.member_id AS id, COUNT(*) AS purchase_count,p.product_id,m.firstname,m.lastname,m.phone,m.username
         FROM order_items ot
         JOIN order_sumary os ON ot.order_id = os.id
         JOIN products p ON ot.product_id = p.product_id
         JOIN members m ON os.member_id = m.id
         WHERE p.farmer_id = ?
-        GROUP BY ot.product_id;
+        GROUP BY os.member_id;
       `;
 
       const membershipResults = await new Promise((resolve, reject) => {
