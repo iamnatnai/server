@@ -359,7 +359,8 @@ app.post("/register", async (req, res) => {
 
 app.get("/confirm/:email/:hashed", async (req, res) => {
   const email = req.params.email;
-  const hashed = decodeURIComponent(req.params.hashed);
+  const hashed = decodeURIComponent(req.params.hashed).replace(/slash/g, "/");
+
   if (!email || !hashed) {
     return res
       .status(400)
@@ -401,13 +402,11 @@ app.get("/confirm/:email/:hashed", async (req, res) => {
                   },
                   secretKey
                 );
-                res
-                  .status(200)
-                  .send({
-                    success: true,
-                    newToken: token,
-                    message: "Email confirmed successfully",
-                  });
+                res.status(200).send({
+                  success: true,
+                  newToken: token,
+                  message: "Email confirmed successfully",
+                });
               }
             }
           );
@@ -1015,7 +1014,7 @@ async function insertMember(
     subject: "ยืนยันตัวตน",
     text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
     กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${encodeURIComponent(
-      await bcrypt.hash(email + secretKey, 10)
+      (await bcrypt.hash(email + secretKey, 10)).replace(/\//g, "slash")
     )}`,
   };
 
@@ -5637,7 +5636,7 @@ app.get("/repeatactivate", async (req, res) => {
       subject: "ยืนยันตัวตน",
       text: `สวัสดีคุณ ${firstname} ${lastname} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
       กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${encodeURIComponent(
-        await bcrypt.hash(email + secretKey, 10)
+        (await bcrypt.hash(email + secretKey, 10)).replace(/\//g, "slash")
       )}`,
     };
 
