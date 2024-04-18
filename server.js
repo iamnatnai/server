@@ -6413,4 +6413,40 @@ app.put("/campaign/:id/:product_id", checkFarmer, async (req, res) => {
   }
 });
 
+app.get("/membership", checkFarmer, async (req, res) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  const decoded = jwt.verify(token, secretKey);
+
+  try {
+    await usePooledConnectionAsync(async (db) => {
+      const membershipQuery = `
+        SELECT os.member_id AS customer_id, COUNT(*) AS purchase_count,p.product_id,m.firstname,m.lastname,m.phone
+        FROM order_items ot
+        JOIN order_sumary os ON ot.order_id = os.id
+        JOIN products p ON ot.product_id = p.product_id
+        JOIN members m ON os.member_id = m.id
+        WHERE p.farmer_id = ?
+        GROUP BY ot.product_id;
+      `;
+
+      const membershipResults = await new Promise((resolve, reject) => {
+        db.query(membershipQuery, [decoded.ID], (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+
+      res.status(200).json({ success: true, data: membershipResults });
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 app.listen(3006, () => console.log("Avalable 3006"));
