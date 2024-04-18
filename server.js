@@ -2073,7 +2073,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   const { product_id, shopname } = req.params;
   await usePooledConnectionAsync(async (db) => {
     db.query(
-      `SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng,
+      `SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng,f.username,f.phone,
        f.facebooklink, f.lineid, f.lastLogin FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
        WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1 and f.available = 1;`,
       [product_id, shopname],
