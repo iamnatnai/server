@@ -6422,7 +6422,7 @@ app.get("/membership", checkFarmer, async (req, res) => {
   try {
     await usePooledConnectionAsync(async (db) => {
       const membershipQuery = `
-        SELECT os.member_id AS id, COUNT(*) AS purchase_count,p.product_id,m.firstname,m.lastname,m.phone
+        SELECT os.member_id AS id, COUNT(*) AS purchase_count,p.product_id,m.firstname,m.lastname,m.phone,m.username
         FROM order_items ot
         JOIN order_sumary os ON ot.order_id = os.id
         JOIN products p ON ot.product_id = p.product_id
