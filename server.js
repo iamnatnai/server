@@ -63,6 +63,9 @@ async function usePooledConnectionAsync(actionAsync) {
   });
   try {
     return await actionAsync(connection);
+  } catch (error) {
+    console.error("Error in usePooledConnectionAsync:", error);
+    throw error;
   } finally {
     connection.release();
   }
@@ -1908,7 +1911,11 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         );
       });
 
-      if (!havePaymentOrQrcode.payment && !havePaymentOrQrcode.qrcode) {
+      if (
+        !havePaymentOrQrcode.payment &&
+        !havePaymentOrQrcode.qrcode &&
+        selectedType == "สินค้าจัดส่งพัสดุ"
+      ) {
         return res.status(400).send({
           success: false,
           message: "กรุณาเพิ่มข้อมูลการชำระเงินหรือรูป Qr code ก่อนเพิ่มสินค้า",
@@ -5849,9 +5856,10 @@ app.post("/festival", checkAdmin, async (req, res) => {
       db.query(queryFest, [value], async (err, result) => {
         if (err) {
           console.error("Error inserting festfarm:", err);
-          return res
-            .status(500)
-            .json({ error: "Error inserting festival fest" });
+          return res.status(500).json({
+            error: "Error inserting festival fest",
+            msg: JSON.stringify(err),
+          });
         }
         console.log(result);
         console.log("FestFarm inserted successfully");
@@ -5860,9 +5868,10 @@ app.post("/festival", checkAdmin, async (req, res) => {
       db.query(query, values, async (err, results) => {
         if (err) {
           console.error("Error inserting festival data:", err);
-          return res
-            .status(500)
-            .json({ error: "Error inserting festival data" });
+          return res.status(500).json({
+            error: "Error inserting festival data",
+            msg: JSON.stringify(err),
+          });
         }
 
         console.log("Festival data inserted successfully");
@@ -6140,9 +6149,10 @@ app.get("/festival/:id", async (req, res) => {
       db.query(query2, [festivalId], (err, results) => {
         if (err) {
           console.error("Error fetching festival data:", err);
-          return res
-            .status(500)
-            .json({ error: "Error fetching festival data" });
+          return res.status(500).json({
+            error: "Error fetching festival data",
+            msg: JSON.stringify(err),
+          });
         }
         return res.status(200).json(results);
       });
