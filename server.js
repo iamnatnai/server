@@ -2085,7 +2085,9 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
           });
           result = {
             ...result[0],
-            certificate: validCert.map((cert) => cert.standard_id),
+            certificate: JSON.stringify(
+              validCert.map((cert) => cert.standard_id)
+            ),
           };
           res.header("charset", "utf-8").json(result);
         }
