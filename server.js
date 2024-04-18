@@ -2304,6 +2304,7 @@ app.post(
     try {
       let decoded = jwt.verify(token, secretKey);
       const { username, role } = decoded;
+      let originalAmphure = amphure;
       if (role === "farmers") {
         if (!amphure || !lat || !lng) {
           return res
@@ -2311,7 +2312,7 @@ app.post(
             .json({ success: false, message: "Missing required fields2" });
         }
         // validate if lat lng is number
-        let originalAmphure = amphure;
+
         if (isNaN(lat) || isNaN(lng)) {
           return res
             .status(400)
