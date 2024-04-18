@@ -2085,13 +2085,11 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
                 if (err) {
                   throw err;
                 } else {
-                  console.log("hoo", result);
                   resolve(result);
                 }
               }
             );
           });
-          console.log(validCert);
           result = {
             ...result[0],
             certificate: JSON.stringify(validCert),
