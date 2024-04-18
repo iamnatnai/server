@@ -2090,12 +2090,13 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
               [product_id, result[0].farmer_id],
               (err, result) => {
                 if (err) {
-                  reject(err);
+                  throw err;
                 } else {
                   resolve(result);
                 }
               }
             );
+            resolve([]);
           });
           result = {
             ...result[0],
