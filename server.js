@@ -2311,6 +2311,7 @@ app.post(
             .json({ success: false, message: "Missing required fields2" });
         }
         // validate if lat lng is number
+        let originalAmphure = amphure;
         if (isNaN(lat) || isNaN(lng)) {
           return res
             .status(400)
@@ -2390,7 +2391,7 @@ app.post(
       if (role === "tambons") {
         option = {
           ...option,
-          amphure: amphure,
+          amphure: originalAmphure,
         };
       }
       let signedToken = jwt.sign(option, secretKey, {
