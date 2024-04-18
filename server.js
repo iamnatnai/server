@@ -1919,7 +1919,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           let certAlreadyExist = await new Promise((resolve, reject) => {
             db.query(
               "SELECT * FROM certificate_link_farmer WHERE standard_id = ? and product_id = ? and farmer_id = ?",
-              [cert, product_id, farmerId],
+              [cert.standard_id, product_id, farmerId],
               (err, result) => {
                 if (err) {
                   reject(err);
@@ -1930,12 +1930,17 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             );
           });
           if (!certAlreadyExist) {
-            await generateCertificate(cert, product_id, farmerId, index);
+            await generateCertificate(
+              cert.standard_id,
+              product_id,
+              farmerId,
+              index
+            );
           }
         });
         const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
          product_description = ?,category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?,
-          additional_image = ?, selectedType = ?, certificate = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
+          additional_image = ?, selectedType = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
         let result = await new Promise((resolve, reject) => {
           db.query(
             query,
@@ -1954,7 +1959,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               product_video,
               additional_images,
               selectedType,
-              certificate,
               period,
               forecastDate,
               product_id,
@@ -1983,8 +1987,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       const query = `
         INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
            product_name, product_description, category_id, stock, price, weight, unit, product_image, 
-           product_video, additional_image, selectedType, certificate, period, forecastDate, last_modified)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+           product_video, additional_image, selectedType, period, forecastDate, last_modified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
       `;
       db.query(
         query,
@@ -2005,7 +2009,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           product_video,
           additional_images,
           selectedType,
-          certificate,
           period,
           forecastDate,
         ],
@@ -2076,23 +2079,22 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
         } else {
           let validCert = await new Promise((resolve, reject) => {
             db.query(
-              `SELECT standard_id FROM certificate_link_farmer WHERE product_id = ? and farmer_id = ? and status = "complete"`,
+              `SELECT standard_id, status FROM certificate_link_farmer WHERE product_id = ? and farmer_id = ?`,
               [product_id, result[0].farmer_id],
               (err, result) => {
                 if (err) {
                   throw err;
                 } else {
+                  console.log("hoo", result);
                   resolve(result);
                 }
               }
             );
-            resolve([]);
           });
+          console.log(validCert);
           result = {
             ...result[0],
-            certificate: JSON.stringify(
-              validCert.map((cert) => cert.standard_id)
-            ),
+            certificate: JSON.stringify(validCert),
           };
           res.header("charset", "utf-8").json(result);
         }
@@ -5392,7 +5394,7 @@ app.get("/certifarmer/:username", async (req, res) => {
     const results = await usePooledConnectionAsync(async (db) => {
       let farmer_id = await new Promise((resolve, reject) => {
         db.query(
-          `SELECT id FROM farmers WHERE username = ?`,
+          `SELECT id FROM farmers WHERE username = ? and available = 1`,
           [username],
           (err, result) => {
             if (err) {
