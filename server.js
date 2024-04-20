@@ -6446,7 +6446,7 @@ app.get("/membership", checkFarmer, async (req, res) => {
         JOIN order_sumary os ON ot.order_id = os.id
         JOIN products p ON ot.product_id = p.product_id
         JOIN members m ON os.member_id = m.id
-        WHERE p.farmer_id = ?
+        WHERE p.farmer_id = ? AND os.status = "complete"
         GROUP BY os.member_id;
       `;
 
