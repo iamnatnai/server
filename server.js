@@ -5786,7 +5786,7 @@ const createMysqlDate = (date) => {
   console.log(date);
   const padL = (nr, len = 2, chr = `0`) => `${nr}`.padStart(2, chr);
   let dformat;
-  if (dt == null) {
+  if (date == null) {
     dformat = null;
     console.log("hi");
   } else {
