@@ -1963,6 +1963,10 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             );
           }
         });
+        console.log(
+          createMysqlDate(date_reserve_start),
+          createMysqlDate(date_reserve_end)
+        );
         const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
          product_description = ?,category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?,
           additional_image = ?, selectedType = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
@@ -1985,7 +1989,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               additional_images,
               selectedType,
               createMysqlDate(period),
-              forecastDate,
+              createMysqlDate(forecastDate),
               product_id,
               farmerId,
             ],
@@ -5766,16 +5770,36 @@ const notifyFarmerNewFestival = async (id, festname) => {
   }
 };
 
+// const createMysqlDate = (date) => {
+//   var dt = new Date(date);
+//   const padL = (nr, len = 2, chr = `0`) => `${nr}`.padStart(2, chr);
+
+//   let dformat = `${dt.getFullYear()}-${padL(dt.getMonth() + 1)}-${padL(
+//     dt.getDate()
+//   )} ${padL(dt.getHours())}:${padL(dt.getMinutes())}:${padL(dt.getSeconds())}`;
+
+//   return dformat;
+// };
+
 const createMysqlDate = (date) => {
   var dt = new Date(date);
+  console.log(date);
   const padL = (nr, len = 2, chr = `0`) => `${nr}`.padStart(2, chr);
-
-  let dformat = `${dt.getFullYear()}-${padL(dt.getMonth() + 1)}-${padL(
-    dt.getDate()
-  )} ${padL(dt.getHours())}:${padL(dt.getMinutes())}:${padL(dt.getSeconds())}`;
-
+  let dformat;
+  if (dt == null) {
+    dformat = null;
+    console.log("hi");
+  } else {
+    dformat = `${dt.getFullYear()}-${padL(dt.getMonth() + 1)}-${padL(
+      dt.getDate()
+    )} ${padL(dt.getHours())}:${padL(dt.getMinutes())}:${padL(
+      dt.getSeconds()
+    )}`;
+  }
+  console.log(dformat);
   return dformat;
 };
+
 app.post("/festival", checkAdmin, async (req, res) => {
   try {
     const {
