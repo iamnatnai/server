@@ -2001,8 +2001,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         query,
         [
           selectedStatus,
-          date_reserve_start,
-          date_reserve_end,
+          createMysqlDate(date_reserve_start),
+          createMysqlDate(date_reserve_end),
           nextProductId,
           farmerId,
           product_name,
@@ -2016,7 +2016,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           product_video,
           additional_images,
           selectedType,
-          period,
+          createMysqlDate(period),
           forecastDate,
         ],
         async (err, result) => {
