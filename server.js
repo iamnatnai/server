@@ -1323,7 +1323,7 @@ app.get("/categories", (req, res) => {
 app.get("/categoriesort", (req, res) => {
   usePooledConnectionAsync(async (db) => {
     db.query(
-      "SELECT c.*, COUNT(p.product_id) AS productcount FROM categories c LEFT JOIN products p ON p.category_id = c.category_id WHERE c.available = 1 AND p.available = 1 GROUP BY c.category_id",
+      "SELECT c.* FROM categories c LEFT JOIN products p ON p.category_id = c.category_id WHERE c.available = 1 AND p.available = 1 GROUP BY c.category_id",
       (err, result) => {
         if (err) {
           console.log(err);
