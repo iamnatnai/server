@@ -1323,7 +1323,7 @@ app.get("/categories", (req, res) => {
 app.get("/categoriesort", (req, res) => {
   usePooledConnectionAsync(async (db) => {
     db.query(
-      "SELECT c.* FROM categories c LEFT JOIN products p ON p.category_id = c.category_id WHERE c.available = 1 AND p.available = 1 GROUP BY c.category_id",
+      "SELECT c.*, COUNT(p.product_id) AS productcount FROM categories c LEFT JOIN products p ON p.category_id = c.category_id WHERE c.available = 1 AND p.available = 1 GROUP BY c.category_id ORDER BY CASE WHEN c.category_name = 'อื่นๆ' THEN 1 ELSE 0 END, c.category_name",
       (err, result) => {
         if (err) {
           console.log(err);
