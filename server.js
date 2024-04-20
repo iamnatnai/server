@@ -1320,6 +1320,24 @@ app.get("/categories", (req, res) => {
   });
 });
 
+app.get("/categoriesort", (req, res) => {
+  usePooledConnectionAsync(async (db) => {
+    db.query(
+      "SELECT c.*, COUNT(p.product_id) AS productcount FROM categories c LEFT JOIN products p ON p.category_id = c.category_id WHERE c.available = 1 AND p.available = 1 GROUP BY c.category_id",
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          res
+            .status(500)
+            .send({ exist: false, error: "Internal Server Error" });
+        } else {
+          res.json(result);
+        }
+      }
+    );
+  });
+});
+
 app.delete("/categories", checkAdmin, async (req, res) => {
   const { category_id } = req.body;
   if (!category_id) {
@@ -5740,7 +5758,7 @@ const notifyFarmerNewFestival = async (id, festname) => {
       null,
       id,
       `คุณได้รับคำเชิญให้เข้าร่วมงานเทศกาล "${festname}"`,
-      "hi",
+      "festival",
       "แจ้งเตือนเข้าร่วม!"
     );
   } catch (error) {
@@ -5950,7 +5968,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
         INNER JOIN
           farmers f ON f.id = p.farmer_id
         WHERE 
-        f.id = ? AND ff.is_accept = 'waiting';
+        f.id = ? AND ff.is_accept = 'waiting' AND available = 1;
       `;
 
       const festivalsResults = await new Promise((resolve, reject) => {
