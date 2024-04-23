@@ -1014,7 +1014,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
         INNER JOIN
           farmers f ON f.id = p.farmer_id
         WHERE 
-        f.id = ? AND ff.is_accept = 'waiting' AND f.available = 1 AND ft.available = 1;
+        f.id = ? AND ff.is_accept = 'waiting' AND f.available = 1 AND ft.available = 1 and p.available = 1;
       `;
 
       const festivalsResults = await new Promise((resolve, reject) => {
@@ -4801,7 +4801,6 @@ app.get("/imagestore", async (req, res) => {
   }
   try {
     const decoded = jwt.verify(token, secretKey);
-
     const imageQuery = "SELECT imagepath FROM image WHERE farmer_id = ?";
     const images = await usePooledConnectionAsync(async (db) => {
       return await new Promise(async (resolve, reject) => {
