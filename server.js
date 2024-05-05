@@ -3924,6 +3924,20 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             }
           );
         });
+        const editProductId = await getEDITIdP();
+        const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"edit", NOW())`;
+        const editValues = [editProductId, product_id, decoded.ID];
+        await new Promise((resolve, reject) => {
+          db.query(editQuery, editValues, (editErr, editResult) => {
+            if (editErr) {
+              console.error("Error inserting edit product log:", editErr);
+              reject(editErr);
+            } else {
+              console.log("Edit product log inserted successfully");
+              resolve(editResult);
+            }
+          });
+        });
         if (result.affectedRows > 0) {
           return res
             .status(200)
@@ -4002,7 +4016,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         }
       );
       const editProductId = await getEDITIdP();
-      const editQuery = `INSERT INTO edit_product (id, product_id, officer_id, edit_date) VALUES (?, ?, ?, NOW())`;
+      const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"add", NOW())`;
       const editValues = [editProductId, nextProductId, decoded.ID];
       await new Promise((resolve, reject) => {
         db.query(editQuery, editValues, (editErr, editResult) => {
@@ -4661,6 +4675,30 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
     : null;
+
+  async function getEDITIdP() {
+    return await usePooledConnectionAsync(async (db) => {
+      return await new Promise(async (resolve, reject) => {
+        db.query(
+          "SELECT count(*) as maxId FROM edit_product",
+          (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              let nextedit = "EDT0000001";
+              if (result[0].maxId) {
+                const currentId = result[0].maxId;
+                const numericPart = parseInt(currentId) + 1;
+                nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                console.log(numericPart);
+              }
+              resolve(nextedit);
+            }
+          }
+        );
+      });
+    });
+  }
   await usePooledConnectionAsync(async (db) => {
     //soft delete
     const decoded = jwt.verify(token, secretKey);
@@ -4682,6 +4720,25 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
             }
           }
         );
+      });
+      const editProductId = await getEDITIdP();
+      const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"delete", NOW())`;
+      const editValues = [editProductId, id, farmerId];
+      db.query(editQuery, editValues, (editErr, editResult) => {
+        if (editErr) {
+          console.error("Error inserting edit product log:", editErr);
+          res
+            .status(500)
+            .send({ exist: false, error: JSON.stringify(editErr) });
+        } else {
+          console.log("Edit product log inserted successfully");
+          res.json({
+            success: true,
+            id,
+            farmerId,
+            result: JSON.stringify(result),
+          });
+        }
       });
     }
     db.query(
