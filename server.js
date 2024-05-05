@@ -20,30 +20,6 @@ const momentz = require("moment-timezone");
 const { log, error } = require("console");
 const { decode } = require("punycode");
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = "./uploads";
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    try {
-      const originalname = file.originalname.split(".")[0];
-      const extension = file.originalname.split(".")[1];
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
-    } catch (error) {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      cb(null, `${uniqueSuffix}.jpg`);
-      console.error("Error uploading file:", error);
-    }
-  },
-});
-
-const upload = multer({ storage: storage });
-
 require("dotenv").config();
 //ดึงตัวแปรมาใช้
 
@@ -73,24 +49,28 @@ var db_config = {
     return next();
   },
 };
-pool = mysql.createPool(db_config);
-pool.query = util.promisify(pool.query);
+pool = mysql.createPool(db_config); //สร้างบ่อ
+//สร้างเส้นทางทุกครั้งเมื่อเรียกใช้
 async function usePooledConnectionAsync(actionAsync) {
+  //สร้างเส้นทาง
   const connection = await new Promise((resolve, reject) => {
     pool.getConnection((ex, connection) => {
       if (ex) {
         reject(ex);
       } else {
+        //ส่งออกข้อมูลผ่านเส้น
         resolve(connection);
       }
     });
   });
   try {
+    //ส่งข้อมูลอันนี้ไปใช้
     return await actionAsync(connection);
   } catch (error) {
     console.error("Error in usePooledConnectionAsync:", error);
     throw error;
   } finally {
+    //ทำลสยเส้นทางข้อมูล
     connection.release();
   }
 }
@@ -141,6 +121,30 @@ const createNotification = async (
     }
   });
 };
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = "./uploads";
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    try {
+      const originalname = file.originalname.split(".")[0];
+      const extension = file.originalname.split(".")[1];
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, `${originalname}-${uniqueSuffix}.${extension}`);
+    } catch (error) {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, `${uniqueSuffix}.jpg`);
+      console.error("Error uploading file:", error);
+    }
+  },
+});
+
+const upload = multer({ storage: storage });
 
 const checkAdmin = (req, res, next) => {
   const token = req.headers.authorization
@@ -446,16 +450,14 @@ app.post("/checkinguser", async (req, res) => {
   const username = req.body.username;
   await usePooledConnectionAsync(async (db) => {
     db.query(
+      //แก้ไข office
       `
-      SELECT 'admins' AS role, username FROM admins WHERE username = ? and available = 1
+      
+      SELECT role, username FROM officer_user WHERE username = ? and available = 1
       UNION
       SELECT 'farmers' AS role, username FROM farmers WHERE username = ? and available = 1
       UNION
       SELECT 'members' AS role, username FROM members WHERE username = ? and available = 1
-      UNION
-      SELECT 'providers' AS role, username FROM providers WHERE username = ? and available = 1
-      UNION
-      SELECT 'tambon' AS role, username FROM tambons WHERE username = ? and available = 1
       `,
       [username, username, username, username, username],
       (err, result) => {
@@ -481,16 +483,13 @@ app.post("/checkingemail", (req, res) => {
   const email = req.body.email;
   usePooledConnectionAsync(async (db) => {
     db.query(
+      //แก้ไข office
       `
-      SELECT 'admins' AS role, email FROM admins WHERE email = ? and available = 1
+      SELECT role, email FROM officer_user  WHERE email = ? and available = 1
       UNION
       SELECT 'farmers' AS role, email FROM farmers WHERE email = ? and available = 1
       UNION
       SELECT 'members' AS role, email FROM members WHERE email = ? and available = 1
-      UNION
-      SELECT 'providers' AS role, email FROM providers WHERE email = ? and available = 1
-      UNION
-      SELECT 'tambon' AS role, email FROM tambons WHERE email = ? and available = 1
       `,
       [email, email, email, email, email],
       (err, result) => {
@@ -539,7 +538,13 @@ app.post("/login", async (req, res) => {
     }
     usePooledConnectionAsync(async (db) => {
       db.query(
-        `UPDATE ${user.role} SET lastLogin = NOW() WHERE username = ? and available = 1`,
+        `UPDATE ${
+          user.role == "admins" ||
+          user.role == "providers" ||
+          user.role == "tambons"
+            ? "officer_user"
+            : user.role
+        } SET lastLogin = NOW() WHERE username = ? and available = 1`,
         [username],
         (err, result) => {
           if (err) {
@@ -573,7 +578,8 @@ app.post("/login", async (req, res) => {
       let tambonamphure = await usePooledConnectionAsync(async (db) => {
         return new Promise((resolve, reject) => {
           db.query(
-            "SELECT amphure FROM tambons WHERE username = ? and available = 1",
+            //แก้ไข office
+            "SELECT amphure FROM officer_user WHERE username = ? and available = 1",
             [user.uze_name],
             (err, result) => {
               if (err) {
@@ -1199,7 +1205,10 @@ app.post("/festival", checkAdmin, async (req, res) => {
       color = "#50b500",
       everyYear,
     } = req.body;
-
+    let token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    let decoded = jwt.verify(token, secretKey);
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
         return await new Promise(async (resolve, reject) => {
@@ -1222,29 +1231,31 @@ app.post("/festival", checkAdmin, async (req, res) => {
     }
     const nextId = await getNextId();
 
-    // async function getNextFarmfestId(index) {
-    //   return await usePooledConnectionAsync(async (db) => {
-    //     return await new Promise(async (resolve, reject) => {
-    //       db.query("SELECT MAX(id) as maxId FROM farmerfest", (err, result) => {
-    //         if (err) {
-    //           reject(err);
-    //         } else {
-    //           let nextfarmfestId = "FMF0001";
-    //           if (result[0].maxId) {
-    //             const currentId = result[0].maxId;
-    //             const numericPart =
-    //               parseInt(currentId.substring(3), 10) + 1 + index;
-    //             console.log("HIIII" + numericPart);
-    //             nextfarmfestId =
-    //               "FMF" + numericPart.toString().padStart(4, "0");
-    //           }
-    //           console.log(nextfarmfestId);
-    //           resolve(nextfarmfestId);
-    //         }
-    //       });
-    //     });
-    //   });
-    // }
+    async function getEDITId() {
+      return await usePooledConnectionAsync(async (db) => {
+        return await new Promise(async (resolve, reject) => {
+          db.query(
+            "SELECT MAX(id) as maxId FROM edit_festival",
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                let nextedit = "EDFT0001";
+                if (result[0].maxId) {
+                  const currentId = result[0].maxId;
+                  const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+                  nextedit = "EDFT" + numericPart.toString().padStart(4, "0");
+                }
+                resolve(nextedit);
+              }
+            }
+          );
+        });
+      });
+    }
+
+    const nextedit = await getEDITId();
 
     await usePooledConnectionAsync(async (db) => {
       const query =
@@ -1325,6 +1336,16 @@ app.post("/festival", checkAdmin, async (req, res) => {
         return res.status(200).json({ id: nextId });
       });
     });
+    await usePooledConnectionAsync(async (db) => {
+      const editQuery = `INSERT INTO edit_festival (id,festival_id, officer_id,method, edit_date) VALUES (?, ?,?,"add", NOW())`;
+      const editValues = [nextedit, nextId, decoded.ID];
+      db.query(editQuery, editValues, (err, editResult) => {
+        if (err) {
+          console.error("Error inserting edit log:", err);
+        }
+        console.log("Edit log inserted successfully");
+      });
+    });
   } catch (error) {
     console.error("Error inserting festival data:", error);
     return res
@@ -1333,7 +1354,6 @@ app.post("/festival", checkAdmin, async (req, res) => {
   }
 });
 
-// Function to check if a festival with the given ID exists
 async function checkFestivalExists(id) {
   return await usePooledConnectionAsync(async (db) => {
     return await new Promise(async (resolve, reject) => {
@@ -1356,6 +1376,10 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
     const { festname, keyword, start_date, end_date, everyYear } = req.body;
 
     const festivalExists = await checkFestivalExists(festivalId);
+    let token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    let decoded = jwt.verify(token, secretKey);
     if (!festivalExists) {
       return res.status(404).json({ error: "Festival not found" });
     }
@@ -1397,6 +1421,43 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
           .status(200)
           .json({ message: "Festival data updated/inserted successfully" });
       });
+
+      async function getEDITId() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT MAX(id) as maxId FROM edit_festival",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDFT0001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart =
+                      parseInt(currentId.substring(4), 10) + 1;
+
+                    nextedit = "EDFT" + numericPart.toString().padStart(4, "0");
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
+      }
+      const nextedit = await getEDITId();
+
+      await usePooledConnectionAsync(async (db) => {
+        const editQuery = `INSERT INTO edit_festival (id,festival_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW())`;
+        const editValues = [nextedit, festivalId, decoded.ID];
+        db.query(editQuery, editValues, (err, editResult) => {
+          if (err) {
+            console.error("Error inserting edit log:", err);
+          }
+          console.log("Edit log inserted successfully");
+        });
+      });
     });
   } catch (error) {
     console.error("Error updating/inserting festival data:", error);
@@ -1409,7 +1470,10 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
 app.delete("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
-
+    let token = req.headers.authorization
+      ? req.headers.authorization.split(" ")[1]
+      : null;
+    let decoded = jwt.verify(token, secretKey);
     const festivalExists = await checkFestivalExists(festivalId);
     if (!festivalExists) {
       return res.status(404).json({ error: "Festival not found" });
@@ -1428,6 +1492,41 @@ app.delete("/festival/:id", checkAdmin, async (req, res) => {
         res
           .status(200)
           .json({ message: "Festival deleted successfully", festivalId });
+      });
+    });
+    async function getEDITId() {
+      return await usePooledConnectionAsync(async (db) => {
+        return await new Promise(async (resolve, reject) => {
+          db.query(
+            "SELECT MAX(id) as maxId FROM edit_festival",
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                let nextedit = "EDFT0001";
+                if (result[0].maxId) {
+                  const currentId = result[0].maxId;
+                  const numericPart = parseInt(currentId.substring(4), 10) + 1;
+
+                  nextedit = "EDFT" + numericPart.toString().padStart(4, "0");
+                }
+                resolve(nextedit);
+              }
+            }
+          );
+        });
+      });
+    }
+    const nextedit = await getEDITId();
+
+    await usePooledConnectionAsync(async (db) => {
+      const editQuery = `INSERT INTO edit_festival (id,festival_id, officer_id,method, edit_date) VALUES (?, ?,?,"delete", NOW())`;
+      const editValues = [nextedit, festivalId, decoded.ID];
+      db.query(editQuery, editValues, (err, editResult) => {
+        if (err) {
+          console.error("Error inserting edit log:", err);
+        }
+        console.log("Edit log inserted successfully");
       });
     });
   } catch (error) {
@@ -1867,16 +1966,20 @@ app.get("/users/:roleParams", async (req, res) => {
 
     await usePooledConnectionAsync(async (db) => {
       if (roleParams === "admins") {
-        db.query("SELECT * FROM admins WHERE available = 1", (err, result) => {
-          if (err) {
-            console.log(err);
-            res
-              .status(500)
-              .send({ exist: false, error: "Internal Server Error" });
-          } else {
-            res.json(result);
+        //แก้ไขofficer
+        db.query(
+          `SELECT * FROM officer_user  WHERE role = "admins" and available = 1`,
+          (err, result) => {
+            if (err) {
+              console.log(err);
+              res
+                .status(500)
+                .send({ exist: false, error: "Internal Server Error" });
+            } else {
+              res.json(result);
+            }
           }
-        });
+        );
       } else if (roleParams === "farmers") {
         db.query(
           `SELECT * FROM farmers WHERE available = 1 ${
@@ -1983,7 +2086,8 @@ app.get("/users/:roleParams", async (req, res) => {
         });
       } else if (roleParams === "providers") {
         db.query(
-          "SELECT * FROM providers WHERE available = 1",
+          //แก้ไขoffice
+          `SELECT * FROM officer_user  WHERE role = "providers" AND available = 1`,
           (err, result) => {
             if (err) {
               console.log(err);
@@ -1996,16 +2100,20 @@ app.get("/users/:roleParams", async (req, res) => {
           }
         );
       } else if (roleParams === "tambons") {
-        db.query("SELECT * FROM tambons WHERE available = 1", (err, result) => {
-          if (err) {
-            console.log(err);
-            res
-              .status(500)
-              .send({ exist: false, error: "Internal Server Error" });
-          } else {
-            res.json(result);
+        db.query(
+          //แก้ไข office
+          `SELECT * FROM officer_user  WHERE role = "tambons" AND available = 1`,
+          (err, result) => {
+            if (err) {
+              console.log(err);
+              res
+                .status(500)
+                .send({ exist: false, error: "Internal Server Error" });
+            } else {
+              res.json(result);
+            }
           }
-        });
+        );
       }
     });
   } catch (error) {
@@ -2076,6 +2184,7 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
 app.get("/role", async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     db.query(
+      //เว้นไว้ก่อน
       "SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'เกษตรจังหวัด' AS role_name FROM providers UNION SELECT 'tambons' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;",
       (err, result) => {
         if (err) {
@@ -2481,7 +2590,7 @@ async function insertTambon(
 ) {
   return await usePooledConnectionAsync(async (db) => {
     await new Promise((resolve, reject) => {
-      const query = `INSERT INTO tambons 
+      const query = `INSERT INTO officer_user  
       (id, username, email, password, firstname, lastname, phone, role, amphure, createAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
       db.query(
@@ -2652,22 +2761,28 @@ async function getNextUserId(role) {
   }
   return await usePooledConnectionAsync(async (db) => {
     return new Promise(async (resolve, reject) => {
-      db.query(`SELECT MAX(id) as maxId FROM ${role}`, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          let nextUserId = `${rolePrefix}000001`;
-          if (result[0].maxId) {
-            const currentId = result[0].maxId;
-            const numericPart =
-              parseInt(currentId.substring(rolePrefix.length), 10) + 1;
-            nextUserId = `${rolePrefix}${numericPart
-              .toString()
-              .padStart(6, "0")}`;
+      db.query(
+        `SELECT count(*) as maxId FROM ${
+          role == "admins" || role == "providers" || role == "tambons"
+            ? "officer_user"
+            : role
+        }`,
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            let nextUserId = `${rolePrefix}000001`;
+            if (result[0].maxId) {
+              const currentId = result[0].maxId;
+              const numericPart = parseInt(currentId) + 1;
+              nextUserId = `${rolePrefix}${numericPart
+                .toString()
+                .padStart(6, "0")}`;
+            }
+            resolve(nextUserId);
           }
-          resolve(nextUserId);
         }
-      });
+      );
     });
   });
 }
@@ -2751,7 +2866,7 @@ async function insertUser(
   return await usePooledConnectionAsync(async (db) => {
     return new Promise((resolve, reject) => {
       db.query(
-        `INSERT INTO ${role} 
+        `INSERT INTO officer_user  
         (id,username,email,password,firstname,lastName,phone,role) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [memberId, username, email, password, firstName, lastName, tel, role],
@@ -2891,13 +3006,15 @@ app.post(
         amphure = amphure ? `,amphure = "${amphure}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        query = `UPDATE ${role} SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} WHERE username = "${username}"`;
+        query = `UPDATE officer_user SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} WHERE username = "${username}"`;
+        //แก้ไข office
       } else {
         email = email ? `email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
-        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
+        query = `UPDATE officer_user SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
+        //แก้ไข office
       }
       await usePooledConnectionAsync(async (db) => {
         db.query(query, (err, result) => {
@@ -3078,13 +3195,10 @@ async function checkIfEmailAndNameMatch(email) {
         const query = `
     SELECT email FROM members
     UNION
-    SELECT email FROM admins
-    UNION
     SELECT email FROM farmers
     UNION
-    SELECT email FROM providers
-    UNION
-    SELECT email FROM tambons;
+    SELECT email FROM Officer_id
+    ;
     `;
         db.query(query, [email], (err, result) => {
           if (err) {
@@ -4162,7 +4276,6 @@ app.post("/farmerorder", async (req, res) => {
       }
 
       if (status === "complete") {
-        // Update comment to null for complete status
         await addComment(order_id, null);
       } else if (status === "reject") {
         const { comment } = req.body;
@@ -4175,7 +4288,6 @@ app.post("/farmerorder", async (req, res) => {
         await addComment(order_id, comment);
       }
 
-      // Update order status in the database
       const updateOrderStatusQuery =
         "UPDATE order_sumary SET status = ? WHERE id = ?";
       await new Promise((resolve, reject) => {
@@ -5346,20 +5458,15 @@ async function getUserByUsername(username) {
   return usePooledConnectionAsync(async (db) => {
     return await new Promise((resolve, reject) => {
       db.query(
+        //แก้ไข office
         `
-    SELECT 'admins' AS role, id AS user_id, username AS uze_name, password AS pazz FROM admins 
+    SELECT role, id AS user_id, username AS uze_name, password AS pazz FROM officer_user 
     WHERE username = ? and available = 1
     UNION
     SELECT 'farmers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM farmers 
     WHERE username = ? and available = 1
     UNION
     SELECT 'members' AS role, id AS user_id, username AS uze_name, password AS pazz FROM members 
-    WHERE username = ? and available = 1
-    UNION
-    SELECT 'providers' AS role, id AS user_id, username AS uze_name, password AS pazz FROM providers 
-    WHERE username = ? and available = 1
-    UNION
-    SELECT 'tambons' AS role, id AS user_id, username AS uze_name, password AS pazz FROM tambons 
     WHERE username = ? and available = 1
     `,
         [username, username, username, username, username],
