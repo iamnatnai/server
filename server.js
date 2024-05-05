@@ -638,7 +638,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
         } else {
           let validCert = await new Promise((resolve, reject) => {
             db.query(
-              `SELECT clf.standard_id, clf.status, sp.standard_name FROM certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE product_id = ? and farmer_id = ? and clf.status not like "reject"`,
+              `SELECT clf.standard_id, clf.status, sp.standard_name, clf.date_request, clf.date_expired, clf.date_recieve FROM certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE product_id = ? and farmer_id = ? and is_used = 1 and clf.status not like "reject"`,
               [product_id, result[0].farmer_id],
               (err, result) => {
                 if (err) {
@@ -1020,7 +1020,7 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
         INNER JOIN
           farmers f ON f.id = p.farmer_id
         WHERE 
-        f.id = ? AND ff.is_accept = 'waiting' AND f.available = 1 AND ft.available = 1;
+        f.id = ? AND ff.is_accept = 'waiting' AND f.available = 1 AND ft.available = 1 and p.available = 1;
       `;
 
       const festivalsResults = await new Promise((resolve, reject) => {
@@ -1880,7 +1880,7 @@ app.patch("/certificate", checkAdmin, async (req, res) => {
           message: "Invalid farmer_id or standard_id or status",
         });
       }
-      let query = `UPDATE certificate_link_farmer SET status = "${status}", comment = "${comment}" WHERE id = "${id}"`;
+      let query = `UPDATE certificate_link_farmer SET status = "${status}", comment = "${comment}", date_recieve = NOW() WHERE id = "${id}"`;
       db.query(query, (err, result) => {
         if (err) {
           console.error("Error adding certificate:", err);
@@ -3377,6 +3377,40 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         });
       }
       if (product_id) {
+        let allCert = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT * FROM certificate_link_farmer WHERE product_id = ? and status not like "reject"`,
+            [product_id],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result);
+              }
+            }
+          );
+        });
+        let requestCert = JSON.parse(certificate);
+        allCert.forEach(async (cert, index) => {
+          let certAlreadyExist = requestCert.find(
+            (reqCert) => reqCert.standard_id == cert.standard_id
+          );
+          await new Promise((resolve, reject) => {
+            db.query(
+              `UPDATE certificate_link_farmer SET is_used = ${
+                !certAlreadyExist ? "0" : "1"
+              } WHERE standard_id = ? and product_id = ? and status not like "reject"`,
+              [cert.standard_id, product_id],
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  resolve(result);
+                }
+              }
+            );
+          });
+        });
         JSON.parse(certificate).forEach(async (cert, index) => {
           let certAlreadyExist = await new Promise((resolve, reject) => {
             db.query(
@@ -3386,7 +3420,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
                 if (err) {
                   reject(err);
                 } else {
-                  console.log(result);
                   resolve(result.length > 0);
                 }
               }
@@ -3394,17 +3427,16 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           });
           if (!certAlreadyExist) {
             await generateCertificate(
+              farmerId,
               cert.standard_id,
               product_id,
-              farmerId,
-              index
+              index,
+              decoded.role,
+              cert.date_expired
             );
           }
         });
-        console.log(
-          createMysqlDate(date_reserve_start),
-          createMysqlDate(date_reserve_end)
-        );
+
         const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
          product_description = ?,category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?,
           additional_image = ?, selectedType = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
@@ -3449,7 +3481,14 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       }
       const nextProductId = await getNextProductId();
       JSON.parse(certificate).forEach(async (cert, index) => {
-        await generateCertificate(cert, nextProductId, farmerId, index);
+        await generateCertificate(
+          farmerId,
+          cert,
+          nextProductId,
+          index,
+          decoded.role,
+          cert.date_expired
+        );
       });
       const query = `
         INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
@@ -4913,7 +4952,6 @@ app.get("/imagestore", async (req, res) => {
   }
   try {
     const decoded = jwt.verify(token, secretKey);
-
     const imageQuery = "SELECT imagepath FROM image WHERE farmer_id = ?";
     const images = await usePooledConnectionAsync(async (db) => {
       return await new Promise(async (resolve, reject) => {
@@ -5589,10 +5627,12 @@ app.get("/notification", async (req, res) => {
 });
 
 const generateCertificate = async (
+  farmerId,
   standard_id,
   product_id,
-  farmer_id,
-  index = 0
+  index = 0,
+  role,
+  date_expired = null
 ) => {
   return await usePooledConnectionAsync(async (db) => {
     try {
@@ -5617,12 +5657,14 @@ const generateCertificate = async (
         );
       });
 
-      let query = `INSERT INTO certificate_link_farmer (id, standard_id, product_id, farmer_id, status)
-        VALUES (?, ?, ?, ?, "pending")
+      let query = `INSERT INTO certificate_link_farmer (id, standard_id, product_id, status, date_request, date_expired, is_used, farmer_id, date_recieve)
+        VALUES (?, ?, ?, "${
+          role === "farmers" ? "pending" : "complete"
+        }", NOW(), ?, 1, ?, ${role === "farmers" ? null : "'complete'"})
       `;
       db.query(
         query,
-        [certId, standard_id, product_id, farmer_id],
+        [certId, standard_id, product_id, date_expired, farmerId],
         (err, result) => {
           if (err) {
             console.error("Error adding certificate:", err);
