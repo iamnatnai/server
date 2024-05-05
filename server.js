@@ -2495,9 +2495,9 @@ async function checkIfExists(role, column, value) {
     });
   });
 }
-
+//แก้officer
 async function checkIfExistsInAllTables(column, value) {
-  const tables = ["admins", "farmers", "members", "providers", "tambons"];
+  const tables = ["farmers", "members", "officer_user"];
   const promises = tables.map((table) => checkIfExists(table, column, value));
   const results = await Promise.all(promises);
   return results.some((result) => result);
@@ -2679,6 +2679,30 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         lat,
         lng
       );
+      return await usePooledConnectionAsync(async (db) => {
+        const nextedit = await getEDITIdF();
+        let id = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+            [username],
+            (err, result) => {
+              if (err) {
+                throw Error(err);
+              } else {
+                resolve(result[0].id);
+              }
+            }
+          );
+        });
+        const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"add", NOW())`;
+        const editValues = [nextedit, id, decoded.ID];
+        db.query(editQuery, editValues, (err, editResult) => {
+          if (err) {
+            console.error("Error inserting edit log:", err);
+          }
+          console.log("Edit log inserted successfully");
+        });
+      });
     } else if (role === "tambons") {
       await insertTambon(
         nextUserId,
@@ -2700,6 +2724,31 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         lastName,
         tel
       );
+
+      return await usePooledConnectionAsync(async (db) => {
+        const nextedit = await getEDITIdM();
+        let id = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+            [username],
+            (err, result) => {
+              if (err) {
+                throw Error(err);
+              } else {
+                resolve(result[0].id);
+              }
+            }
+          );
+        });
+        const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"add", NOW())`;
+        const editValues = [nextedit, id, decoded.ID];
+        db.query(editQuery, editValues, (err, editResult) => {
+          if (err) {
+            console.error("Error inserting edit log:", err);
+          }
+          console.log("Edit log inserted successfully");
+        });
+      });
     } else {
       await insertUser(
         nextUserId,
@@ -2712,7 +2761,52 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         role
       );
     }
-
+    async function getEDITIdM() {
+      return await usePooledConnectionAsync(async (db) => {
+        return await new Promise(async (resolve, reject) => {
+          db.query(
+            "SELECT count(*) as maxId FROM edit_member",
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                let nextedit = "EDT0000001";
+                if (result[0].maxId) {
+                  const currentId = result[0].maxId;
+                  const numericPart = parseInt(currentId) + 1;
+                  nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                  console.log(numericPart);
+                }
+                resolve(nextedit);
+              }
+            }
+          );
+        });
+      });
+    }
+    async function getEDITIdF() {
+      return await usePooledConnectionAsync(async (db) => {
+        return await new Promise(async (resolve, reject) => {
+          db.query(
+            "SELECT count(*) as maxId FROM edit_farmer",
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                let nextedit = "EDT0000001";
+                if (result[0].maxId) {
+                  const currentId = result[0].maxId;
+                  const numericPart = parseInt(currentId) + 1;
+                  nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                  console.log(numericPart);
+                }
+                resolve(nextedit);
+              }
+            }
+          );
+        });
+      });
+    }
     res.status(201).json({ success: true, message: "User added successfully" });
   } catch (error) {
     console.error("Error adding user:", error);
@@ -2760,6 +2854,7 @@ async function getNextUserId(role) {
       break;
   }
   return await usePooledConnectionAsync(async (db) => {
+    console.log(role);
     return new Promise(async (resolve, reject) => {
       db.query(
         `SELECT count(*) as maxId FROM ${
@@ -3141,7 +3236,7 @@ app.post(
         amphure = amphure ? `amphure = "${amphure}"` : "";
         phone = phone ? `,phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        query = `UPDATE ${role} SET ${amphure} ${email} ${firstname} ${lastname} ${phone} ${address} 
+        query = `UPDATE officer_user SET ${amphure} ${email} ${firstname} ${lastname} ${phone} ${address} 
        WHERE username = "${username}"`;
       } else if (role === "members") {
         if (!email || !firstname || !lastname || !phone) {
@@ -3161,8 +3256,54 @@ app.post(
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
-        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} 
+        query = `UPDATE officer_user SET ${email}, ${firstname}, ${lastname}, ${phone} 
       WHERE username = "${username}"`;
+      }
+      async function getEDITIdF() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT count(*) as maxId FROM edit_farmer",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDT0000001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart = parseInt(currentId) + 1;
+                    nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                    console.log(numericPart);
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
+      }
+      async function getEDITIdM() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT count(*) as maxId FROM edit_member",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDT0000001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart = parseInt(currentId) + 1;
+                    nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                    console.log(numericPart);
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
       }
       await usePooledConnectionAsync(async (db) => {
         db.query(query, (err, result) => {
@@ -3175,7 +3316,56 @@ app.post(
             res.json(result[0]);
           }
         });
+        if (role == "members") {
+          const nextedit = await getEDITIdM();
+          let id = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+              [username],
+              (err, result) => {
+                if (err) {
+                  throw Error(err);
+                } else {
+                  resolve(result[0].id);
+                }
+              }
+            );
+          });
+          const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW())`;
+          const editValues = [nextedit, id, decoded.ID];
+          db.query(editQuery, editValues, (err, editResult) => {
+            if (err) {
+              console.error("Error inserting edit log:", err);
+            }
+            console.log("Edit log inserted successfully");
+          });
+        }
+        if (role == "farmers") {
+          const nextedit = await getEDITIdF();
+          let id = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+              [username],
+              (err, result) => {
+                if (err) {
+                  throw Error(err);
+                } else {
+                  resolve(result[0].id);
+                }
+              }
+            );
+          });
+          const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW()) `;
+          const editValues = [nextedit, id, decoded.ID];
+          db.query(editQuery, editValues, (err, editResult) => {
+            if (err) {
+              console.error("Error inserting edit log:", err);
+            }
+            console.log("Edit log inserted successfully");
+          });
+        }
       });
+
       return res.status(200);
     } catch (error) {
       console.error("Error updating user:", error);
