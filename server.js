@@ -376,19 +376,54 @@ app.get("/categoriesort", (req, res) => {
 //หน้าแผนที่ , หน้าเทศกาล
 //แสดงเทศกาล
 app.get("/festival", async (req, res) => {
-  await usePooledConnectionAsync(async (db) => {
-    const query =
-      "SELECT DISTINCT *,CASE WHEN start_date < CURDATE() THEN 0 ELSE 1 END AS past_or_future ,CASE WHEN CURDATE() <= end_date and CURDATE() >= start_date THEN 1 ELSE 0 END AS is_between FROM festivals where available = 1 ORDER BY is_between DESC, past_or_future DESC , CASE WHEN past_or_future = 1 THEN start_date END ASC, CASE WHEN past_or_future = 0 THEN start_date END DESC;";
+  try {
+    const query = `SELECT DISTINCT *, 
+                  CASE WHEN start_date < CURDATE() THEN 0 ELSE 1 END AS past_or_future,
+                  CASE WHEN CURDATE() <= end_date AND CURDATE() >= start_date THEN 1 ELSE 0 END AS is_between 
+                  FROM festivals WHERE available = 1 
+                  ORDER BY is_between DESC, past_or_future DESC, 
+                  CASE WHEN past_or_future = 1 THEN start_date END ASC, 
+                  CASE WHEN past_or_future = 0 THEN start_date END DESC`;
 
-    db.query(query, (err, results) => {
-      if (err) {
-        console.error("Error fetching festival data:", err);
-        return res.status(500).json({ error: "Error fetching festival data" });
-      }
+    await usePooledConnectionAsync(async (db) => {
+      db.query(query, async (err, festivals) => {
+        if (err) {
+          console.error("Error fetching festival data:", err);
+          return res
+            .status(500)
+            .json({ error: "Error fetching festival data" });
+        }
+        for (const festival of festivals) {
+          const editQuery = `SELECT ef.edit_date AS " lastmodified", u.username AS "editor_username"
+          FROM edit_festival ef 
+          JOIN festivals f ON ef.festival_id = f.id 
+          JOIN officer_user u ON ef.officer_id = u.id 
+          WHERE f.id = ? 
+          ORDER BY ef.edit_date DESC
+          LIMIT 1
+          `;
 
-      res.status(200).json(results);
+          const edits = await new Promise((resolve, reject) => {
+            db.query(editQuery, [festival.id], (editErr, editResult) => {
+              if (editErr) {
+                console.error(editErr);
+                reject(editErr);
+              } else {
+                resolve(editResult);
+              }
+            });
+          });
+
+          festival.editor_info = edits;
+        }
+
+        res.status(200).json(festivals);
+      });
     });
-  });
+  } catch (error) {
+    console.error("Error handling festival data:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 //---------------------------------------------------------------------------------------------------------------------------------------
