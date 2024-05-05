@@ -5553,7 +5553,7 @@ const generateCertificate = async (
       let query = `INSERT INTO certificate_link_farmer (id, standard_id, product_id, status, date_request, date_expired, is_used, farmer_id, date_recieve)
         VALUES (?, ?, ?, "${
           role === "farmers" ? "pending" : "complete"
-        }", NOW(), ?, 1, ?, "${role === "farmers" ? "pending" : "complete"}")
+        }", NOW(), ?, 1, ?, ${role === "farmers" ? null : "'complete'"})
       `;
       db.query(
         query,
