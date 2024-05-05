@@ -6308,7 +6308,12 @@ app.post("/changepassword", async (req, res) => {
     return await usePooledConnectionAsync(async (db) => {
       const hashedPassword = await new Promise(async (resolve, reject) => {
         db.query(
-          `SELECT password FROM ${role} WHERE username = "${username}"`,
+          `SELECT password FROM ${
+            role == "admins" || role == "tambons" || role == "providers"
+              ? "officer_user"
+              : role
+          } WHERE username = ?`,
+          [username],
           (err, result) => {
             if (err) {
               reject(err);
