@@ -2205,6 +2205,112 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
           });
         }
       });
+      async function getEDITIdF() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT count(*) as maxId FROM edit_farmer",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDT0000001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart = parseInt(currentId) + 1;
+                    nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                    console.log(numericPart);
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
+      }
+      async function getEDITIdM() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT count(*) as maxId FROM edit_member",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDT0000001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart = parseInt(currentId) + 1;
+                    nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                    console.log(numericPart);
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
+      }
+      await usePooledConnectionAsync(async (db) => {
+        db.query(query, (err, result) => {
+          if (err) {
+            console.log(err);
+            res
+              .status(500)
+              .send({ exist: false, error: "Internal Server Error" });
+          } else {
+            res.json(result[0]);
+          }
+        });
+        if (role == "members") {
+          const nextedit = await getEDITIdM();
+          let id = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT id FROM ${role} WHERE username = ? `,
+              [username],
+              (err, result) => {
+                if (err) {
+                  throw Error(err);
+                } else {
+                  resolve(result[0].id);
+                }
+              }
+            );
+          });
+          const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"delete", NOW())`;
+          const editValues = [nextedit, id, decoded.ID];
+          db.query(editQuery, editValues, (err, editResult) => {
+            if (err) {
+              console.error("Error inserting edit log:", err);
+            }
+            console.log("Edit log inserted successfully");
+          });
+        }
+        if (role == "farmers") {
+          const nextedit = await getEDITIdF();
+          let id = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT id FROM ${role} WHERE username = ?`,
+              [username],
+              (err, result) => {
+                if (err) {
+                  throw Error(err);
+                } else {
+                  resolve(result[0].id);
+                }
+              }
+            );
+          });
+          const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"delete", NOW()) `;
+          const editValues = [nextedit, id, decoded.ID];
+          db.query(editQuery, editValues, (err, editResult) => {
+            if (err) {
+              console.error("Error inserting edit log:", err);
+            }
+            console.log("Edit log inserted successfully");
+          });
+        }
+      });
     } catch (error) {
       console.error("Error deleting user:", error);
       return res
@@ -3178,6 +3284,103 @@ app.post(
         expiresIn: "15d",
       });
 
+      async function getEDITIdF() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT count(*) as maxId FROM edit_farmer",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDT0000001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart = parseInt(currentId) + 1;
+                    nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                    console.log(numericPart);
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
+      }
+      async function getEDITIdM() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT count(*) as maxId FROM edit_member",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDT0000001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart = parseInt(currentId) + 1;
+                    nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                    console.log(numericPart);
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
+      }
+      await usePooledConnectionAsync(async (db) => {
+        if (role == "members") {
+          const nextedit = await getEDITIdM();
+          let id = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+              [username],
+              (err, result) => {
+                if (err) {
+                  throw Error(err);
+                } else {
+                  resolve(result[0].id);
+                }
+              }
+            );
+          });
+          const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW())`;
+          const editValues = [nextedit, id, decoded.ID];
+          db.query(editQuery, editValues, (err, editResult) => {
+            if (err) {
+              console.error("Error inserting edit log:", err);
+            }
+            console.log("Edit log inserted successfully");
+          });
+        }
+        if (role == "farmers") {
+          const nextedit = await getEDITIdF();
+          let id = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+              [username],
+              (err, result) => {
+                if (err) {
+                  throw Error(err);
+                } else {
+                  resolve(result[0].id);
+                }
+              }
+            );
+          });
+          const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW()) `;
+          const editValues = [nextedit, id, decoded.ID];
+          db.query(editQuery, editValues, (err, editResult) => {
+            if (err) {
+              console.error("Error inserting edit log:", err);
+            }
+            console.log("Edit log inserted successfully");
+          });
+        }
+      });
+
       return res.status(200).send({ success: true, newToken: signedToken });
     } catch (error) {
       console.error("Error decoding token:6", error.message);
@@ -3576,6 +3779,29 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           );
         });
       }
+      async function getEDITIdP() {
+        return await usePooledConnectionAsync(async (db) => {
+          return await new Promise(async (resolve, reject) => {
+            db.query(
+              "SELECT count(*) as maxId FROM edit_product",
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  let nextedit = "EDT0000001";
+                  if (result[0].maxId) {
+                    const currentId = result[0].maxId;
+                    const numericPart = parseInt(currentId) + 1;
+                    nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+                    console.log(numericPart);
+                  }
+                  resolve(nextedit);
+                }
+              }
+            );
+          });
+        });
+      }
 
       let havePaymentOrQrcode = await new Promise((resolve, reject) => {
         db.query(
@@ -3775,6 +4001,20 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             .send({ success: true, message: "Product added successfully" });
         }
       );
+      const editProductId = await getEDITIdP();
+      const editQuery = `INSERT INTO edit_product (id, product_id, officer_id, edit_date) VALUES (?, ?, ?, NOW())`;
+      const editValues = [editProductId, nextProductId, decoded.ID];
+      await new Promise((resolve, reject) => {
+        db.query(editQuery, editValues, (editErr, editResult) => {
+          if (editErr) {
+            console.error("Error inserting edit product log:", editErr);
+            reject(editErr);
+          } else {
+            console.log("Edit product log inserted successfully");
+            resolve(editResult);
+          }
+        });
+      });
     });
   } catch (error) {
     console.error("Error adding product:", error);
@@ -4259,9 +4499,10 @@ app.get("/getinfo", async (req, res) => {
               } else {
                 console.log(idResult[0].id);
                 const memberId = idResult[0].id;
-                const editQuery = `SELECT  em.edit_date AS " lastmodified", ou.username AS "editor_username"
+                const editQuery = `SELECT  em.edit_date AS " lastmodified", COALESCE(m.username, ou.username) AS "editor_username"
                 FROM edit_member em
-                JOIN officer_user ou ON em.officer_id = ou.id
+                LEFT JOIN members m ON em.officer_id = m.id
+                LEFT JOIN officer_user ou ON em.officer_id = ou.id
                 WHERE em.member_id = ?
                 ORDER BY em.edit_date DESC
                 LIMIT 1
@@ -4285,12 +4526,11 @@ app.get("/getinfo", async (req, res) => {
                 });
                 console.log(test);
                 result[0].editor_info = test;
-                res.json(result[0]);
+                return res.json(result[0]);
               }
             }
           );
-        }
-        if (role === "farmers") {
+        } else if (role === "farmers") {
           db.query(
             `SELECT id FROM ${role} WHERE username = ? and available = 1`,
             [username],
@@ -4301,12 +4541,13 @@ app.get("/getinfo", async (req, res) => {
               } else {
                 console.log(idResult[0].id);
                 const farmerId = idResult[0].id;
-                const editQuery = `SELECT  em.edit_date AS " lastmodified", ou.username AS "editor_username"
+                const editQuery = `SELECT em.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
                 FROM edit_farmer em
-                JOIN officer_user ou ON em.officer_id = ou.id
+                LEFT JOIN farmers f ON em.officer_id = f.id
+                LEFT JOIN officer_user ou ON em.officer_id = ou.id
                 WHERE em.farmer_id = ?
                 ORDER BY em.edit_date DESC
-                LIMIT 1
+                LIMIT 1;
                 ;
                 `;
                 const test = await new Promise((resolve, reject) => {
@@ -4327,7 +4568,7 @@ app.get("/getinfo", async (req, res) => {
                 });
                 console.log(test);
                 result[0].editor_info = test;
-                res.json(result[0]);
+                return res.json(result[0]);
               }
             }
           );
@@ -4336,8 +4577,6 @@ app.get("/getinfo", async (req, res) => {
         }
       });
     });
-
-    return res.status(200);
   } catch (error) {
     console.error("Error decoding token:5", error.message);
     return res.status(500).json({ error: JSON.stringify(error) });
