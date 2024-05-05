@@ -4201,17 +4201,101 @@ app.get("/getinfo", async (req, res) => {
     if (role === "farmers") {
       query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
     } else if (role === "tambons") {
-      query = `SELECT username, email, firstname, lastname, phone, amphure from ${role} where username = "${username}"`;
+      query = `SELECT username, email, firstname, lastname, phone, amphure from officer_user where username = "${username}"`;
     } else if (role === "members") {
       query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
     } else {
-      query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
+      query = `SELECT username, email, firstname, lastname, phone from officer_user where username = "${username}"`;
     }
     await usePooledConnectionAsync(async (db) => {
       db.query(query, (err, result) => {
         if (err) {
           console.log(err);
           res.status(500).send({ exist: false, error: JSON.stringify(err) });
+        }
+        if (role === "members") {
+          db.query(
+            `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+            [username],
+            async (idErr, idResult) => {
+              if (idErr) {
+                console.error(idErr);
+                return res.status(500).json({ error: JSON.stringify(idErr) });
+              } else {
+                console.log(idResult[0].id);
+                const memberId = idResult[0].id;
+                const editQuery = `SELECT  em.edit_date AS " lastmodified", ou.username AS "editor_username"
+                FROM edit_member em
+                JOIN officer_user ou ON em.officer_id = ou.id
+                WHERE em.member_id = ?
+                ORDER BY em.edit_date DESC
+                LIMIT 1
+                ;
+                `;
+                const test = await new Promise((resolve, reject) => {
+                  db.query(
+                    editQuery,
+                    [memberId],
+                    async (editErr, editResult) => {
+                      if (editErr) {
+                        console.error(editErr);
+                        return res
+                          .status(500)
+                          .json({ error: JSON.stringify(editErr) });
+                      } else {
+                        resolve(editResult);
+                      }
+                    }
+                  );
+                });
+                console.log(test);
+                result[0].editor_info = test;
+                res.json(result[0]);
+              }
+            }
+          );
+        }
+        if (role === "farmers") {
+          db.query(
+            `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+            [username],
+            async (idErr, idResult) => {
+              if (idErr) {
+                console.error(idErr);
+                return res.status(500).json({ error: JSON.stringify(idErr) });
+              } else {
+                console.log(idResult[0].id);
+                const farmerId = idResult[0].id;
+                const editQuery = `SELECT  em.edit_date AS " lastmodified", ou.username AS "editor_username"
+                FROM edit_farmer em
+                JOIN officer_user ou ON em.officer_id = ou.id
+                WHERE em.farmer_id = ?
+                ORDER BY em.edit_date DESC
+                LIMIT 1
+                ;
+                `;
+                const test = await new Promise((resolve, reject) => {
+                  db.query(
+                    editQuery,
+                    [farmerId],
+                    async (editErr, editResult) => {
+                      if (editErr) {
+                        console.error(editErr);
+                        return res
+                          .status(500)
+                          .json({ error: JSON.stringify(editErr) });
+                      } else {
+                        resolve(editResult);
+                      }
+                    }
+                  );
+                });
+                console.log(test);
+                result[0].editor_info = test;
+                res.json(result[0]);
+              }
+            }
+          );
         } else {
           res.json(result[0]);
         }
