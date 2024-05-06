@@ -448,6 +448,11 @@ app.get("/festival", async (req, res) => {
 //register
 app.post("/register", async (req, res) => {
   const { username, email, password, firstName, lastName, tel } = req.body;
+  if (username.length < 6) {
+    return res
+      .status(400)
+      .send({ exist: false, error: "Username must be at least 6 characters" });
+  }
   if (
     username === "" ||
     email === "" ||
@@ -3666,7 +3671,6 @@ app.post(
       amphure = null,
       tambon = null,
       username = null,
-      payment = null,
       role = null,
       shippingcost = null,
     } = req.body;
@@ -3706,7 +3710,6 @@ app.post(
         facebooklink = facebooklink ? `,facebooklink = "${facebooklink}"` : "";
         lineid = lineid ? `,lineid = "${lineid}"` : "";
         zipcode = zipcode ? `,zipcode = "${zipcode}"` : "";
-        payment = payment ? `,payment = "${payment}"` : "";
         province = province
           ? `,province = "${province}"`
           : `,province = ${province}`;
@@ -3715,7 +3718,7 @@ app.post(
         shippingcost = shippingcost
           ? `,shippingcost='${JSON.stringify(JSON.parse(shippingcost))}'`
           : `,shippingcost='${JSON.stringify([{ weight: 0, price: 0 }])}'`;
-        query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} ${farmerstorename} ${phone} ${address} ${facebooklink} ${lineid} ${zipcode} ${payment} ${province} ${tambon} ${shippingcost} ${pathName} WHERE username = "${username}"`;
+        query = `UPDATE ${role} SET ${amphure}, ${lat}, ${lng} ${email} ${firstname} ${lastname} ${farmerstorename} ${phone} ${address} ${facebooklink} ${lineid} ${zipcode} ${province} ${tambon} ${shippingcost} ${pathName} WHERE username = "${username}"`;
       } else if (role === "tambons") {
         if (!amphure) {
           return res
@@ -6537,7 +6540,7 @@ const notifyFollowersAddproduct = async (
           farmerId,
           member_id,
           `เกษตรกรร้านค้า ${farmerstorename} ได้เพิ่มสินค้าใหม่ ${product_name}`,
-          `/shop/${farmerstorename}/${productId}`,
+          `listproduct/${farmerstorename}/${productId}`,
           "เพิ่มสินค้า",
           index
         );
