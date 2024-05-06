@@ -2518,22 +2518,28 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
 //แสดงบทบาท
 
 app.get("/role", async (req, res) => {
-  await usePooledConnectionAsync(async (db) => {
-    db.query(
-      //เว้นไว้ก่อน
-      "SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'เกษตรจังหวัด' AS role_name FROM providers UNION SELECT 'tambons' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;",
-      (err, result) => {
-        if (err) {
-          console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
-        } else {
-          res.json(result);
-        }
-      }
-    );
-  });
+  return res.json([
+    {
+      role_id: "admins",
+      role_name: "ผู้ดูแลระบบ",
+    },
+    {
+      role_id: "members",
+      role_name: "สมาชิก",
+    },
+    {
+      role_id: "farmers",
+      role_name: "เกษตรกร",
+    },
+    {
+      role_id: "providers",
+      role_name: "เกษตรจังหวัด",
+    },
+    {
+      role_id: "tambons",
+      role_name: "เกษตรตำบล",
+    },
+  ]);
 });
 
 //ดาวน์โหลดเอกสาร
