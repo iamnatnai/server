@@ -2210,12 +2210,34 @@ app.get("/users/:roleParams", async (req, res) => {
                       }
                     );
 
+                    let editor_info = await new Promise((resolve, reject) => {
+                      db.query(
+                        `SELECT em.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
+                        FROM edit_farmer em
+                        LEFT JOIN farmers f ON em.officer_id = f.id
+                        LEFT JOIN officer_user ou ON em.officer_id = ou.id
+                        WHERE em.farmer_id = ?
+                        ORDER BY em.edit_date DESC
+                        LIMIT 1;
+                        `,
+                        [farmer.id],
+                        async (editErr, editResult) => {
+                          if (editErr) {
+                            reject(editErr);
+                          } else {
+                            resolve(editResult[0]);
+                          }
+                        }
+                      );
+                    });
+
                     return {
                       ...farmer,
                       certiCount: certiCount,
                       productCount: productCount,
                       certificates: allCertifications,
                       categories: allProductCategory,
+                      editor_info: editor_info,
                     };
                   })
                 );
@@ -2230,16 +2252,55 @@ app.get("/users/:roleParams", async (req, res) => {
           }
         );
       } else if (roleParams === "members") {
-        db.query("SELECT * FROM members WHERE available = 1", (err, result) => {
-          if (err) {
-            console.log(err);
-            res
-              .status(500)
-              .send({ exist: false, error: "Internal Server Error" });
-          } else {
-            res.json(result);
+        db.query(
+          "SELECT * FROM members WHERE available = 1",
+          async (err, result) => {
+            if (err) {
+              console.log(err);
+              res
+                .status(500)
+                .send({ exist: false, error: "Internal Server Error" });
+            } else {
+              try {
+                let compiledResult = await Promise.all(
+                  result.map(async (member) => {
+                    let editor_info = await new Promise((resolve, reject) => {
+                      db.query(
+                        `SELECT em.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
+                    FROM edit_farmer em
+                    LEFT JOIN farmers f ON em.officer_id = f.id
+                    LEFT JOIN officer_user ou ON em.officer_id = ou.id
+                    WHERE em.farmer_id = ?
+                    ORDER BY em.edit_date DESC
+                    LIMIT 1;
+                    `,
+                        [member.id],
+                        async (editErr, editResult) => {
+                          if (editErr) {
+                            reject(editErr);
+                          } else {
+                            resolve(editResult[0]);
+                          }
+                        }
+                      );
+                    });
+
+                    return {
+                      ...member,
+                      editor_info: editor_info,
+                    };
+                  })
+                );
+                res.json(compiledResult);
+              } catch (error) {
+                console.error(error);
+                res
+                  .status(500)
+                  .send({ exist: false, error: "Internal Server Error" });
+              }
+            }
           }
-        });
+        );
       } else if (roleParams === "providers") {
         db.query(
           //แก้ไขoffice
