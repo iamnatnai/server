@@ -628,7 +628,23 @@ app.post("/login", async (req, res) => {
         });
       });
 
-      option = { ...option, activate: activation };
+      let lineid = await usePooledConnectionAsync(async (db) => {
+        return new Promise((resolve, reject) => {
+          db.query(
+            "SELECT lineid FROM members WHERE username = ? and available = 1",
+            [user.uze_name],
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(result[0].lineid);
+              }
+            }
+          );
+        });
+      });
+
+      option = { ...option, activate: activation, lineid: lineid };
     }
 
     if (user.role === "tambons") {
@@ -3501,7 +3517,8 @@ app.post(
         amphure = amphure ? `,amphure = "${amphure}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        query = `UPDATE officer_user SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} WHERE username = "${username}"`;
+        lineid = lineid ? `,lineid = "${lineid}"` : "";
+        query = `UPDATE officer_user SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} ${lineid} WHERE username = "${username}"`;
         //แก้ไข office
       } else {
         email = email ? `email = "${email}"` : "";
@@ -3537,6 +3554,7 @@ app.post(
         option = {
           ...option,
           activate: decoded.activate,
+          lineid: decoded.lineid,
         };
       }
       let signedToken = jwt.sign(option, secretKey, {
@@ -4709,7 +4727,7 @@ app.get(
       ) {
         query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}" and available = 1`;
       } else if (role === "members") {
-        query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
+        query = `SELECT username, email, firstname, lastname, phone, address, lineid from ${role} where username = "${username}"`;
       } else {
         query = `SELECT username, email, firstname, lastname, phone,amphure from officer_user where username = "${username}"`;
       }
@@ -4841,7 +4859,7 @@ app.get("/getinfo", async (req, res) => {
     } else if (role === "tambons") {
       query = `SELECT username, email, firstname, lastname, phone, amphure from officer_user where username = "${username}"`;
     } else if (role === "members") {
-      query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
+      query = `SELECT username, email, firstname, lastname, phone, address, lineid from ${role} where username = "${username}"`;
     } else {
       query = `SELECT username, email, firstname, lastname, phone from officer_user where username = "${username}"`;
     }
@@ -6287,7 +6305,11 @@ app.get("/login", async (req, res) => {
       role: decoded.role,
     };
     if (decoded.role === "members") {
-      option = { ...option, activate: decoded.activate };
+      option = {
+        ...option,
+        activate: decoded.activate,
+        lineid: decoded.lineid,
+      };
     }
     if (decoded.role === "tambons") {
       option = { ...option, amphure: decoded.amphure };
