@@ -3554,7 +3554,7 @@ app.post(
         option = {
           ...option,
           activate: decoded.activate,
-          lineid: decoded.lineid,
+          lineid: lineid,
         };
       }
       let signedToken = jwt.sign(option, secretKey, {
