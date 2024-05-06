@@ -2518,22 +2518,28 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
 //แสดงบทบาท
 
 app.get("/role", async (req, res) => {
-  await usePooledConnectionAsync(async (db) => {
-    db.query(
-      //เว้นไว้ก่อน
-      "SELECT 'admins' AS role_id, 'ผู้ดูแลระบบ' AS role_name FROM admins UNION SELECT 'members' AS role_id, 'สมาชิก' AS role_name FROM members UNION SELECT 'farmers' AS role_id, 'เกษตรกร' AS role_name FROM providers UNION SELECT 'providers' AS role_id, 'เกษตรจังหวัด' AS role_name FROM providers UNION SELECT 'tambons' AS role_id, 'เกษตรตำบล' AS role_name FROM tambons;",
-      (err, result) => {
-        if (err) {
-          console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
-        } else {
-          res.json(result);
-        }
-      }
-    );
-  });
+  return res.json([
+    {
+      role_id: "admins",
+      role_name: "ผู้ดูแลระบบ",
+    },
+    {
+      role_id: "members",
+      role_name: "สมาชิก",
+    },
+    {
+      role_id: "farmers",
+      role_name: "เกษตรกร",
+    },
+    {
+      role_id: "providers",
+      role_name: "เกษตรจังหวัด",
+    },
+    {
+      role_id: "tambons",
+      role_name: "เกษตรตำบล",
+    },
+  ]);
 });
 
 //ดาวน์โหลดเอกสาร
@@ -4701,14 +4707,14 @@ app.get(
       const decoded = jwt.verify(token, secretKey);
       if (
         role === "farmers" ||
-        decoded.role === "tamboons" ||
+        decoded.role === "tambons" ||
         decoded.role === "providers"
       ) {
         query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}" and available = 1`;
       } else if (role === "members") {
         query = `SELECT username, email, firstname, lastname, phone, address from ${role} where username = "${username}"`;
       } else {
-        query = `SELECT username, email, firstname, lastname, phone from ${role} where username = "${username}"`;
+        query = `SELECT username, email, firstname, lastname, phone,amphure from officer_user where username = "${username}"`;
       }
       await usePooledConnectionAsync(async (db) => {
         db.query(query, (err, result) => {
@@ -4718,12 +4724,104 @@ app.get(
               .status(500)
               .send({ exist: false, error: "Internal Server Error" });
           } else {
-            res.json(result[0]);
+            if (role == "farmers") {
+              db.query(
+                `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+                [username],
+                async (idErr, idResult) => {
+                  if (idErr) {
+                    console.error(idErr);
+                    return res
+                      .status(500)
+                      .json({ error: JSON.stringify(idErr) });
+                  } else {
+                    console.log(idResult[0].id);
+                    const farmerId = idResult[0].id;
+                    const editQuery = `SELECT em.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
+                    FROM edit_farmer em
+                    LEFT JOIN farmers f ON em.officer_id = f.id
+                    LEFT JOIN officer_user ou ON em.officer_id = ou.id
+                    WHERE em.farmer_id = ?
+                    ORDER BY em.edit_date DESC
+                    LIMIT 1;
+                  `;
+                    const test = await new Promise((resolve, reject) => {
+                      db.query(
+                        editQuery,
+                        [farmerId],
+                        async (editErr, editResult) => {
+                          if (editErr) {
+                            console.error(editErr);
+                            return res
+                              .status(500)
+                              .json({ error: JSON.stringify(editErr) });
+                          } else {
+                            resolve(editResult[0]);
+                          }
+                        }
+                      );
+                    });
+                    console.log(test);
+                    result = {
+                      ...result[0],
+                      editor_info: test,
+                    };
+                    res.json(result);
+                  }
+                }
+              );
+            } else if (role == "members") {
+              db.query(
+                `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+                [username],
+                async (idErr, idResult) => {
+                  if (idErr) {
+                    console.error(idErr);
+                    return res
+                      .status(500)
+                      .json({ error: JSON.stringify(idErr) });
+                  } else {
+                    console.log(idResult[0].id);
+                    const memberId = idResult[0].id;
+                    const editQuery = `SELECT  em.edit_date AS " lastmodified", COALESCE(m.username, ou.username) AS "editor_username"
+                      FROM edit_member em
+                      LEFT JOIN members m ON em.officer_id = m.id
+                      LEFT JOIN officer_user ou ON em.officer_id = ou.id
+                      WHERE em.member_id = ?
+                      ORDER BY em.edit_date DESC
+                      LIMIT 1
+                    `;
+                    const test = await new Promise((resolve, reject) => {
+                      db.query(
+                        editQuery,
+                        [memberId],
+                        async (editErr, editResult) => {
+                          if (editErr) {
+                            console.error(editErr);
+                            return res
+                              .status(500)
+                              .json({ error: JSON.stringify(editErr) });
+                          } else {
+                            resolve(editResult[0]);
+                          }
+                        }
+                      );
+                    });
+                    console.log(test);
+                    result = {
+                      ...result[0],
+                      editor_info: test,
+                    };
+                    res.json(result);
+                  }
+                }
+              );
+            } else {
+              return res.json(result[0]);
+            }
           }
         });
       });
-
-      return res.status(200);
     } catch (error) {
       console.error("Error fetching user:", error.message);
       return res.status(500).json({ error: "Internal Server Error" });
