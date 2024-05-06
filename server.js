@@ -182,7 +182,24 @@ const checkAdminTambon = (req, res, next) => {
     return res.status(500).json({ error: JSON.stringify(error) });
   }
 };
-
+const checkAdminProv = (req, res, next) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  if (!token) {
+    return res.status(400).json({ error: "Token not provided" });
+  }
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.role !== "admins" && decoded.role !== "providers") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
+  } catch (error) {
+    console.error("Error decoding token:1", error.message);
+    return res.status(500).json({ error: JSON.stringify(error) });
+  }
+};
 const checkTambon = (req, res, next) => {
   const token = req.headers.authorization
     ? req.headers.authorization.split(" ")[1]
@@ -409,7 +426,7 @@ app.get("/festival", async (req, res) => {
                 console.error(editErr);
                 reject(editErr);
               } else {
-                resolve(editResult);
+                resolve(editResult[0]);
               }
             });
           });
@@ -671,6 +688,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
+          console.log(result);
           let validCert = await new Promise((resolve, reject) => {
             db.query(
               `SELECT clf.standard_id, clf.status, sp.standard_name, clf.date_request, clf.date_expired, clf.date_recieve FROM certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE product_id = ? and farmer_id = ? and is_used = 1 and clf.status not like "reject"`,
@@ -684,9 +702,29 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
               }
             );
           });
+          let editHistory = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT ep.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
+              FROM edit_product ep
+              LEFT JOIN farmers f ON ep.officer_id = f.id
+              LEFT JOIN officer_user ou ON ep.officer_id = ou.id
+              WHERE ep.product_id = ?
+              ORDER BY ep.edit_date DESC
+              LIMIT 1;`,
+              [product_id],
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  resolve(result[0]);
+                }
+              }
+            );
+          });
           result = {
             ...result[0],
             certificate: JSON.stringify(validCert),
+            editor_info: editHistory,
           };
           res.header("charset", "utf-8").json(result);
         }
@@ -2343,7 +2381,11 @@ app.get("/role", async (req, res) => {
 
 //ดาวน์โหลดเอกสาร
 
-app.get("/excel", async (req, res) => {
+app.get("/excel", checkAdminProv, async (req, res) => {
+  const token = req.headers.authorization
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+  const decoded = jwt.verify(token, secretKey);
   const farmerStyles = {
     header: {
       font: { bold: true, size: 12, color: { argb: "FFFFFF" } }, // ตัวอักษรหนา ขนาด 12 สีขาว
@@ -2596,6 +2638,36 @@ GROUP BY
         cell.alignment = farmerStyles.totalRow.alignment;
         cell.fill = farmerStyles.totalRow.fill;
       });
+      async function getEDITIdE() {
+        return await new Promise(async (resolve, reject) => {
+          db.query(
+            "SELECT count(*) as maxId FROM download_history",
+            (err, result) => {
+              if (err) {
+                reject(err);
+              } else {
+                let nextedit = "DNL0000001";
+                if (result[0].maxId) {
+                  const currentId = result[0].maxId;
+                  const numericPart = parseInt(currentId) + 1;
+                  nextedit = "DNL" + numericPart.toString().padStart(7, "0");
+                  console.log(numericPart);
+                }
+                resolve(nextedit);
+              }
+            }
+          );
+        });
+      }
+      const nextedit = await getEDITIdE();
+      const editQuery = `INSERT INTO download_history (download_id,officer_id,download_date) VALUES (?, ?, NOW())`;
+      const editValues = [nextedit, decoded.ID];
+      db.query(editQuery, editValues, (err, editResult) => {
+        if (err) {
+          console.error("Error inserting edit log:", err);
+        }
+        console.log("Edit log inserted successfully");
+      });
 
       const currentDate = moment().format("YYYY-MM-DD_HH-mm-ss");
       const filename = `farmers_and_products_${currentDate}.xlsx`;
@@ -2614,6 +2686,31 @@ GROUP BY
   } catch (error) {
     console.error("Error generating excel:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.get("/gethistorydownload", (req, res) => {
+  try {
+    usePooledConnectionAsync(async (db) => {
+      db.query(
+        `SELECT dh.download_date AS lastmodified , ou.username AS editor_username
+        FROM download_history dh
+        LEFT JOIN officer_user ou ON dh.officer_id = ou.id
+        ORDER BY dh.download_date DESC`,
+        (err, result) => {
+          if (err) {
+            console.error("Error fetching download history:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          } else {
+            const editorInfo = result;
+            res.header("charset", "utf-8").json(editorInfo);
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error("Error fetching download history:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -4533,7 +4630,7 @@ app.get("/getinfo", async (req, res) => {
                           .status(500)
                           .json({ error: JSON.stringify(editErr) });
                       } else {
-                        resolve(editResult);
+                        resolve(editResult[0]);
                       }
                     }
                   );
@@ -4575,7 +4672,7 @@ app.get("/getinfo", async (req, res) => {
                           .status(500)
                           .json({ error: JSON.stringify(editErr) });
                       } else {
-                        resolve(editResult);
+                        resolve(editResult[0]);
                       }
                     }
                   );
@@ -4721,26 +4818,19 @@ app.delete("/deleteproduct/:id", checkFarmer, async (req, res) => {
           }
         );
       });
-      const editProductId = await getEDITIdP();
-      const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"delete", NOW())`;
-      const editValues = [editProductId, id, farmerId];
-      db.query(editQuery, editValues, (editErr, editResult) => {
-        if (editErr) {
-          console.error("Error inserting edit product log:", editErr);
-          res
-            .status(500)
-            .send({ exist: false, error: JSON.stringify(editErr) });
-        } else {
-          console.log("Edit product log inserted successfully");
-          res.json({
-            success: true,
-            id,
-            farmerId,
-            result: JSON.stringify(result),
-          });
-        }
-      });
     }
+    const editProductId = await getEDITIdP();
+    const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"delete", NOW())`;
+    const editValues = [editProductId, id, decoded.ID];
+    console.log(editValues);
+    db.query(editQuery, editValues, (editErr, editResult) => {
+      if (editErr) {
+        console.error("Error inserting edit product log:", editErr);
+        res.status(500).send({ exist: false, error: JSON.stringify(editErr) });
+      } else {
+        console.log("Delete product log inserted successfully");
+      }
+    });
     db.query(
       `UPDATE products SET available = 0 WHERE product_id = "${id}" and farmer_id = "${farmerId}"`,
       (err, result) => {
