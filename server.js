@@ -3509,7 +3509,8 @@ app.post(
         lastname = lastname ? `lastname = "${lastname}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} WHERE username = "${username}"`;
+        lineid = lineid ? `,lineid = "${lineid}"` : "";
+        query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} ${lineid} WHERE username = "${username}"`;
       } else if (role === "tambons") {
         email = email ? `,email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
@@ -3517,8 +3518,7 @@ app.post(
         amphure = amphure ? `,amphure = "${amphure}"` : "";
         phone = phone ? `phone = "${phone}"` : "";
         address = address ? `,address = "${address}"` : "";
-        lineid = lineid ? `,lineid = "${lineid}"` : "";
-        query = `UPDATE officer_user SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} ${lineid} WHERE username = "${username}"`;
+        query = `UPDATE officer_user SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} WHERE username = "${username}"`;
         //แก้ไข office
       } else {
         email = email ? `email = "${email}"` : "";
