@@ -2053,7 +2053,90 @@ app.get("/users/:roleParams", async (req, res) => {
             }
           }
         );
-      } else if (roleParams === "farmers") {
+      }
+      //  else if (roleParams === "members") {
+      //   db.query(
+      //     `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+      //     [username],
+      //     async (idErr, idResult) => {
+      //       if (idErr) {
+      //         console.error(idErr);
+      //         return res.status(500).json({ error: JSON.stringify(idErr) });
+      //       } else {
+      //         console.log(idResult[0].id);
+      //         const memberId = idResult[0].id;
+      //         const editQuery = `SELECT  em.edit_date AS " lastmodified", COALESCE(m.username, ou.username) AS "editor_username"
+      //         FROM edit_member em
+      //         LEFT JOIN members m ON em.officer_id = m.id
+      //         LEFT JOIN officer_user ou ON em.officer_id = ou.id
+      //         WHERE em.member_id = ?
+      //         ORDER BY em.edit_date DESC
+      //         LIMIT 1
+      //         ;
+      //         `;
+      //         const test = await new Promise((resolve, reject) => {
+      //           db.query(editQuery, [memberId], async (editErr, editResult) => {
+      //             if (editErr) {
+      //               console.error(editErr);
+      //               return res
+      //                 .status(500)
+      //                 .json({ error: JSON.stringify(editErr) });
+      //             } else {
+      //               resolve(editResult[0]);
+      //             }
+      //           });
+      //         });
+      //         console.log(test);
+      //         result[0].editor_info = test;
+      //         return res.json(result[0]);
+      //       }
+      //     }
+      //   );
+      // }
+      //  else if (role === "farmers") {
+      //   db.query(
+      //     `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+      //     [username],
+      //     async (idErr, idResult) => {
+      //       if (idErr) {
+      //         console.error(idErr);
+      //         return res.status(500).json({ error: JSON.stringify(idErr) });
+      //       } else {
+      //         console.log(idResult[0].id);
+      //         const farmerId = idResult[0].id;
+      //         const editQuery = `SELECT em.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
+      //         FROM edit_farmer em
+      //         LEFT JOIN farmers f ON em.officer_id = f.id
+      //         LEFT JOIN officer_user ou ON em.officer_id = ou.id
+      //         WHERE em.farmer_id = ?
+      //         ORDER BY em.edit_date DESC
+      //         LIMIT 1;
+      //         ;
+      //         `;
+      //         const test = await new Promise((resolve, reject) => {
+      //           db.query(
+      //             editQuery,
+      //             [farmerId],
+      //             async (editErr, editResult) => {
+      //               if (editErr) {
+      //                 console.error(editErr);
+      //                 return res
+      //                   .status(500)
+      //                   .json({ error: JSON.stringify(editErr) });
+      //               } else {
+      //                 resolve(editResult[0]);
+      //               }
+      //             }
+      //           );
+      //         });
+      //         console.log(test);
+      //         result[0].editor_info = test;
+      //         return res.json(result[0]);
+      //       }
+      //     }
+      //   );
+      // }
+      else if (roleParams === "farmers") {
         db.query(
           `SELECT * FROM farmers WHERE available = 1 ${
             role === "tambons" ? `AND amphure = "${decoded.amphure}"` : ""
