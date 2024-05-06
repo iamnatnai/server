@@ -2776,7 +2776,7 @@ app.get("/gethistorydownload", (req, res) => {
   try {
     usePooledConnectionAsync(async (db) => {
       db.query(
-        `SELECT dh.download_date AS lastmodified , ou.username AS editor_username
+        `SELECT dh.download_id as id, dh.download_date AS lastmodified , ou.username AS download_user
         FROM download_history dh
         LEFT JOIN officer_user ou ON dh.officer_id = ou.id
         ORDER BY dh.download_date DESC`,
