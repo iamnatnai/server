@@ -6898,43 +6898,49 @@ app.post("/changepassword", async (req, res) => {
     }
 
     const newHashedPassword = await bcrypt.hash(newpassword, 10);
-    console.log(newHashedPassword);
     await usePooledConnectionAsync(async (db) => {
-      return await new Promise((resolve, reject) => {
-        if (roleDecoded === "tambons" && roleBody === "farmers") {
-          roleDecoded = "farmers";
-          usernameDecoded = usernameBody;
-        }
-        db.query(
-          `UPDATE ${
-            roleDecoded !== "admins" ? roleDecoded : roleBody
-          } SET password = "${newHashedPassword}" WHERE username = "${
-            roleDecoded !== "admins" ? usernameDecoded : usernameBody
-          }"`,
+      if (roleDecoded === "tambons" && roleBody === "farmers") {
+        roleDecoded = "farmers";
+        usernameDecoded = usernameBody;
+      }
+      db.query(
+        `UPDATE ${
+          roleDecoded !== "admins"
+            ? roleDecoded == "admins" ||
+              roleDecoded == "tambons" ||
+              roleDecoded == "providers"
+              ? "officer_user"
+              : roleDecoded
+            : roleBody == "admins" ||
+              roleBody == "tambons" ||
+              roleBody == "providers"
+            ? "officer_user"
+            : roleBody
+        } SET password = "${newHashedPassword}" WHERE username = "${
+          roleDecoded !== "admins" ? usernameDecoded : usernameBody
+        }"`,
 
-          (err, result) => {
-            console.log(err);
-            console.log(result);
-            if (err) {
-              reject(err);
-            } else {
-              resolve(result);
+        (err, result) => {
+          if (err) {
+            return res
+              .status(400)
+              .json({ success: false, message: "Error changing password" });
+          } else {
+            if (result.affectedRows === 0) {
+              return res
+                .status(400)
+                .json({ success: false, message: "Username not found" });
             }
+            return res
+              .status(200)
+              .json({
+                success: true,
+                message: "Password changed successfully",
+              });
           }
-        );
-        console.log(
-          `UPDATE ${
-            roleDecoded !== "admins" ? roleDecoded : roleBody
-          } SET password = "${newHashedPassword}" WHERE username = "${
-            roleDecoded !== "admins" ? usernameDecoded : usernameBody
-          }"`
-        );
-      });
+        }
+      );
     });
-
-    return res
-      .status(200)
-      .json({ success: true, message: "Password changed successfully" });
   } catch (error) {
     console.error("Error changing password:", error);
     return res
