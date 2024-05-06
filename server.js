@@ -6294,7 +6294,14 @@ app.get("/login", async (req, res) => {
     });
     usePooledConnectionAsync(async (db) => {
       db.query(
-        `UPDATE ${decoded.role} SET lastLogin = NOW() WHERE username = ? and available = 1`,
+        `UPDATE ${
+          decoded.role == "admins" ||
+          decoded.role == "tambons" ||
+          decoded.role == "providers"
+            ? "officer_user"
+            : decoded.role
+        }
+        SET lastLogin = NOW() WHERE username = ? and available = 1`,
         [decoded.username],
         (err, result) => {
           if (err) {
@@ -6604,7 +6611,7 @@ const generateCertificate = async (
       let query = `INSERT INTO certificate_link_farmer (id, standard_id, product_id, status, date_request, date_expired, is_used, farmer_id, date_recieve)
         VALUES (?, ?, ?, "${
           role === "farmers" ? "pending" : "complete"
-        }", NOW(), ?, 1, ?, ${role === "farmers" ? null : "'complete'"})
+        }", NOW(), ?, 1, ?, ${role === "farmers" ? null : "NOW()"})
       `;
       db.query(
         query,
@@ -6995,23 +7002,36 @@ app.post("/changepassword", async (req, res) => {
         roleDecoded = "farmers";
         usernameDecoded = usernameBody;
       }
-      db.query(
-        `UPDATE ${
-          roleDecoded !== "admins"
-            ? roleDecoded == "admins" ||
-              roleDecoded == "tambons" ||
-              roleDecoded == "providers"
-              ? "officer_user"
-              : roleDecoded
-            : roleBody == "admins" ||
-              roleBody == "tambons" ||
-              roleBody == "providers"
-            ? "officer_user"
-            : roleBody
-        } SET password = "${newHashedPassword}" WHERE username = "${
-          roleDecoded !== "admins" ? usernameDecoded : usernameBody
-        }"`,
 
+      let table = "";
+      if (roleBody && roleDecoded == "admins") {
+        table =
+          roleBody == "admins" ||
+          roleBody == "tambons" ||
+          roleBody == "providers"
+            ? "officer_user"
+            : roleBody;
+      } else if (roleBody == "farmers" && roleDecoded == "tambons") {
+        table = roleBody;
+      } else if (
+        roleDecoded == "admins" ||
+        roleDecoded == "tambons" ||
+        roleDecoded == "providers"
+      ) {
+        table = "officer_user";
+      } else {
+        table = roleDecoded;
+      }
+      let username = "";
+      if (usernameBody && roleDecoded == "admins") {
+        username = usernameBody;
+      } else if (roleBody == "farmers" && roleDecoded == "tambons")
+        username = usernameBody;
+      else {
+        username = usernameDecoded;
+      }
+      db.query(
+        `UPDATE ${table} SET password = "${newHashedPassword}" WHERE username = "${username}"`,
         (err, result) => {
           if (err) {
             return res
