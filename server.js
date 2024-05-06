@@ -688,7 +688,6 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
             .status(500)
             .send({ exist: false, error: "Internal Server Error" });
         } else {
-          console.log(result);
           let validCert = await new Promise((resolve, reject) => {
             db.query(
               `SELECT clf.standard_id, clf.status, sp.standard_name, clf.date_request, clf.date_expired, clf.date_recieve FROM certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE product_id = ? and farmer_id = ? and is_used = 1 and clf.status not like "reject"`,
@@ -2225,7 +2224,14 @@ app.get("/users/:roleParams", async (req, res) => {
                           if (editErr) {
                             reject(editErr);
                           } else {
-                            resolve(editResult[0]);
+                            resolve(
+                              editResult.length == 0
+                                ? {
+                                    lastmodified: null,
+                                    editor_username: null,
+                                  }
+                                : editResult[0]
+                            );
                           }
                         }
                       );
@@ -2279,7 +2285,14 @@ app.get("/users/:roleParams", async (req, res) => {
                           if (editErr) {
                             reject(editErr);
                           } else {
-                            resolve(editResult[0]);
+                            resolve(
+                              editResult.length == 0
+                                ? {
+                                    lastmodified: null,
+                                    editor_username: null,
+                                  }
+                                : editResult[0]
+                            );
                           }
                         }
                       );
