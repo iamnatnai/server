@@ -6434,11 +6434,58 @@ async function checkPendingStatus(product_id, member_id) {
   }
 }
 
+app.get("/farmerselfinfo", checkFarmer, async (req, res) => {
+  await usePooledConnectionAsync(async (db) => {
+    try {
+      const token = req.headers.authorization
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const decoded = jwt.verify(token, secretKey);
+      db.query(
+        `SELECT 
+        f.firstname, 
+        f.lastname, 
+        f.farmerstorename, 
+        f.phone, 
+        f.email, 
+        f.createAt, 
+        COUNT(CASE WHEN p.available = 1 THEN p.product_id ELSE NULL END) AS product_count 
+    FROM 
+        farmers f 
+    LEFT JOIN 
+        products p 
+    ON 
+        f.id = p.farmer_id 
+    WHERE 
+        f.id = ?
+    GROUP BY 
+        f.id;`,
+        [decoded.ID],
+        (err, result) => {
+          if (err) {
+            console.error(err);
+            return res
+              .status(500)
+              .json({ success: false, error: "Internal Server Error" });
+          }
+
+          res.json({ success: true, farmers: result });
+        }
+      );
+    } catch (error) {
+      console.error("Error getting farmer info:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  });
+});
+
 app.get("/farmerinfo", checkTambonProvider, async (req, res) => {
   await usePooledConnectionAsync(async (db) => {
     try {
       db.query(
-        `SELECT  f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id and p.available = 1 and f.available = 1 GROUP BY f.id;`,
+        `SELECT f.firstname, f.lastname, f.farmerstorename, f.phone, f.email, f.createAt, COUNT(p.product_id) as product_count from farmers f LEFT JOIN products p on f.id = p.farmer_id and p.available = 1 and f.available = 1 GROUP BY f.id;`,
         (err, result) => {
           if (err) {
             console.error(err);
