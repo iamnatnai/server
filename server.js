@@ -3019,7 +3019,47 @@ async function insertTambon(
     return;
   });
 }
+async function getEDITIdM() {
+  return await usePooledConnectionAsync(async (db) => {
+    return await new Promise(async (resolve, reject) => {
+      db.query("SELECT count(*) as maxId FROM edit_member", (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          let nextedit = "EDT0000001";
+          if (result[0].maxId) {
+            const currentId = result[0].maxId;
+            const numericPart = parseInt(currentId) + 1;
+            nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+            console.log(numericPart);
+          }
+          resolve(nextedit);
+        }
+      });
+    });
+  });
+}
 
+async function getEDITIdF() {
+  return await usePooledConnectionAsync(async (db) => {
+    return await new Promise(async (resolve, reject) => {
+      db.query("SELECT count(*) as maxId FROM edit_farmer", (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          let nextedit = "EDT0000001";
+          if (result[0].maxId) {
+            const currentId = result[0].maxId;
+            const numericPart = parseInt(currentId) + 1;
+            nextedit = "EDT" + numericPart.toString().padStart(7, "0");
+            console.log(numericPart);
+          }
+          resolve(nextedit);
+        }
+      });
+    });
+  });
+}
 app.post("/adduser", checkAdminTambon, async (req, res) => {
   const {
     username,
@@ -3080,7 +3120,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         lat,
         lng
       );
-      return await usePooledConnectionAsync(async (db) => {
+      await usePooledConnectionAsync(async (db) => {
         const nextedit = await getEDITIdF();
         let id = await new Promise((resolve, reject) => {
           db.query(
@@ -3125,8 +3165,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         lastName,
         tel
       );
-
-      return await usePooledConnectionAsync(async (db) => {
+      await usePooledConnectionAsync(async (db) => {
         const nextedit = await getEDITIdM();
         let id = await new Promise((resolve, reject) => {
           db.query(
@@ -3162,52 +3201,7 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         role
       );
     }
-    async function getEDITIdM() {
-      return await usePooledConnectionAsync(async (db) => {
-        return await new Promise(async (resolve, reject) => {
-          db.query(
-            "SELECT count(*) as maxId FROM edit_member",
-            (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                let nextedit = "EDT0000001";
-                if (result[0].maxId) {
-                  const currentId = result[0].maxId;
-                  const numericPart = parseInt(currentId) + 1;
-                  nextedit = "EDT" + numericPart.toString().padStart(7, "0");
-                  console.log(numericPart);
-                }
-                resolve(nextedit);
-              }
-            }
-          );
-        });
-      });
-    }
-    async function getEDITIdF() {
-      return await usePooledConnectionAsync(async (db) => {
-        return await new Promise(async (resolve, reject) => {
-          db.query(
-            "SELECT count(*) as maxId FROM edit_farmer",
-            (err, result) => {
-              if (err) {
-                reject(err);
-              } else {
-                let nextedit = "EDT0000001";
-                if (result[0].maxId) {
-                  const currentId = result[0].maxId;
-                  const numericPart = parseInt(currentId) + 1;
-                  nextedit = "EDT" + numericPart.toString().padStart(7, "0");
-                  console.log(numericPart);
-                }
-                resolve(nextedit);
-              }
-            }
-          );
-        });
-      });
-    }
+
     res.status(201).json({ success: true, message: "User added successfully" });
   } catch (error) {
     console.error("Error adding user:", error);
@@ -7029,12 +7023,10 @@ app.post("/changepassword", async (req, res) => {
                 .status(400)
                 .json({ success: false, message: "Username not found" });
             }
-            return res
-              .status(200)
-              .json({
-                success: true,
-                message: "Password changed successfully",
-              });
+            return res.status(200).json({
+              success: true,
+              message: "Password changed successfully",
+            });
           }
         }
       );
