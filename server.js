@@ -681,7 +681,7 @@ app.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).send({ status: false, error: "Internal Server Error" });
+    res.status(500).send({ status: false, error: JSON.stringify(error) });
   }
 });
 //หน้าแผนที่ ,สินค้าทั้งหมด , สินค้าเดียว ,เพิ่มสินค้า , แก้ไขสินค้า ,สินค้าของฉัน , ดูประวัตืซื้อขายในฝั่งเกษตรกร , หน้าชำระเงิน , imagestore
@@ -2831,7 +2831,7 @@ GROUP BY
                 reject(err);
               } else {
                 let nextedit = "DNL0000001";
-                if (result[0].maxId) {
+                if (result[0].maxId > 0) {
                   const currentId = result[0].maxId;
                   const numericPart = parseInt(currentId) + 1;
                   nextedit = "DNL" + numericPart.toString().padStart(7, "0");
@@ -3194,7 +3194,9 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
             [username],
             (err, result) => {
               if (err) {
-                throw Error(err);
+                res
+                  .status(500)
+                  .json({ success: false, message: JSON.stringify(err) });
               } else {
                 resolve(result[0].id);
               }
@@ -3205,7 +3207,9 @@ app.post("/adduser", checkAdminTambon, async (req, res) => {
         const editValues = [nextedit, id, decoded.ID];
         db.query(editQuery, editValues, (err, editResult) => {
           if (err) {
-            console.error("Error inserting edit log:", err);
+            res
+              .status(500)
+              .json({ success: false, message: JSON.stringify(err) });
           }
           console.log("Edit log inserted successfully");
         });
@@ -3322,7 +3326,7 @@ async function insertMember(
     from: "thebestkasetnont@gmail.com",
     to: email,
     subject: "ยืนยันตัวตน",
-    text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url} 
+    text: `สวัสดีคุณ ${firstName} ${lastName} คุณได้สมัครสมาชิกกับเว็บไซต์ ${url}
     กรุณายืนยันตัวตนโดยคลิกที่ลิงค์นี้: ${url}/#/confirm/${email}/${encodeURIComponent(
       (await bcrypt.hash(email + secretKey, 10)).replace(/\//g, "slash")
     )}`,
@@ -3337,10 +3341,10 @@ async function insertMember(
   });
 
   return await usePooledConnectionAsync(async (db) => {
-    new Promise(async (resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       db.query(
-        `INSERT INTO members (id, username, email, password, firstname, lastname, phone, member_follows, role) 
-        VALUES (?, ?, ?, ?, ?, ?, ?,?,?)`,
+        `INSERT INTO members (id, username, email, password, firstname, lastname, phone, role) 
+        VALUES (?, ?, ?, ?, ?, ?, ?,?)`,
         [
           memberId,
           username,
@@ -3349,7 +3353,6 @@ async function insertMember(
           firstName,
           lastName,
           tel,
-          null,
           "members",
         ],
         (err, result) => {
@@ -3456,6 +3459,7 @@ app.post(
       let decoded = jwt.verify(token, secretKey);
       const { username, role } = decoded;
       let originalAmphure = amphure;
+      let originalLineId = lineid;
       if (role === "farmers") {
         if (!amphure || !lat || !lng) {
           return res
@@ -3554,7 +3558,7 @@ app.post(
         option = {
           ...option,
           activate: decoded.activate,
-          lineid: lineid,
+          lineid: originalLineId,
         };
       }
       let signedToken = jwt.sign(option, secretKey, {
@@ -3819,72 +3823,70 @@ app.post(
         });
       }
       await usePooledConnectionAsync(async (db) => {
-        db.query(query, (err, result) => {
+        db.query(query, async (err, result) => {
           if (err) {
             console.log(err);
-            res
-              .status(500)
-              .send({ exist: false, error: "Internal Server Error" });
+            res.status(500).send({ exist: false, error: JSON.stringify(err) });
           } else {
-            res.json(result[0]);
+            if (role == "members") {
+              const nextedit = await getEDITIdM();
+              let id = await new Promise((resolve, reject) => {
+                db.query(
+                  `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+                  [username],
+                  (err, result) => {
+                    if (err) {
+                      throw Error(err);
+                    } else {
+                      resolve(result[0].id);
+                    }
+                  }
+                );
+              });
+              const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW())`;
+              const editValues = [nextedit, id, decoded.ID];
+              db.query(editQuery, editValues, (err, editResult) => {
+                if (err) {
+                  res
+                    .status(500)
+                    .send({ exist: false, error: JSON.stringify(err) });
+                }
+                res.json({ success: "Edit log inserted successfully" });
+              });
+            } else if (role == "farmers") {
+              const nextedit = await getEDITIdF();
+              let id = await new Promise((resolve, reject) => {
+                db.query(
+                  `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+                  [username],
+                  (err, result) => {
+                    if (err) {
+                      throw Error(err);
+                    } else {
+                      resolve(result[0].id);
+                    }
+                  }
+                );
+              });
+              const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW()) `;
+              const editValues = [nextedit, id, decoded.ID];
+              db.query(editQuery, editValues, (err, editResult) => {
+                if (err) {
+                  res
+                    .status(500)
+                    .send({ exist: false, error: JSON.stringify(err) });
+                }
+                res.json({ success: "Edit log inserted successfully" });
+              });
+            } else {
+              return res.status(200);
+            }
           }
         });
-        if (role == "members") {
-          const nextedit = await getEDITIdM();
-          let id = await new Promise((resolve, reject) => {
-            db.query(
-              `SELECT id FROM ${role} WHERE username = ? and available = 1`,
-              [username],
-              (err, result) => {
-                if (err) {
-                  throw Error(err);
-                } else {
-                  resolve(result[0].id);
-                }
-              }
-            );
-          });
-          const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW())`;
-          const editValues = [nextedit, id, decoded.ID];
-          db.query(editQuery, editValues, (err, editResult) => {
-            if (err) {
-              console.error("Error inserting edit log:", err);
-            }
-            console.log("Edit log inserted successfully");
-          });
-        }
-        if (role == "farmers") {
-          const nextedit = await getEDITIdF();
-          let id = await new Promise((resolve, reject) => {
-            db.query(
-              `SELECT id FROM ${role} WHERE username = ? and available = 1`,
-              [username],
-              (err, result) => {
-                if (err) {
-                  throw Error(err);
-                } else {
-                  resolve(result[0].id);
-                }
-              }
-            );
-          });
-          const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"edit", NOW()) `;
-          const editValues = [nextedit, id, decoded.ID];
-          db.query(editQuery, editValues, (err, editResult) => {
-            if (err) {
-              console.error("Error inserting edit log:", err);
-            }
-            console.log("Edit log inserted successfully");
-          });
-        }
       });
-
-      return res.status(200);
     } catch (error) {
       console.error("Error updating user:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      res.status(500).json({ success: false, message: JSON.stringify(error) });
     }
   }
 );
@@ -5481,7 +5483,10 @@ app.get("/orderlist", async (req, res) => {
       const orders = await new Promise((resolve, reject) => {
         db.query(orderQuery, [decoded.ID], async (err, result) => {
           if (err) {
-            reject(err);
+            res.status(500).json({
+              success: false,
+              message: JSON.stringify(err),
+            });
           } else {
             for (const order of result) {
               if (!order.transaction_confirm) {
@@ -5498,13 +5503,16 @@ app.get("/orderlist", async (req, res) => {
                       result.map(async (product) => {
                         return await new Promise((resolve, reject) => {
                           const getCommentQuery =
-                            "SELECT review_id ,rating, date_comment, comment FROM product_reviews WHERE product_id = ? and order_id = ? and available = 1";
+                            "SELECT review_id ,rating, date_comment, comment FROM product_reviews WHERE product_id = ? and order_id = ?";
                           db.query(
                             getCommentQuery,
                             [product.product_id, order.id],
                             (err, result) => {
                               if (err) {
-                                reject(err);
+                                res.status(500).json({
+                                  success: false,
+                                  message: JSON.stringify(err),
+                                });
                               } else {
                                 resolve({
                                   product_id: product.product_id,
@@ -6640,7 +6648,13 @@ const generateCertificate = async (
       `;
       db.query(
         query,
-        [certId, standard_id, product_id, date_expired, farmerId],
+        [
+          certId,
+          standard_id,
+          product_id,
+          date_expired ? createMysqlDate(date_expired) : null,
+          farmerId,
+        ],
         (err, result) => {
           if (err) {
             console.error("Error adding certificate:", err);
