@@ -3676,6 +3676,41 @@ app.post(
             }
             console.log("Edit log inserted successfully");
           });
+          const queryC = `DELETE FROM shippingcost WHERE farmer_id = ?`;
+          db.query(queryC, decoded.ID, (err, result) => {
+            if (err) {
+              console.error("Error deleting shippingcost:", err);
+              return res.status(500).json({
+                error: "Error deleting shippingcost",
+                msg: JSON.stringify(err),
+              });
+            }
+            console.log("Shippingcost cleared successfully");
+          });
+
+          const query2 = `
+            INSERT INTO shippingcost (farmer_id, weight, price)
+            VALUES ?
+          `;
+          console.log(shippingcost);
+          let jsonString = shippingcost.substring(15, shippingcost.length - 1);
+          jsonString = JSON.parse(jsonString);
+          const costValues = jsonString.map((item) => [
+            decoded.ID,
+            item.weight,
+            item.price,
+          ]);
+
+          db.query(query2, [costValues], (err, result) => {
+            if (err) {
+              console.error("Error inserting shippingcost:", err);
+              return res.status(500).json({
+                error: "Error inserting shippingcost",
+                msg: JSON.stringify(err),
+              });
+            }
+            console.log("Shippingcost inserted successfully");
+          });
         }
       });
 
@@ -3894,6 +3929,44 @@ app.post(
                     .send({ exist: false, error: JSON.stringify(err) });
                 }
                 res.json({ success: "Edit log inserted successfully" });
+              });
+              const queryC = `DELETE FROM shippingcost WHERE farmer_id = ?`;
+              db.query(queryC, id, (err, result) => {
+                if (err) {
+                  console.error("Error deleting shippingcost:", err);
+                  return res.status(500).json({
+                    error: "Error deleting shippingcost",
+                    msg: JSON.stringify(err),
+                  });
+                }
+                console.log("Shippingcost cleared successfully");
+              });
+
+              const query2 = `
+            INSERT INTO shippingcost (farmer_id, weight, price)
+            VALUES ?
+          `;
+              console.log(shippingcost);
+              let jsonString = shippingcost.substring(
+                15,
+                shippingcost.length - 1
+              );
+              jsonString = JSON.parse(jsonString);
+              const costValues = jsonString.map((item) => [
+                id,
+                item.weight,
+                item.price,
+              ]);
+
+              db.query(query2, [costValues], (err, result) => {
+                if (err) {
+                  console.error("Error inserting shippingcost:", err);
+                  return res.status(500).json({
+                    error: "Error inserting shippingcost",
+                    msg: JSON.stringify(err),
+                  });
+                }
+                console.log("Shippingcost inserted successfully");
               });
             } else {
               return res.status(200);
