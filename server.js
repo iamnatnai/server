@@ -1385,6 +1385,23 @@ app.post("/festival", checkAdmin, async (req, res) => {
       });
 
       console.log(farmerFest);
+      console.log(
+        "-----------------------------------------------------------"
+      );
+      console.log(keyword);
+      const keywordInsertValues = keyword.map((kw) => [nextId, kw]);
+      console.log(keywordInsertValues);
+      const queryKeyword = `INSERT INTO keyword (festival_id, keyword) VALUES ?`;
+      db.query(queryKeyword, [keywordInsertValues], async (err, result) => {
+        if (err) {
+          console.error("Error inserting keyword:", err);
+          return res.status(500).json({
+            error: "Error inserting keyword",
+            msg: JSON.stringify(err),
+          });
+        }
+        console.log("Keyword inserted successfully");
+      });
 
       const queryFest = `INSERT INTO farmerfest (festival_id,product_id,is_accept) VALUES ?`;
       const value = farmerFest.map((item) => [
