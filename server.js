@@ -4862,6 +4862,57 @@ app.get("/fixedadd", async (req, res) => {
   }
 });
 
+app.get("/fixedship", async (req, res) => {
+  try {
+    // Query to retrieve id and shippingcost values from the farmers table
+    const query = "SELECT id, shippingcost FROM farmers";
+
+    // Execute the query
+    await usePooledConnectionAsync(async (db) => {
+      db.query(query, async (err, result) => {
+        if (err) {
+          console.error(err);
+          res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
+        } else {
+          // Extract id and shippingcost values from the result
+          const shippingCosts = result.map((row) => {
+            const farmerId = row.id;
+            const shippingCost = JSON.parse(row.shippingcost);
+            const values = shippingCost.map(({ weight, price }) => [
+              farmerId,
+              weight,
+              price,
+            ]);
+
+            // Insert values into shippingcost table
+            const insertQuery =
+              "INSERT INTO shippingcost (farmer_id, weight, price) VALUES ?";
+            db.query(insertQuery, [values], (insertErr, insertResult) => {
+              if (insertErr) {
+                console.error(insertErr);
+              } else {
+                console.log(
+                  `Shipping costs inserted successfully for farmer ID: ${farmerId}`
+                );
+              }
+            });
+
+            return { farmer_id: farmerId, values };
+          });
+
+          // Send the Shippingcost values in the response
+          res.json({ success: true, shippingCosts });
+        }
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 app.get("/todaybuy", checkFarmer, (req, res) => {
   try {
     const token = req.headers.authorization
