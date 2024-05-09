@@ -4713,7 +4713,7 @@ app.get("/fixedadd", async (req, res) => {
                   imageIds
                 );
                 const insertQuery =
-                  "INSERT INTO additional_image (image_ids, product_id, ) VALUES (?, ?, ?)";
+                  "INSERT INTO additional_image (id, product_id ) VALUES (?, ?)";
                 imageIds.forEach(async (imageId) => {
                   await new Promise((resolve, reject) => {
                     db.query(
