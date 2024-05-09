@@ -327,7 +327,6 @@ app.get("/getproducts", async (req, res) => {
   p.certificate,
   p.selectedType,
   p.view_count,
-  p.campaign_id,
   p.last_modified,
   p.available,
   p.weight,
@@ -383,7 +382,6 @@ LIMIT ${perPage} OFFSET ${page * perPage}`;
         p.certificate,
         p.selectedType,
         p.view_count,
-        p.campaign_id,
         p.last_modified,
         p.available,
         p.weight,
@@ -779,7 +777,6 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
       p.certificate,
       p.selectedType,
       p.view_count,
-      p.campaign_id,
       p.last_modified,
       p.available,
       p.weight,
@@ -798,9 +795,7 @@ WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.avail
       async (err, result) => {
         if (err) {
           console.log(err);
-          res
-            .status(500)
-            .send({ exist: false, error: "Internal Server Error" });
+          res.status(500).send({ exist: false, error: JSON.stringify(err) });
         } else {
           let validCert = await new Promise((resolve, reject) => {
             db.query(
@@ -808,7 +803,7 @@ WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.avail
               [product_id, result[0].farmer_id],
               (err, result) => {
                 if (err) {
-                  throw err;
+                  res.json({ success: false, error: JSON.stringify(err) });
                 } else {
                   resolve(result);
                 }
@@ -898,14 +893,14 @@ app.get("/getcomment/:id", async (req, res) => {
       `SELECT pr.review_id, pr.member_id, m.username AS member_username, pr.product_id, pr.order_id, pr.rating, pr.comment,
        DATE_FORMAT(pr.date_comment, "%Y-%m-%d %H:%i:%s") AS date_comment
        FROM product_reviews pr LEFT JOIN members m ON pr.member_id = m.id 
-      WHERE pr.product_id = ? AND pr.available = 1`,
+      WHERE pr.product_id = ?`,
       [id],
       (err, result) => {
         if (err) {
           console.error(err);
           return res
             .status(500)
-            .json({ success: false, error: "Internal Server Error" });
+            .json({ success: false, error: JSON.stringify(err) });
         }
         // ส่งข้อมูลความคิดเห็นกลับไปในรูปแบบ JSON
         res.json({ success: true, reviews: result });
@@ -1200,7 +1195,6 @@ app.get("/festivaldetail", checkFarmer, async (req, res) => {
             p.certificate,
             p.selectedType AS selectedType,
             p.view_count AS viewCount,
-            p.campaign_id AS campaignId,
             p.last_modified AS lastModified,
             p.available,
             p.weight,
@@ -1411,6 +1405,9 @@ app.post("/festival", checkAdmin, async (req, res) => {
     let token = req.headers.authorization
       ? req.headers.authorization.split(" ")[1]
       : null;
+    if (keyword.length === 0) {
+      return res.status(400).json({ error: "Keyword cannot be empty" });
+    }
     let decoded = jwt.verify(token, secretKey);
     async function getNextId() {
       return await usePooledConnectionAsync(async (db) => {
@@ -4484,20 +4481,22 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           product_id,
           image,
         ]);
-        await new Promise((resolve, reject) => {
-          db.query(
-            addAdditionalImageQuery,
-            [addAdditionalImageValues],
-            (err, result) => {
-              if (err) {
-                console.error("Error adding additional images:", err);
-                reject(err);
+        if (additional_imageIdJson.length > 0) {
+          await new Promise((resolve, reject) => {
+            db.query(
+              addAdditionalImageQuery,
+              [addAdditionalImageValues],
+              (err, result) => {
+                if (err) {
+                  console.error("Error adding additional images:", err);
+                  reject(err);
+                }
+                console.log("Additional images added successfully");
+                resolve(result);
               }
-              console.log("Additional images added successfully");
-              resolve(result);
-            }
-          );
-        });
+            );
+          });
+        }
         const editProductId = await getEDITIdP();
         const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"edit", NOW())`;
         const editValues = [editProductId, product_id, decoded.ID];
@@ -4613,20 +4612,22 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
         nextProductId,
         image,
       ]);
-      await new Promise((resolve, reject) => {
-        db.query(
-          addAdditionalImageQuery,
-          [addAdditionalImageValues],
-          (err, result) => {
-            if (err) {
-              console.error("Error adding additional images:", err);
-              reject(err);
+      if (additional_imageIdJson.length > 0) {
+        await new Promise((resolve, reject) => {
+          db.query(
+            addAdditionalImageQuery,
+            [addAdditionalImageValues],
+            (err, result) => {
+              if (err) {
+                console.error("Error adding additional images:", err);
+                reject(err);
+              }
+              console.log("Additional images added successfully");
+              resolve(result);
             }
-            console.log("Additional images added successfully");
-            resolve(result);
-          }
-        );
-      });
+          );
+        });
+      }
       const editProductId = await getEDITIdP();
       const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"add", NOW())`;
       const editValues = [editProductId, nextProductId, decoded.ID];
@@ -5201,11 +5202,25 @@ app.get(
                         }
                       );
                     });
-                    console.log(test);
-                    result = {
-                      ...result[0],
-                      editor_info: test,
-                    };
+                    let shippingcost = await new Promise((resolve, reject) => {
+                      db.query(
+                        "SELECT weight, price FROM shippingcost WHERE farmer_id = ?",
+                        [farmerId],
+                        (err, result) => {
+                          if (err) {
+                            console.error(err);
+                            reject(err);
+                          } else {
+                            resolve(result);
+                          }
+                        }
+                      );
+                    });
+                    if (shippingcost.length == 0) {
+                      shippingcost = [{ weight: 0, price: 0 }];
+                    }
+                    result[0].editor_info = test;
+                    result[0].shippingcost = JSON.stringify(shippingcost);
                     res.json(result);
                   }
                 }
@@ -5280,7 +5295,7 @@ app.get("/getinfo", async (req, res) => {
     const { username, role } = decoded;
     var query;
     if (role === "farmers") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`;
     } else if (role === "tambons") {
       query = `SELECT username, email, firstname, lastname, phone, amphure from officer_user where username = "${username}"`;
     } else if (role === "members") {
@@ -5372,8 +5387,26 @@ app.get("/getinfo", async (req, res) => {
                     }
                   );
                 });
-                console.log(test);
+                // get shippingcost form shippingcost table
+                let shippingcost = await new Promise((resolve, reject) => {
+                  db.query(
+                    "SELECT weight, price FROM shippingcost WHERE farmer_id = ?",
+                    [farmerId],
+                    (err, result) => {
+                      if (err) {
+                        console.error(err);
+                        reject(err);
+                      } else {
+                        resolve(result);
+                      }
+                    }
+                  );
+                });
+                if (shippingcost.length == 0) {
+                  shippingcost = [{ weight: 0, price: 0 }];
+                }
                 result[0].editor_info = test;
+                result[0].shippingcost = JSON.stringify(shippingcost);
                 return res.json(result[0]);
               }
             }
