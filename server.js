@@ -314,34 +314,104 @@ app.get("/getproducts", async (req, res) => {
       ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}' and available = 1) and`
       : ""
   } category_id = '${category}'`;
-  let query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
-  INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and f.available = 1 and ${
-    search !== "" ? `${"product_name LIKE '%" + search + "%' AND"}` : ""
-  } 
-  ${
-    shopname
-      ? `farmer_id = (select id from farmers where farmerstorename = '${shopname}' and  available = 1) and`
-      : ""
-  } category_id = '${category}' ${
-    groupby ? "group by p.farmer_id" : ""
-  } ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
+  let query = `SELECT  
+  p.product_id,
+  p.farmer_id,
+  p.product_name,
+  p.product_description,
+  p.category_id,
+  p.stock,
+  p.price,
+  p.unit,
+  p.additional_image,
+  p.certificate,
+  p.selectedType,
+  p.view_count,
+  p.campaign_id,
+  p.last_modified,
+  p.available,
+  p.weight,
+  p.selectedStatus,
+  p.date_reserve_start,
+  p.date_reserve_end,
+  p.period,
+  p.forecastDate, 
+  f.lat, 
+  f.lng, 
+  f.farmerstorename, 
+  f.shippingcost, 
+  f.lastLogin,
+  imv.imagepath AS product_video, 
+  i.imagepath AS product_image 
+FROM products p 
+LEFT JOIN farmers f ON p.farmer_id = f.id 
+LEFT JOIN image i ON p.product_image = i.id 
+LEFT JOIN image imv ON p.product_video = imv.id 
+WHERE 
+  p.available = 1 
+  AND f.available = 1 
+  ${search !== "" ? `AND product_name LIKE '%${search}%'` : ""}
+  ${shopname ? `AND f.farmerstorename = '${shopname}'` : ""}
+  ${category ? `AND p.category_id = '${category}'` : ""}
+${groupby ? "GROUP BY p.farmer_id" : ""}
+ORDER BY ${sort} ${order} 
+LIMIT ${perPage} OFFSET ${page * perPage}`;
   if (category == "") {
-    queryMaxPage = `SELECT COUNT(*) as maxPage FROM products where available = 1 ${
-      search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
-    } ${
-      shopname
-        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}' and available = 1) `
-        : ""
-    }`;
-    query = `SELECT p.*, f.lat, f.lng, f.farmerstorename, f.shippingcost, f.lastLogin FROM products p 
-    INNER JOIN farmers f ON p.farmer_id = f.id where p.available = 1 and f.available = 1  ${
-      search !== "" ? `${"and product_name LIKE '%" + search + "%'"}` : ""
-    } ${groupby ? "group by p.farmer_id" : ""} ${
-      shopname
-        ? `and farmer_id = (select id from farmers where farmerstorename = '${shopname}' and available = 1)`
-        : ""
-    }  
-    ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage} `;
+    queryMaxPage = `
+      SELECT COUNT(*) as maxPage 
+      FROM products p
+      LEFT JOIN farmers f ON p.farmer_id = f.id
+      WHERE p.available = 1 
+      ${search !== "" ? `AND product_name LIKE '%${search}%'` : ""}
+      ${
+        shopname
+          ? `AND f.farmerstorename = '${shopname}' AND f.available = 1`
+          : ""
+      }`;
+
+    query = `
+      SELECT 
+        p.product_id,
+        p.farmer_id,
+        p.product_name,
+        p.product_description,
+        p.category_id,
+        p.stock,
+        p.price,
+        p.unit,
+        p.additional_image,
+        p.certificate,
+        p.selectedType,
+        p.view_count,
+        p.campaign_id,
+        p.last_modified,
+        p.available,
+        p.weight,
+        p.selectedStatus,
+        p.date_reserve_start,
+        p.date_reserve_end,
+        p.period,
+        p.forecastDate,
+        f.lat,
+        f.lng,
+        f.farmerstorename,
+        f.shippingcost,
+        f.lastLogin,
+        imv.imagepath AS product_video,
+        i.imagepath AS product_image 
+      FROM products p 
+      LEFT JOIN farmers f ON p.farmer_id = f.id 
+      LEFT JOIN image i ON p.product_image = i.id 
+      LEFT JOIN image imv ON p.product_video = imv.id
+      WHERE p.available = 1 
+      ${search !== "" ? `AND product_name LIKE '%${search}%'` : ""}
+      ${
+        shopname
+          ? `AND f.farmerstorename = '${shopname}' AND f.available = 1`
+          : ""
+      }
+      ${groupby ? "GROUP BY p.farmer_id" : ""}
+      ORDER BY ${sort} ${order} LIMIT ${perPage} OFFSET ${page * perPage}`;
   }
   await usePooledConnectionAsync(async (db) => {
     let AllPage = await new Promise((resolve, reject) => {
@@ -698,9 +768,33 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   const { product_id, shopname } = req.params;
   await usePooledConnectionAsync(async (db) => {
     db.query(
-      `SELECT p.*, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng,f.username,f.phone,
-       f.facebooklink, f.lineid, f.lastLogin FROM products p LEFT JOIN farmers f ON p.farmer_id = f.id 
-       WHERE p.product_id = ? and f.farmerstorename = ? and p.available = 1 and f.available = 1;`,
+      `SELECT   p.product_id,
+      p.farmer_id,
+      p.product_name,
+      p.product_description,
+      p.category_id,
+      p.stock,
+      p.price,
+      p.unit,
+      p.additional_image,
+      p.certificate,
+      p.selectedType,
+      p.view_count,
+      p.campaign_id,
+      p.last_modified,
+      p.available,
+      p.weight,
+      p.selectedStatus,
+      p.date_reserve_start,
+      p.date_reserve_end,
+      p.period,
+      p.forecastDate, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng, f.username, f.phone,
+      f.facebooklink, f.lineid, f.lastLogin, i.imagepath AS product_image , imv.imagepath AS product_video
+FROM products p
+LEFT JOIN farmers f ON p.farmer_id = f.id 
+LEFT JOIN image i ON p.product_image = i.id
+LEFT JOIN image imv ON p.product_video = imv.id
+WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.available = 1;`,
       [product_id, shopname],
       async (err, result) => {
         if (err) {
@@ -4146,6 +4240,45 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           );
         });
       }
+      const IMGQuery = `
+      SELECT id FROM image WHERE imagepath = ?;
+    `;
+
+      const IMGValues = [product_image]; // นำค่า product_image ไปใส่ในอาร์เรย์ของค่าพารามิเตอร์
+
+      product_image = await new Promise((resolve, reject) => {
+        db.query(IMGQuery, IMGValues, (Err, Result) => {
+          if (Err) {
+            console.error("Error updating product_image:", Err);
+            reject(Err);
+          } else {
+            console.log("Product image updated successfully");
+            const IMG = Result[0].id; // เก็บค่า id ที่ได้จากการ query ลงในตัวแปร IMG
+            console.log(IMG);
+            resolve(IMG); // ส่งค่า IMG ออกจาก Promise
+          }
+        });
+      });
+      const VDOQuery = `
+      SELECT id FROM image WHERE imagepath = ?;
+    `;
+
+      const VDOValues = [product_video]; // นำค่า product_image ไปใส่ในอาร์เรย์ของค่าพารามิเตอร์
+
+      product_video = await new Promise((resolve, reject) => {
+        db.query(VDOQuery, VDOValues, (Err, Result) => {
+          if (Err) {
+            console.error("Error updating product_image:", Err);
+            reject(Err);
+          } else {
+            console.log("Product image updated successfully");
+            const VDO = Result[0].id; // เก็บค่า id ที่ได้จากการ query ลงในตัวแปร VDO
+            console.log(VDO);
+            resolve(VDO); // ส่งค่า IMG ออกจาก Promise
+          }
+        });
+      });
+
       async function getEDITIdP() {
         return await usePooledConnectionAsync(async (db) => {
           return await new Promise(async (resolve, reject) => {
@@ -4523,6 +4656,94 @@ app.get("/allsum", async (req, res) => {
     // });
 
     res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.get("/fixedadd", async (req, res) => {
+  try {
+    // Query to retrieve additional_image values from the products table
+    const query = "SELECT additional_image,product_id FROM products";
+
+    // Execute the query
+    await usePooledConnectionAsync(async (db) => {
+      db.query(query, (err, result) => {
+        if (err) {
+          console.error(err);
+          res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
+        } else {
+          // Extract additional_image values from the result
+
+          const additionalImages = result.map((row) => {
+            // Parse the additional_image string as JSON
+            const additionalImageArray = JSON.parse(row.additional_image);
+
+            // Filter out non-empty string values
+            const nonEmptyValues = additionalImageArray.filter(
+              (url) => url.trim().length > 0
+            );
+
+            // Create a placeholder for image IDs
+            const imageIds = [];
+
+            // Query to retrieve image IDs based on imagepath
+            const imageQuery = "SELECT id FROM image WHERE imagepath IN (?)";
+            if (nonEmptyValues.length == 0) {
+              return;
+            }
+            // Execute the image query
+            db.query(imageQuery, [nonEmptyValues], (imageErr, imageResult) => {
+              if (imageErr) {
+                console.error(imageErr);
+              } else {
+                // Extract image IDs from the result
+                imageResult.forEach((row) => {
+                  imageIds.push(row.id);
+                });
+
+                // Log the image IDs
+                console.log(
+                  "Product ID:",
+                  row.product_id,
+                  "Image IDs:",
+                  imageIds
+                );
+                const insertQuery =
+                  "INSERT INTO additional_image (image_ids, product_id, ) VALUES (?, ?, ?)";
+                imageIds.forEach(async (imageId) => {
+                  await new Promise((resolve, reject) => {
+                    db.query(
+                      insertQuery,
+                      [imageId, row.product_id],
+                      (insertErr, insertResult) => {
+                        if (insertErr) {
+                          console.error(insertErr);
+                          reject(insertErr);
+                        } else {
+                          resolve(insertResult);
+                        }
+                      }
+                    );
+                  });
+                });
+              }
+            });
+
+            // Return array of image IDs
+            return { product_id: row.product_id, imageIds: imageIds };
+          });
+
+          // Send the additionalImage values in the response
+          res.json({
+            success: true,
+          });
+        }
+      });
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -5075,7 +5296,12 @@ app.get("/myproducts/:username", async (req, res) => {
     //   }
     // );
     db.query(
-      "SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType,p.certificate, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename FROM products p left join farmers f on p.farmer_id = f.id LEFT JOIN categories c on p.category_id = c.category_id WHERE p.farmer_id = (select id from farmers where username = ? and available = 1) and p.available = 1;",
+      `SELECT p.product_id, p.product_image, p.product_description, p.product_name, p.selectedType,p.certificate, p.last_modified, p.price, p.view_count, p.category_id,c.category_name, f.farmerstorename,i.imagepath AS product_image 
+      FROM products p 
+      LEFT JOIN farmers f ON p.farmer_id = f.id 
+      LEFT JOIN categories c ON p.category_id = c.category_id 
+      LEFT JOIN image i ON p.product_image = i.id 
+      WHERE p.farmer_id = (SELECT id FROM farmers WHERE username = ? AND available = 1) AND p.available = 1;`,
       [username],
       async (err, result) => {
         if (err) {
