@@ -338,7 +338,6 @@ app.get("/getproducts", async (req, res) => {
   f.lat, 
   f.lng, 
   f.farmerstorename, 
-  f.shippingcost, 
   f.lastLogin,
   imv.imagepath AS product_video, 
   i.imagepath AS product_image 
@@ -393,7 +392,6 @@ LIMIT ${perPage} OFFSET ${page * perPage}`;
         f.lat,
         f.lng,
         f.farmerstorename,
-        f.shippingcost,
         f.lastLogin,
         imv.imagepath AS product_video,
         i.imagepath AS product_image 
@@ -422,11 +420,36 @@ LIMIT ${perPage} OFFSET ${page * perPage}`;
         }
       });
     });
-    db.query(query, (err, result) => {
+    db.query(query, async (err, result) => {
       if (err) {
         console.log(err);
         res.status(500).send({ exist: false, error: JSON.stringify(err) });
       } else {
+        // add shipping cost to each product by querying the farmer's shipping cost
+        for (let i = 0; i < result.length; i++) {
+          let shippingcost = await new Promise((resolve, reject) => {
+            db.query(
+              "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
+              [result[i].farmer_id],
+              (err, result) => {
+                if (err) {
+                  console.error(err);
+                  reject(err);
+                } else {
+                  resolve(result);
+                }
+              }
+            );
+          });
+          if (shippingcost.length == 0) {
+            result[i].shippingcost = {
+              weight: 0,
+              price: 0,
+            };
+          }
+          result[i].shippingcost = shippingcost;
+        }
+
         res.json({
           products: result,
           maxPage:
@@ -784,7 +807,7 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
       p.date_reserve_start,
       p.date_reserve_end,
       p.period,
-      p.forecastDate, f.firstname, f.lastname, f.shippingcost, f.address, f.lat, f.lng, f.username, f.phone,
+      p.forecastDate, f.firstname, f.lastname, f.address, f.lat, f.lng, f.username, f.phone,
       f.facebooklink, f.lineid, f.lastLogin, i.imagepath AS product_image , imv.imagepath AS product_video
 FROM products p
 LEFT JOIN farmers f ON p.farmer_id = f.id 
@@ -845,8 +868,29 @@ WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.avail
             );
           });
           additionalImages = additionalImages.map((image) => image.imagepath);
+          let shippingcost = await new Promise((resolve, reject) => {
+            db.query(
+              "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
+              [result[0].farmer_id],
+              (err, result) => {
+                if (err) {
+                  console.error(err);
+                  reject(err);
+                } else {
+                  resolve(result);
+                }
+              }
+            );
+          });
+          if (shippingcost.length == 0) {
+            result[0].shippingcost = {
+              weight: 0,
+              price: 0,
+            };
+          }
           result = {
             ...result[0],
+            shippingcost: JSON.stringify(shippingcost),
             certificate: JSON.stringify(validCert),
             editor_info: editHistory,
             additional_image: JSON.stringify(additionalImages),
@@ -3100,6 +3144,19 @@ async function insertFarmer(
         }
       );
     });
+    //insert shippingcost
+    await new Promise((resolve, reject) => {
+      const query = `INSERT INTO shippingcost
+      (farmer_id, weight, price)
+        VALUES (?, 0, 0)`;
+      db.query(query, [nextUserId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
     if (certificateList) {
       certificateList.map(async (certificate, index) => {
         let nextCertId = await getNextCertId(index);
@@ -5204,7 +5261,7 @@ app.get(
                     });
                     let shippingcost = await new Promise((resolve, reject) => {
                       db.query(
-                        "SELECT weight, price FROM shippingcost WHERE farmer_id = ?",
+                        "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
                         [farmerId],
                         (err, result) => {
                           if (err) {
@@ -5221,7 +5278,8 @@ app.get(
                     }
                     result[0].editor_info = test;
                     result[0].shippingcost = JSON.stringify(shippingcost);
-                    res.json(result);
+                    console.log(result[0]);
+                    res.json(result[0]);
                   }
                 }
               );
@@ -5295,7 +5353,7 @@ app.get("/getinfo", async (req, res) => {
     const { username, role } = decoded;
     var query;
     if (role === "farmers") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`;
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
     } else if (role === "tambons") {
       query = `SELECT username, email, firstname, lastname, phone, amphure from officer_user where username = "${username}"`;
     } else if (role === "members") {
@@ -5388,25 +5446,26 @@ app.get("/getinfo", async (req, res) => {
                   );
                 });
                 // get shippingcost form shippingcost table
-                let shippingcost = await new Promise((resolve, reject) => {
-                  db.query(
-                    "SELECT weight, price FROM shippingcost WHERE farmer_id = ?",
-                    [farmerId],
-                    (err, result) => {
-                      if (err) {
-                        console.error(err);
-                        reject(err);
-                      } else {
-                        resolve(result);
-                      }
-                    }
-                  );
-                });
-                if (shippingcost.length == 0) {
-                  shippingcost = [{ weight: 0, price: 0 }];
-                }
+                // let shippingcost = await new Promise((resolve, reject) => {
+                //   db.query(
+                //     "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
+                //     [farmerId],
+                //     (err, result) => {
+                //       if (err) {
+                //         console.error(err);
+                //         reject(err);
+                //       } else {
+                //         resolve(result);
+                //       }
+                //     }
+                //   );
+                // });
+                // if (shippingcost.length == 0) {
+                //   shippingcost = [{ weight: 0, price: 0 }];
+                // }
                 result[0].editor_info = test;
-                result[0].shippingcost = JSON.stringify(shippingcost);
+                // result[0].shippingcost = JSON.stringify(shippingcost);
+                // console.log(result[0]);
                 return res.json(result[0]);
               }
             }
