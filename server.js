@@ -776,7 +776,6 @@ app.get("/getproduct/:shopname/:product_id", async (req, res) => {
       p.stock,
       p.price,
       p.unit,
-      p.additional_image,
       p.certificate,
       p.selectedType,
       p.view_count,
@@ -835,10 +834,27 @@ WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.avail
               }
             );
           });
+
+          //get additional images path by id in additional_image
+          let additionalImages = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT imagepath FROM image WHERE id IN (SELECT id FROM additional_image WHERE product_id = ?)`,
+              [product_id],
+              (err, result) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  resolve(result);
+                }
+              }
+            );
+          });
+          additionalImages = additionalImages.map((image) => image.imagepath);
           result = {
             ...result[0],
             certificate: JSON.stringify(validCert),
             editor_info: editHistory,
+            additional_image: JSON.stringify(additionalImages),
           };
           res.header("charset", "utf-8").json(result);
         }
@@ -4252,7 +4268,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             console.error("Error updating product_image:", Err);
             reject(Err);
           } else {
-            console.log("Product image updated successfully");
+            console.log("Product image updated successfully22222");
             const IMG = Result[0].id; // เก็บค่า id ที่ได้จากการ query ลงในตัวแปร IMG
             console.log(IMG);
             resolve(IMG); // ส่งค่า IMG ออกจาก Promise
@@ -4264,6 +4280,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
     `;
 
       const VDOValues = [product_video]; // นำค่า product_image ไปใส่ในอาร์เรย์ของค่าพารามิเตอร์
+      console.log("hi");
 
       product_video = await new Promise((resolve, reject) => {
         db.query(VDOQuery, VDOValues, (Err, Result) => {
@@ -4271,14 +4288,17 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             console.error("Error updating product_image:", Err);
             reject(Err);
           } else {
-            console.log("Product image updated successfully");
-            const VDO = Result[0].id; // เก็บค่า id ที่ได้จากการ query ลงในตัวแปร VDO
-            console.log(VDO);
-            resolve(VDO); // ส่งค่า IMG ออกจาก Promise
+            if (Result.length == 0) {
+              resolve(null);
+            } else {
+              const VDO = Result[0].id; // เก็บค่า id ที่ได้จากการ query ลงในตัวแปร VDO
+              console.log(VDO);
+              resolve(VDO); // ส่งค่า IMG ออกจาก Promise
+            }
           }
         });
       });
-
+      console.log("hi");
       async function getEDITIdP() {
         return await usePooledConnectionAsync(async (db) => {
           return await new Promise(async (resolve, reject) => {
@@ -4327,6 +4347,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           message: "กรุณาเพิ่มข้อมูลการชำระเงินหรือรูป Qr code ก่อนเพิ่มสินค้า",
         });
       }
+
       if (product_id) {
         let allCert = await new Promise((resolve, reject) => {
           db.query(
@@ -4390,7 +4411,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
 
         const query = `UPDATE products SET selectedStatus = ?, date_reserve_start = ?, date_reserve_end = ?, product_name = ?,
          product_description = ?,category_id = ?, stock = ?, price = ?, weight = ?, unit = ?, product_image = ?, product_video = ?,
-          additional_image = ?, selectedType = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
+         selectedType = ?, period = ?, forecastDate = ?, last_modified = NOW() WHERE product_id = ? and farmer_id = ?`;
         let result = await new Promise((resolve, reject) => {
           db.query(
             query,
@@ -4407,7 +4428,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               unit,
               product_image,
               product_video,
-              additional_images,
               selectedType,
               createMysqlDate(period),
               createMysqlDate(forecastDate),
@@ -4421,6 +4441,60 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               } else {
                 resolve(result);
               }
+            }
+          );
+        });
+        //delete all additional images in product_id
+        await new Promise((resolve, reject) => {
+          db.query(
+            "DELETE FROM additional_image WHERE product_id = ?",
+            [product_id],
+            (err, result) => {
+              if (err) {
+                console.error("Error deleting additional images:", err);
+                reject(err);
+              }
+              console.log("Additional images deleted successfully");
+              resolve(result);
+            }
+          );
+        });
+        let additional_imageJson = JSON.parse(additional_images);
+        //convert path to img_id
+        let additional_imageIdJson = await Promise.all(
+          additional_imageJson.map(async (image) => {
+            let img_id = await new Promise((resolve, reject) => {
+              db.query(
+                "SELECT id FROM image WHERE imagepath = ?",
+                [image],
+                (err, result) => {
+                  if (err) {
+                    console.error("Error getting image id:", err);
+                    reject(err);
+                  }
+                  resolve(result[0].id);
+                }
+              );
+            });
+            return img_id;
+          })
+        );
+        let addAdditionalImageQuery = `INSERT INTO additional_image (product_id, id) VALUES ?`;
+        let addAdditionalImageValues = additional_imageIdJson.map((image) => [
+          product_id,
+          image,
+        ]);
+        await new Promise((resolve, reject) => {
+          db.query(
+            addAdditionalImageQuery,
+            [addAdditionalImageValues],
+            (err, result) => {
+              if (err) {
+                console.error("Error adding additional images:", err);
+                reject(err);
+              }
+              console.log("Additional images added successfully");
+              resolve(result);
             }
           );
         });
@@ -4458,8 +4532,8 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
       const query = `
         INSERT INTO products (selectedStatus, date_reserve_start, date_reserve_end, product_id, farmer_id,
            product_name, product_description, category_id, stock, price, weight, unit, product_image, 
-           product_video, additional_image, selectedType, period, forecastDate, last_modified)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+           product_video, selectedType, period, forecastDate, last_modified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
       `;
       db.query(
         query,
@@ -4478,7 +4552,6 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           unit,
           product_image,
           product_video,
-          additional_images,
           selectedType,
           createMysqlDate(period),
           forecastDate,
@@ -4515,6 +4588,45 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             .send({ success: true, message: "Product added successfully" });
         }
       );
+      let additional_imageJson = JSON.parse(additional_images);
+      //convert path to img_id
+      let additional_imageIdJson = await Promise.all(
+        additional_imageJson.map(async (image) => {
+          let img_id = await new Promise((resolve, reject) => {
+            db.query(
+              "SELECT id FROM image WHERE imagepath = ?",
+              [image],
+              (err, result) => {
+                if (err) {
+                  console.error("Error getting image id:", err);
+                  reject(err);
+                }
+                resolve(result[0].id);
+              }
+            );
+          });
+          return img_id;
+        })
+      );
+      let addAdditionalImageQuery = `INSERT INTO additional_image (product_id, image) VALUES ?`;
+      let addAdditionalImageValues = additional_imageIdJson.map((image) => [
+        nextProductId,
+        image,
+      ]);
+      await new Promise((resolve, reject) => {
+        db.query(
+          addAdditionalImageQuery,
+          [addAdditionalImageValues],
+          (err, result) => {
+            if (err) {
+              console.error("Error adding additional images:", err);
+              reject(err);
+            }
+            console.log("Additional images added successfully");
+            resolve(result);
+          }
+        );
+      });
       const editProductId = await getEDITIdP();
       const editQuery = `INSERT INTO edit_product (id, product_id, officer_id,method, edit_date) VALUES (?, ?, ?,"add", NOW())`;
       const editValues = [editProductId, nextProductId, decoded.ID];
