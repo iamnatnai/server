@@ -522,7 +522,25 @@ app.get("/festival", async (req, res) => {
             });
           });
 
+          //get key words
+          const keywordQuery = `SELECT keyword FROM keyword WHERE festival_id = ?`;
+          let keywords = await new Promise((resolve, reject) => {
+            db.query(
+              keywordQuery,
+              [festival.id],
+              (keywordErr, keywordResult) => {
+                if (keywordErr) {
+                  console.error(keywordErr);
+                  reject(keywordErr);
+                } else {
+                  resolve(keywordResult);
+                }
+              }
+            );
+          });
+          keywords = keywords.map((keyword) => keyword.keyword);
           festival.editor_info = edits;
+          festival.keywords = JSON.stringify(keywords);
         }
 
         res.status(200).json(festivals);
@@ -883,10 +901,12 @@ WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.avail
             );
           });
           if (shippingcost.length == 0) {
-            result[0].shippingcost = {
-              weight: 0,
-              price: 0,
-            };
+            result[0].shippingcost = [
+              {
+                weight: 0,
+                price: 0,
+              },
+            ];
           }
           result = {
             ...result[0],
@@ -1644,16 +1664,20 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
     if (!festivalExists) {
       return res.status(404).json({ error: "Festival not found" });
     }
+    if (keyword) {
+      return res
+        .status(400)
+        .json({ error: "ในการแก้ไขไม่สามารถแก้ไข keyword ได้" });
+    }
     await usePooledConnectionAsync(async (db) => {
       let query;
       let values;
       query = festivalExists
-        ? "UPDATE festivals SET name = ?, keywords = ?, start_date = ?, end_date = ?, everyYear = ?  WHERE id = ?"
-        : "INSERT INTO festivals (id, name, keywords, start_date, end_date, everyYear) VALUES (?, ?, ?, ?, ?, ?)";
+        ? "UPDATE festivals SET name = ?, start_date = ?, end_date = ?, everyYear = ?  WHERE id = ?"
+        : "INSERT INTO festivals (id, name, start_date, end_date, everyYear) VALUES (?, ?, ?, ?, ?)";
       values = festivalExists
         ? [
             festname,
-            JSON.stringify(keyword),
             createMysqlDate(start_date),
             createMysqlDate(end_date),
             everyYear ? 1 : 0,
@@ -1662,7 +1686,6 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
         : [
             festivalId,
             festname,
-            JSON.stringify(keyword),
             createMysqlDate(start_date),
             createMysqlDate(end_date),
             everyYear ? 1 : 0,
@@ -2461,13 +2484,13 @@ app.get("/users/:roleParams", async (req, res) => {
                   result.map(async (member) => {
                     let editor_info = await new Promise((resolve, reject) => {
                       db.query(
-                        `SELECT em.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
-                    FROM edit_farmer em
-                    LEFT JOIN farmers f ON em.officer_id = f.id
-                    LEFT JOIN officer_user ou ON em.officer_id = ou.id
-                    WHERE em.farmer_id = ?
-                    ORDER BY em.edit_date DESC
-                    LIMIT 1;
+                        `SELECT  em.edit_date AS " lastmodified", COALESCE(m.username, ou.username) AS "editor_username"
+                        FROM edit_member em
+                        LEFT JOIN members m ON em.officer_id = m.id
+                        LEFT JOIN officer_user ou ON em.officer_id = ou.id
+                        WHERE em.member_id = ?
+                        ORDER BY em.edit_date DESC
+                        LIMIT 1;
                     `,
                         [member.id],
                         async (editErr, editResult) => {
@@ -2560,11 +2583,13 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
 
       let id = await new Promise((resolve, reject) => {
         db.query(
-          `SELECT id FROM ${role} WHERE username = ? and available = 1`,
+          `SELECT id FROM ${
+            role == "farmers" || role == "members" ? role : "officer_user"
+          } WHERE username = ? and available = 1`,
           [username],
           (err, result) => {
             if (err) {
-              throw Error(err);
+              res.status(500).json({ error: JSON.stringify(err) });
             } else {
               resolve(result[0].id);
             }
@@ -2575,17 +2600,14 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
       db.query(query, async (err, result) => {
         if (err) {
           console.error("Error deleting user:", err);
-          throw Error(err);
+          res.status(500).json({ error: JSON.stringify(err) });
         }
         if (role === "farmers") {
           const query = `UPDATE products SET available = 0 WHERE farmer_id = "${id}" and available = 1`;
           db.query(query, (err, result) => {
             if (err) {
-              throw Error(err);
+              res.status(500).json({ error: JSON.stringify(err) });
             }
-            return res
-              .status(200)
-              .json({ success: true, message: "User deleted successfully" });
           });
         }
       });
@@ -2635,66 +2657,56 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
           });
         });
       }
-      await usePooledConnectionAsync(async (db) => {
-        db.query(query, (err, result) => {
-          if (err) {
-            console.log(err);
-            res
-              .status(500)
-              .send({ exist: false, error: "Internal Server Error" });
-          } else {
-            res.json(result[0]);
-          }
+
+      if (role == "members") {
+        const nextedit = await getEDITIdM();
+        let id = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT id FROM ${role} WHERE username = ? `,
+            [username],
+            (err, result) => {
+              if (err) {
+                res.status(500).json({ error: JSON.stringify(err) });
+              } else {
+                resolve(result[0].id);
+              }
+            }
+          );
         });
-        if (role == "members") {
-          const nextedit = await getEDITIdM();
-          let id = await new Promise((resolve, reject) => {
-            db.query(
-              `SELECT id FROM ${role} WHERE username = ? `,
-              [username],
-              (err, result) => {
-                if (err) {
-                  throw Error(err);
-                } else {
-                  resolve(result[0].id);
-                }
+        const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"delete", NOW())`;
+        const editValues = [nextedit, id, decoded.ID];
+        db.query(editQuery, editValues, (err, editResult) => {
+          if (err) {
+            res.status(500).json({ error: JSON.stringify(err) });
+          }
+          console.log("Edit log inserted successfully");
+        });
+      }
+      if (role == "farmers") {
+        const nextedit = await getEDITIdF();
+        let id = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT id FROM ${role} WHERE username = ?`,
+            [username],
+            (err, result) => {
+              if (err) {
+                res.status(500).json({ error: JSON.stringify(err) });
+              } else {
+                resolve(result[0].id);
               }
-            );
-          });
-          const editQuery = `INSERT INTO edit_member (id,member_id, officer_id,method, edit_date) VALUES (?, ?,?,"delete", NOW())`;
-          const editValues = [nextedit, id, decoded.ID];
-          db.query(editQuery, editValues, (err, editResult) => {
-            if (err) {
-              console.error("Error inserting edit log:", err);
             }
-            console.log("Edit log inserted successfully");
-          });
-        }
-        if (role == "farmers") {
-          const nextedit = await getEDITIdF();
-          let id = await new Promise((resolve, reject) => {
-            db.query(
-              `SELECT id FROM ${role} WHERE username = ?`,
-              [username],
-              (err, result) => {
-                if (err) {
-                  throw Error(err);
-                } else {
-                  resolve(result[0].id);
-                }
-              }
-            );
-          });
-          const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"delete", NOW()) `;
-          const editValues = [nextedit, id, decoded.ID];
-          db.query(editQuery, editValues, (err, editResult) => {
-            if (err) {
-              console.error("Error inserting edit log:", err);
-            }
-            console.log("Edit log inserted successfully");
-          });
-        }
-      });
+          );
+        });
+        const editQuery = `INSERT INTO edit_farmer (id,farmer_id, officer_id,method, edit_date) VALUES (?, ?,?,"delete", NOW()) `;
+        const editValues = [nextedit, id, decoded.ID];
+        db.query(editQuery, editValues, (err, editResult) => {
+          if (err) {
+            res.status(500).json({ error: JSON.stringify(err) });
+          }
+          console.log("Edit log inserted successfully");
+        });
+      }
+      return res.json({ success: true, message: "User deleted successfully" });
     } catch (error) {
       console.error("Error deleting user:", error);
       return res
@@ -4639,13 +4651,10 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             farmerId,
             farmerstorename
           );
-          return res
-            .status(200)
-            .send({ success: true, message: "Product added successfully" });
         }
       );
       let additional_imageJson = JSON.parse(additional_images);
-      //convert path to img_id
+      // //convert path to img_id
       let additional_imageIdJson = await Promise.all(
         additional_imageJson.map(async (image) => {
           let img_id = await new Promise((resolve, reject) => {
@@ -4655,7 +4664,7 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
               (err, result) => {
                 if (err) {
                   console.error("Error getting image id:", err);
-                  reject(err);
+                  res.json({ success: false, message: JSON.stringify(err) });
                 }
                 resolve(result[0].id);
               }
@@ -4664,10 +4673,10 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           return img_id;
         })
       );
-      let addAdditionalImageQuery = `INSERT INTO additional_image (product_id, image) VALUES ?`;
+      let addAdditionalImageQuery = `INSERT INTO additional_image (id, product_id) VALUES ?`;
       let addAdditionalImageValues = additional_imageIdJson.map((image) => [
-        nextProductId,
         image,
+        nextProductId,
       ]);
       if (additional_imageIdJson.length > 0) {
         await new Promise((resolve, reject) => {
@@ -4677,7 +4686,9 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
             (err, result) => {
               if (err) {
                 console.error("Error adding additional images:", err);
-                reject(err);
+                res
+                  .status(500)
+                  .json({ success: false, message: JSON.stringify(err) });
               }
               console.log("Additional images added successfully");
               resolve(result);
@@ -4699,6 +4710,9 @@ app.post("/addproduct", checkFarmer, async (req, res) => {
           }
         });
       });
+      return res
+        .status(200)
+        .send({ success: true, message: "Product added successfully" });
     });
   } catch (error) {
     console.error("Error adding product:", error);
@@ -4911,57 +4925,6 @@ app.get("/fixedadd", async (req, res) => {
           res.json({
             success: true,
           });
-        }
-      });
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
-  }
-});
-
-app.get("/fixedship", async (req, res) => {
-  try {
-    // Query to retrieve id and shippingcost values from the farmers table
-    const query = "SELECT id, shippingcost FROM farmers";
-
-    // Execute the query
-    await usePooledConnectionAsync(async (db) => {
-      db.query(query, async (err, result) => {
-        if (err) {
-          console.error(err);
-          res
-            .status(500)
-            .json({ success: false, message: "Internal Server Error" });
-        } else {
-          // Extract id and shippingcost values from the result
-          const shippingCosts = result.map((row) => {
-            const farmerId = row.id;
-            const shippingCost = JSON.parse(row.shippingcost);
-            const values = shippingCost.map(({ weight, price }) => [
-              farmerId,
-              weight,
-              price,
-            ]);
-
-            // Insert values into shippingcost table
-            const insertQuery =
-              "INSERT INTO shippingcost (farmer_id, weight, price) VALUES ?";
-            db.query(insertQuery, [values], (insertErr, insertResult) => {
-              if (insertErr) {
-                console.error(insertErr);
-              } else {
-                console.log(
-                  `Shipping costs inserted successfully for farmer ID: ${farmerId}`
-                );
-              }
-            });
-
-            return { farmer_id: farmerId, values };
-          });
-
-          // Send the Shippingcost values in the response
-          res.json({ success: true, shippingCosts });
         }
       });
     });
@@ -5259,7 +5222,7 @@ app.get(
         decoded.role === "tambons" ||
         decoded.role === "providers"
       ) {
-        query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, shippingcost, createAt, lastLogin from ${role} where username = "${username}" and available = 1`;
+        query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, facebooklink, lineid , lat, lng, zipcode, createAt, lastLogin from ${role} where username = "${username}" and available = 1`;
       } else if (role === "members") {
         query = `SELECT username, email, firstname, lastname, phone, address, lineid from ${role} where username = "${username}"`;
       } else {
@@ -5404,7 +5367,7 @@ app.get("/getinfo", async (req, res) => {
     const { username, role } = decoded;
     var query;
     if (role === "farmers") {
-      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode, shippingcost from ${role} where username = "${username}"`;
+      query = `SELECT farmerstorename, username, email, firstname, lastname, phone, address, province, amphure, tambon, payment,facebooklink, lineid , lat, lng, zipcode from ${role} where username = "${username}"`;
     } else if (role === "tambons") {
       query = `SELECT username, email, firstname, lastname, phone, amphure from officer_user where username = "${username}"`;
     } else if (role === "members") {
@@ -5465,31 +5428,30 @@ app.get("/getinfo", async (req, res) => {
             `SELECT id FROM ${role} WHERE username = ? and available = 1`,
             [username],
             async (idErr, idResult) => {
+              // res.json(result[0]);
               if (idErr) {
                 console.error(idErr);
-                return res.status(500).json({ error: JSON.stringify(idErr) });
+                res.status(500).json({ error: JSON.stringify(idErr) });
               } else {
-                console.log(idResult[0].id);
+                if (idResult.length == 0) return res.json(result[0]);
+                //       console.log(idResult[0].id);
                 const farmerId = idResult[0].id;
                 const editQuery = `SELECT em.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
-                FROM edit_farmer em
-                LEFT JOIN farmers f ON em.officer_id = f.id
-                LEFT JOIN officer_user ou ON em.officer_id = ou.id
-                WHERE em.farmer_id = ?
-                ORDER BY em.edit_date DESC
-                LIMIT 1;
-                ;
-                `;
+                      FROM edit_farmer em
+                      LEFT JOIN farmers f ON em.officer_id = f.id
+                      LEFT JOIN officer_user ou ON em.officer_id = ou.id
+                      WHERE em.farmer_id = ?
+                      ORDER BY em.edit_date DESC
+                      LIMIT 1;
+                      ;
+                      `;
                 const test = await new Promise((resolve, reject) => {
                   db.query(
                     editQuery,
                     [farmerId],
                     async (editErr, editResult) => {
                       if (editErr) {
-                        console.error(editErr);
-                        return res
-                          .status(500)
-                          .json({ error: JSON.stringify(editErr) });
+                        reject(editErr);
                       } else {
                         resolve(editResult[0]);
                       }
@@ -5497,27 +5459,32 @@ app.get("/getinfo", async (req, res) => {
                   );
                 });
                 // get shippingcost form shippingcost table
-                // let shippingcost = await new Promise((resolve, reject) => {
-                //   db.query(
-                //     "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
-                //     [farmerId],
-                //     (err, result) => {
-                //       if (err) {
-                //         console.error(err);
-                //         reject(err);
-                //       } else {
-                //         resolve(result);
-                //       }
-                //     }
-                //   );
-                // });
-                // if (shippingcost.length == 0) {
-                //   shippingcost = [{ weight: 0, price: 0 }];
-                // }
-                result[0].editor_info = test;
-                // result[0].shippingcost = JSON.stringify(shippingcost);
+                let shippingcost = await new Promise((resolve, reject) => {
+                  db.query(
+                    "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
+                    [farmerId],
+                    (err, result) => {
+                      if (err) {
+                        console.error(err);
+                        res.status(500).json({ error: JSON.stringify(err) });
+                      } else {
+                        resolve(result);
+                      }
+                    }
+                  );
+                });
+                if (shippingcost.length == 0) {
+                  shippingcost = [{ weight: 0, price: 0 }];
+                }
+
                 // console.log(result[0]);
-                return res.json(result[0]);
+                result = {
+                  ...result[0],
+                  shippingcost: JSON.stringify(shippingcost),
+                  editor_info: test,
+                };
+                console.log(result);
+                res.json(result);
               }
             }
           );
