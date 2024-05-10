@@ -806,119 +806,132 @@ app.get("/getimage/:image", (req, res) => {
 app.get("/getproduct/:shopname/:product_id", async (req, res) => {
   const { product_id, shopname } = req.params;
   await usePooledConnectionAsync(async (db) => {
-    db.query(
-      `SELECT   p.product_id,
-      p.farmer_id,
-      p.product_name,
-      p.product_description,
-      p.category_id,
-      p.stock,
-      p.price,
-      p.unit,
-      p.certificate,
-      p.selectedType,
-      p.view_count,
-      p.last_modified,
-      p.available,
-      p.weight,
-      p.selectedStatus,
-      p.date_reserve_start,
-      p.date_reserve_end,
-      p.period,
-      p.forecastDate, f.firstname, f.lastname, f.address, f.lat, f.lng, f.username, f.phone,
-      f.facebooklink, f.lineid, f.lastLogin, i.imagepath AS product_image , imv.imagepath AS product_video
-FROM products p
-LEFT JOIN farmers f ON p.farmer_id = f.id 
-LEFT JOIN image i ON p.product_image = i.id
-LEFT JOIN image imv ON p.product_video = imv.id
-WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.available = 1;`,
-      [product_id, shopname],
-      async (err, result) => {
-        if (err) {
-          console.log(err);
-          res.status(500).send({ exist: false, error: JSON.stringify(err) });
-        } else {
-          let validCert = await new Promise((resolve, reject) => {
-            db.query(
-              `SELECT clf.standard_id, clf.status, sp.standard_name, clf.date_request, clf.date_expired, clf.date_recieve FROM certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE product_id = ? and farmer_id = ? and is_used = 1 and clf.status not like "reject"`,
-              [product_id, result[0].farmer_id],
-              (err, result) => {
-                if (err) {
-                  res.json({ success: false, error: JSON.stringify(err) });
-                } else {
-                  resolve(result);
-                }
-              }
-            );
-          });
-          let editHistory = await new Promise((resolve, reject) => {
-            db.query(
-              `SELECT ep.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
-              FROM edit_product ep
-              LEFT JOIN farmers f ON ep.officer_id = f.id
-              LEFT JOIN officer_user ou ON ep.officer_id = ou.id
-              WHERE ep.product_id = ?
-              ORDER BY ep.edit_date DESC
-              LIMIT 1;`,
-              [product_id],
-              (err, result) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  resolve(result[0]);
-                }
-              }
-            );
-          });
+    try {
+      db.query(
+        `SELECT   p.product_id,
+        p.farmer_id,
+        p.product_name,
+        p.product_description,
+        p.category_id,
+        p.stock,
+        p.price,
+        p.unit,
+        p.certificate,
+        p.selectedType,
+        p.view_count,
+        p.last_modified,
+        p.available,
+        p.weight,
+        p.selectedStatus,
+        p.date_reserve_start,
+        p.date_reserve_end,
+        p.period,
+        p.forecastDate, f.firstname, f.lastname, f.address, f.lat, f.lng, f.username, f.phone,
+        f.facebooklink, f.lineid, f.lastLogin, i.imagepath AS product_image , imv.imagepath AS product_video
+  FROM products p
+  LEFT JOIN farmers f ON p.farmer_id = f.id 
+  LEFT JOIN image i ON p.product_image = i.id
+  LEFT JOIN image imv ON p.product_video = imv.id
+  WHERE p.product_id = ? AND f.farmerstorename = ? AND p.available = 1 AND f.available = 1;`,
+        [product_id, shopname],
+        async (err, result) => {
+          if (err) {
+            console.log(err);
+            res.status(500).send({ exist: false, error: JSON.stringify(err) });
+          } else {
+            if (result.length == 0) {
+              res
+                .status(404)
+                .send({ exist: false, error: "Product not found" });
+            } else {
+              let validCert = await new Promise((resolve, reject) => {
+                db.query(
+                  `SELECT clf.standard_id, clf.status, sp.standard_name, clf.date_request, clf.date_expired, clf.date_recieve FROM certificate_link_farmer clf inner join standard_products sp on clf.standard_id = sp.standard_id WHERE product_id = ? and farmer_id = ? and is_used = 1 and clf.status not like "reject"`,
+                  [product_id, result[0].farmer_id],
+                  (err, result) => {
+                    if (err) {
+                      res.json({ success: false, error: JSON.stringify(err) });
+                    } else {
+                      resolve(result);
+                    }
+                  }
+                );
+              });
+              let editHistory = await new Promise((resolve, reject) => {
+                db.query(
+                  `SELECT ep.edit_date AS lastmodified ,COALESCE(f.username, ou.username) AS editor_username
+                FROM edit_product ep
+                LEFT JOIN farmers f ON ep.officer_id = f.id
+                LEFT JOIN officer_user ou ON ep.officer_id = ou.id
+                WHERE ep.product_id = ?
+                ORDER BY ep.edit_date DESC
+                LIMIT 1;`,
+                  [product_id],
+                  (err, result) => {
+                    if (err) {
+                      res.json({ success: false, error: JSON.stringify(err) });
+                    } else {
+                      resolve(result[0]);
+                    }
+                  }
+                );
+              });
 
-          //get additional images path by id in additional_image
-          let additionalImages = await new Promise((resolve, reject) => {
-            db.query(
-              `SELECT imagepath FROM image WHERE id IN (SELECT id FROM additional_image WHERE product_id = ?)`,
-              [product_id],
-              (err, result) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  resolve(result);
-                }
+              //get additional images path by id in additional_image
+              let additionalImages = await new Promise((resolve, reject) => {
+                db.query(
+                  `SELECT imagepath FROM image WHERE id IN (SELECT id FROM additional_image WHERE product_id = ?)`,
+                  [product_id],
+                  (err, result) => {
+                    if (err) {
+                      res.json({ success: false, error: JSON.stringify(err) });
+                    } else {
+                      resolve(result);
+                    }
+                  }
+                );
+              });
+              additionalImages = additionalImages.map(
+                (image) => image.imagepath
+              );
+              let shippingcost = await new Promise((resolve, reject) => {
+                db.query(
+                  "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
+                  [result[0].farmer_id],
+                  (err, result) => {
+                    if (err) {
+                      console.error(err);
+                      res.json({ success: false, error: JSON.stringify(err) });
+                    } else {
+                      resolve(result);
+                    }
+                  }
+                );
+              });
+              if (shippingcost.length == 0) {
+                result[0].shippingcost = [
+                  {
+                    weight: 0,
+                    price: 0,
+                  },
+                ];
               }
-            );
-          });
-          additionalImages = additionalImages.map((image) => image.imagepath);
-          let shippingcost = await new Promise((resolve, reject) => {
-            db.query(
-              "SELECT weight, price FROM shippingcost WHERE farmer_id = ? ORDER BY weight ASC",
-              [result[0].farmer_id],
-              (err, result) => {
-                if (err) {
-                  console.error(err);
-                  reject(err);
-                } else {
-                  resolve(result);
-                }
-              }
-            );
-          });
-          if (shippingcost.length == 0) {
-            result[0].shippingcost = [
-              {
-                weight: 0,
-                price: 0,
-              },
-            ];
+              result = {
+                ...result[0],
+                shippingcost: JSON.stringify(shippingcost),
+                certificate: JSON.stringify(validCert),
+                editor_info: editHistory,
+                additional_image: JSON.stringify(additionalImages),
+              };
+              res.header("charset", "utf-8").json(result);
+            }
           }
-          result = {
-            ...result[0],
-            shippingcost: JSON.stringify(shippingcost),
-            certificate: JSON.stringify(validCert),
-            editor_info: editHistory,
-            additional_image: JSON.stringify(additionalImages),
-          };
-          res.header("charset", "utf-8").json(result);
         }
-      }
-    );
+      );
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      return res.status(500).json({ error: JSON.stringify(error) });
+    }
   });
 });
 //หน้าสินค้าเดี่ยว , แผนที่
@@ -1654,7 +1667,7 @@ async function checkFestivalExists(id) {
 app.patch("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
-    const { festname, keyword, start_date, end_date, everyYear } = req.body;
+    const { festname, start_date, end_date, everyYear } = req.body;
 
     const festivalExists = await checkFestivalExists(festivalId);
     let token = req.headers.authorization
@@ -1663,11 +1676,6 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
     let decoded = jwt.verify(token, secretKey);
     if (!festivalExists) {
       return res.status(404).json({ error: "Festival not found" });
-    }
-    if (keyword) {
-      return res
-        .status(400)
-        .json({ error: "ในการแก้ไขไม่สามารถแก้ไข keyword ได้" });
     }
     await usePooledConnectionAsync(async (db) => {
       let query;
@@ -2596,19 +2604,23 @@ app.delete("/deleteuser/:role/:username", async (req, res) => {
           }
         );
       });
+      if (role === "farmers") {
+        const query = `UPDATE products SET available = 0 WHERE farmer_id = "${id}" and available = 1`;
+        await new Promise((resolve, reject) => {
+          db.query(query, (err, result) => {
+            if (err) {
+              console.error("Error deleting user:", err);
+              res.status(500).json({ error: JSON.stringify(err) });
+            }
+            resolve();
+          });
+        });
+      }
       const query = `UPDATE ${role} SET available = 0 WHERE id = "${id}" and available = 1`;
       db.query(query, async (err, result) => {
         if (err) {
           console.error("Error deleting user:", err);
           res.status(500).json({ error: JSON.stringify(err) });
-        }
-        if (role === "farmers") {
-          const query = `UPDATE products SET available = 0 WHERE farmer_id = "${id}" and available = 1`;
-          db.query(query, (err, result) => {
-            if (err) {
-              res.status(500).json({ error: JSON.stringify(err) });
-            }
-          });
         }
       });
       async function getEDITIdF() {
