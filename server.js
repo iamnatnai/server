@@ -2135,6 +2135,15 @@ app.delete("/certificate", checkAdmin, async (req, res) => {
           return res
             .status(500)
             .json({ success: false, message: "Internal Server Error" });
+        }
+      });
+      const query2 = `UPDATE certificate_link_farmer SET is_used = 0 WHERE standard_id = "${id}"`;
+      db.query(query2, (err, result) => {
+        if (err) {
+          console.error("Error deleting certificate:", err);
+          return res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
         } else {
           return res.status(200).json({
             success: true,
