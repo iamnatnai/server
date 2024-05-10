@@ -4009,11 +4009,16 @@ app.post(
         query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} 
       WHERE username = "${username}"`;
       } else {
-        email = email ? `email = "${email}"` : "";
+        if (!firstname || !lastname) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields5" });
+        }
+        email = email ? `,email = "${email}"` : "";
         firstname = firstname ? `firstname = "${firstname}"` : "";
         lastname = lastname ? `lastname = "${lastname}"` : "";
-        phone = phone ? `phone = "${phone}"` : "";
-        query = `UPDATE officer_user SET ${email}, ${firstname}, ${lastname}, ${phone} 
+        phone = phone ? `,phone = "${phone}"` : "";
+        query = `UPDATE officer_user SET ${firstname}, ${lastname} ${phone} ${email} 
       WHERE username = "${username}"`;
       }
       async function getEDITIdF() {
