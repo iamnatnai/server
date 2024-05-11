@@ -3739,11 +3739,13 @@ app.post(
         query = `UPDATE officer_user SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} WHERE username = "${username}"`;
         //แก้ไข office
       } else {
-        email = email ? `email = "${email}"` : "";
-        firstname = firstname ? `firstname = "${firstname}"` : "";
-        lastname = lastname ? `lastname = "${lastname}"` : "";
-        phone = phone ? `phone = "${phone}"` : "";
-        query = `UPDATE officer_user SET ${email}, ${firstname}, ${lastname}, ${phone} WHERE username = "${username}"`;
+        phone = phone != "" ? `"${phone}"` : null;
+        email = email ? `"${email}"` : null;
+        firstname = firstname ? `"${firstname}"` : null;
+        lastname = lastname ? `"${lastname}"` : null;
+
+        query = `UPDATE officer_user SET firstname = ${firstname}, lastname = ${lastname}, phone = ${phone}, email = ${email}
+      WHERE username = "${username}"`;
         //แก้ไข office
       }
       await usePooledConnectionAsync(async (db) => {
@@ -4018,16 +4020,12 @@ app.post(
         query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} 
       WHERE username = "${username}"`;
       } else {
-        if (!firstname || !lastname) {
-          return res
-            .status(400)
-            .json({ success: false, message: "Missing required fields5" });
-        }
-        email = email ? `,email = "${email}"` : "";
-        firstname = firstname ? `firstname = "${firstname}"` : "";
-        lastname = lastname ? `lastname = "${lastname}"` : "";
-        phone = phone ? `,phone = "${phone}"` : "";
-        query = `UPDATE officer_user SET ${firstname}, ${lastname} ${phone} ${email} 
+        phone = phone != "" ? `"${phone}"` : null;
+        email = email ? `"${email}"` : null;
+        firstname = firstname ? `"${firstname}"` : null;
+        lastname = lastname ? `"${lastname}"` : null;
+
+        query = `UPDATE officer_user SET firstname = ${firstname}, lastname = ${lastname}, phone = ${phone}, email = ${email}
       WHERE username = "${username}"`;
       }
       async function getEDITIdF() {
@@ -4171,7 +4169,7 @@ app.post(
                 console.log("Shippingcost inserted successfully");
               });
             } else {
-              return res.status(200);
+              return res.status(200).json({ success: true, message: result });
             }
           }
         });
