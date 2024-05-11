@@ -1667,7 +1667,7 @@ async function checkFestivalExists(id) {
 app.patch("/festival/:id", checkAdmin, async (req, res) => {
   try {
     const festivalId = req.params.id;
-    const { festname, start_date, end_date, everyYear } = req.body;
+    const { festname, start_date, end_date, everyYear, color } = req.body;
 
     const festivalExists = await checkFestivalExists(festivalId);
     let token = req.headers.authorization
@@ -1681,14 +1681,15 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
       let query;
       let values;
       query = festivalExists
-        ? "UPDATE festivals SET name = ?, start_date = ?, end_date = ?, everyYear = ?  WHERE id = ?"
-        : "INSERT INTO festivals (id, name, start_date, end_date, everyYear) VALUES (?, ?, ?, ?, ?)";
+        ? "UPDATE festivals SET name = ?, start_date = ?, end_date = ?, everyYear = ?, color = ? WHERE id = ?"
+        : "INSERT INTO festivals (id, name, start_date, end_date, everyYear, color) VALUES (?, ?, ?, ?, ?, ?)";
       values = festivalExists
         ? [
             festname,
             createMysqlDate(start_date),
             createMysqlDate(end_date),
             everyYear ? 1 : 0,
+            color,
             festivalId,
           ]
         : [
@@ -1697,6 +1698,7 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
             createMysqlDate(start_date),
             createMysqlDate(end_date),
             everyYear ? 1 : 0,
+            color,
           ];
 
       db.query(query, values, (err, results) => {
@@ -1709,9 +1711,6 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
         }
 
         console.log("Festival data updated/inserted successfully");
-        res
-          .status(200)
-          .json({ message: "Festival data updated/inserted successfully" });
       });
 
       async function getEDITId() {
@@ -1750,6 +1749,9 @@ app.patch("/festival/:id", checkAdmin, async (req, res) => {
           console.log("Edit log inserted successfully");
         });
       });
+      res
+        .status(200)
+        .json({ message: "Festival data updated/inserted successfully" });
     });
   } catch (error) {
     console.error("Error updating/inserting festival data:", error);
