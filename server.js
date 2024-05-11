@@ -3739,12 +3739,13 @@ app.post(
         query = `UPDATE officer_user SET ${firstname}, ${lastname}, ${phone} ${address} ${amphure} ${email} WHERE username = "${username}"`;
         //แก้ไข office
       } else {
-        phone = phone != "" ? `"${phone}"` : null;
-        email = email ? `"${email}"` : null;
-        firstname = firstname ? `"${firstname}"` : null;
-        lastname = lastname ? `"${lastname}"` : null;
+        //   phone = phone != "" ? `"${phone}"` : null;
+        //   email = email ? `"${email}"` : null;
+        //   firstname = firstname ? `"${firstname}"` : null;
+        //   lastname = lastname ? `"${lastname}"` : null;
 
-        query = `UPDATE officer_user SET firstname = ${firstname}, lastname = ${lastname}, phone = ${phone}, email = ${email}
+        //   query = `UPDATE officer_user SET firstname = ${firstname}, lastname = ${lastname}, phone = ${phone}, email = ${email}
+        query = `UPDATE officer_user SET firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", email = "${email}"
       WHERE username = "${username}"`;
         //แก้ไข office
       }
@@ -4020,12 +4021,14 @@ app.post(
         query = `UPDATE ${role} SET ${email}, ${firstname}, ${lastname}, ${phone} ${address} 
       WHERE username = "${username}"`;
       } else {
-        phone = phone != "" ? `"${phone}"` : null;
-        email = email ? `"${email}"` : null;
-        firstname = firstname ? `"${firstname}"` : null;
-        lastname = lastname ? `"${lastname}"` : null;
+        // phone = phone != "" ? `"${phone}"` : null;
+        // email = email ? `"${email}"` : null;
+        // firstname = firstname ? `"${firstname}"` : null;
+        // lastname = lastname ? `"${lastname}"` : null;
 
-        query = `UPDATE officer_user SET firstname = ${firstname}, lastname = ${lastname}, phone = ${phone}, email = ${email}
+        // query = `UPDATE officer_user SET firstname = ${firstname}, lastname = ${lastname}, phone = ${phone}, email = ${email}
+        query = `UPDATE officer_user SET firstname = "${firstname}", lastname = "${lastname}", phone = "${phone}", email = "${email}"
+
       WHERE username = "${username}"`;
       }
       async function getEDITIdF() {
